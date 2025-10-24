@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Users, CheckCircle, XCircle, Clock, Trophy, ThumbsUp, ThumbsDown, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Calendar, Users, CheckCircle, XCircle, Clock, Trophy, ThumbsUp, ThumbsDown, ArrowLeft, ArrowRight, FileText } from 'lucide-react';
 import { supabase, Match, Profile } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import ReportMatchResultModal from '../components/ReportMatchResultModal';
 
 type MatchWithPlayers = Match & {
   team_a_player1: Profile;
@@ -26,6 +27,8 @@ export default function MatchesPage() {
   const [approvalStatus, setApprovalStatus] = useState<Record<string, boolean | null>>({});
   const [matchApprovals, setMatchApprovals] = useState<Record<string, PlayerApprovalStatus[]>>({});
   const [approvingMatch, setApprovingMatch] = useState<string | null>(null);
+  const [reportingMatch, setReportingMatch] = useState<MatchWithPlayers | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     loadMatches();
@@ -109,6 +112,74 @@ export default function MatchesPage() {
       alert(error.message || 'Erro ao processar sua resposta. Tente novamente.');
     } finally {
       setApprovingMatch(null);
+    }
+  };
+
+  const handleReportResult = async (data: {
+    location: string;
+    match_date: string;
+    match_time: string;
+    sets: { team_a: number; team_b: number }[];
+    has_tiebreak: boolean;
+    tiebreak_score: { team_a: number; team_b: number } | null;
+  }) => {
+    if (!reportingMatch || !profile) return;
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        throw new Error('Não autenticado');
+      }
+
+      let teamAWins = 0;
+      let teamBWins = 0;
+
+      for (const set of data.sets) {
+        if (set.team_a > set.team_b) teamAWins++;
+        else if (set.team_b > set.team_a) teamBWins++;
+      }
+
+      if (data.has_tiebreak && data.tiebreak_score) {
+        if (data.tiebreak_score.team_a > data.tiebreak_score.team_b) teamAWins++;
+        else if (data.tiebreak_score.team_b > data.tiebreak_score.team_a) teamBWins++;
+      }
+
+      const winner = teamAWins > teamBWins ? 'team_a' : 'team_b';
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/complete-match`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            matchId: reportingMatch.id,
+            teamAScore: teamAWins,
+            teamBScore: teamBWins,
+            winnerTeam: winner,
+            location: data.location,
+            matchDate: data.match_date,
+            matchTime: data.match_time,
+            sets: data.sets,
+            hasTiebreak: data.has_tiebreak,
+            tiebreakScore: data.tiebreak_score
+          })
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erro ao reportar resultado');
+      }
+
+      alert('Resultado reportado com sucesso!');
+      await loadMatches();
+    } catch (error: any) {
+      console.error('Error reporting result:', error);
+      alert(error.message || 'Erro ao reportar resultado. Tente novamente.');
     }
   };
 
@@ -493,10 +564,44 @@ export default function MatchesPage() {
                       </div>
                     </div>
                   )}
+
+                  {match.status === 'scheduled' && (
+                    <div className="mt-6 pt-6 border-t border-gray-200">
+                      <button
+                        onClick={() => {
+                          setReportingMatch(match);
+                          setIsModalOpen(true);
+                        }}
+                        className="w-full flex items-center justify-center px-6 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors"
+                      >
+                        <FileText className="w-5 h-5 mr-2" />
+                        Reportar Resultado
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
+        )}
+
+        {reportingMatch && (
+          <ReportMatchResultModal
+            isOpen={isModalOpen}
+            onClose={() => {
+              setIsModalOpen(false);
+              setReportingMatch(null);
+            }}
+            onSubmit={handleReportResult}
+            teamANames={[
+              reportingMatch.team_a_player1.full_name,
+              reportingMatch.team_a_player2.full_name
+            ]}
+            teamBNames={[
+              reportingMatch.team_b_player1.full_name,
+              reportingMatch.team_b_player2.full_name
+            ]}
+          />
         )}
       </div>
     </div>

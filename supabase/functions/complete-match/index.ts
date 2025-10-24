@@ -47,7 +47,18 @@ Deno.serve(async (req: Request) => {
       throw new Error('Unauthorized');
     }
 
-    const { matchId, teamAScore, teamBScore, winnerTeam } = await req.json();
+    const {
+      matchId,
+      teamAScore,
+      teamBScore,
+      winnerTeam,
+      location,
+      matchDate,
+      matchTime,
+      sets,
+      hasTiebreak,
+      tiebreakScore
+    } = await req.json();
 
     const { data: match, error: matchError } = await supabase
       .from('matches')
@@ -175,7 +186,13 @@ Deno.serve(async (req: Request) => {
         team_a_score: teamAScore,
         team_b_score: teamBScore,
         winner_team: winnerTeam,
-        completed_at: new Date().toISOString()
+        completed_at: new Date().toISOString(),
+        location: location,
+        match_date: matchDate,
+        match_time: matchTime,
+        sets: sets,
+        has_tiebreak: hasTiebreak,
+        tiebreak_score: tiebreakScore
       })
       .eq('id', matchId);
 
