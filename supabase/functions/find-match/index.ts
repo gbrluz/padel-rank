@@ -33,9 +33,12 @@ Deno.serve(async (req: Request) => {
     }
 
     const matchesFound = [];
+    const processedPlayers = new Set();
 
     for (const gender of ['male', 'female']) {
-      const genderQueue = activeQueue.filter(q => q.gender === gender);
+      const genderQueue = activeQueue.filter(q => 
+        q.gender === gender && !processedPlayers.has(q.player_id)
+      );
       
       if (genderQueue.length < 4) continue;
 
@@ -66,25 +69,33 @@ Deno.serve(async (req: Request) => {
         const rankingDiff = Math.abs(avgRanking1 - avgRanking2);
 
         if (rankingDiff <= 300) {
-          const match = {
+          matchesFound.push({
             gender,
             team_a: duo1,
             team_b: duo2,
             team_a_was_duo: true,
             team_b_was_duo: true
-          };
-          matchesFound.push(match);
+          });
+
+          duo1.forEach((p: any) => processedPlayers.add(p.player_id));
+          duo2.forEach((p: any) => processedPlayers.add(p.player_id));
+        } else {
+          duos.unshift(duo2);
+          duos.unshift(duo1);
+          break;
         }
       }
 
       while (solos.length >= 4) {
-        const sorted = solos.sort((a, b) => a.average_ranking - b.average_ranking);
+        solos.sort((a, b) => a.average_ranking - b.average_ranking);
         
-        const players = sorted.slice(0, 4);
-        const avgRanking = players.reduce((sum, p) => sum + p.average_ranking, 0) / 4;
-        const maxDiff = Math.max(...players.map(p => Math.abs(p.average_ranking - avgRanking)));
+        const players = solos.slice(0, 4);
+        const rankings = players.map(p => p.average_ranking);
+        const minRanking = Math.min(...rankings);
+        const maxRanking = Math.max(...rankings);
+        const rankingSpread = maxRanking - minRanking;
 
-        if (maxDiff <= 200) {
+        if (rankingSpread <= 300) {
           const leftPlayers = players.filter(p => 
             p.preferred_side === 'left' || p.preferred_side === 'both'
           );
@@ -93,27 +104,47 @@ Deno.serve(async (req: Request) => {
           );
 
           let team1, team2;
+          
           if (leftPlayers.length >= 2 && rightPlayers.length >= 2) {
             team1 = [leftPlayers[0], rightPlayers[0]];
             team2 = [leftPlayers[1], rightPlayers[1]];
+          } else if (leftPlayers.length >= 1 && rightPlayers.length >= 1) {
+            const bothPlayers = players.filter(p => p.preferred_side === 'both');
+            if (bothPlayers.length >= 2) {
+              team1 = [leftPlayers[0] || bothPlayers[0], rightPlayers[0] || bothPlayers[1]];
+              const remaining = players.filter(p => 
+                p.player_id !== team1[0].player_id && p.player_id !== team1[1].player_id
+              );
+              team2 = remaining.slice(0, 2);
+            } else {
+              team1 = [players[0], players[1]];
+              team2 = [players[2], players[3]];
+            }
           } else {
             team1 = [players[0], players[1]];
             team2 = [players[2], players[3]];
           }
 
-          const match = {
-            gender,
-            team_a: team1,
-            team_b: team2,
-            team_a_was_duo: false,
-            team_b_was_duo: false
-          };
-          matchesFound.push(match);
+          const team1Avg = (team1[0].average_ranking + team1[1].average_ranking) / 2;
+          const team2Avg = (team2[0].average_ranking + team2[1].average_ranking) / 2;
+          
+          if (Math.abs(team1Avg - team2Avg) <= 200) {
+            matchesFound.push({
+              gender,
+              team_a: team1,
+              team_b: team2,
+              team_a_was_duo: false,
+              team_b_was_duo: false
+            });
 
-          players.forEach(p => {
-            const index = solos.findIndex(s => s.player_id === p.player_id);
-            if (index !== -1) solos.splice(index, 1);
-          });
+            players.forEach(p => {
+              processedPlayers.add(p.player_id);
+              const index = solos.findIndex(s => s.player_id === p.player_id);
+              if (index !== -1) solos.splice(index, 1);
+            });
+          } else {
+            break;
+          }
         } else {
           break;
         }
@@ -121,27 +152,38 @@ Deno.serve(async (req: Request) => {
 
       if (duos.length >= 1 && solos.length >= 2) {
         const duo = duos.shift()!;
-        const sorted = solos.sort((a, b) => a.average_ranking - b.average_ranking);
+        solos.sort((a, b) => a.average_ranking - b.average_ranking);
         const dualAvg = duo[0].average_ranking;
 
-        for (let i = 0; i < sorted.length - 1; i++) {
-          const player1 = sorted[i];
-          const player2 = sorted[i + 1];
+        let bestMatch = null;
+        let bestDiff = Infinity;
+        let bestIndex = -1;
+
+        for (let i = 0; i < solos.length - 1; i++) {
+          const player1 = solos[i];
+          const player2 = solos[i + 1];
           const soloAvg = (player1.average_ranking + player2.average_ranking) / 2;
+          const diff = Math.abs(dualAvg - soloAvg);
 
-          if (Math.abs(dualAvg - soloAvg) <= 200) {
-            const match = {
-              gender,
-              team_a: duo,
-              team_b: [player1, player2],
-              team_a_was_duo: true,
-              team_b_was_duo: false
-            };
-            matchesFound.push(match);
-
-            solos.splice(i, 2);
-            break;
+          if (diff < bestDiff && diff <= 250) {
+            bestDiff = diff;
+            bestMatch = [player1, player2];
+            bestIndex = i;
           }
+        }
+
+        if (bestMatch) {
+          matchesFound.push({
+            gender,
+            team_a: duo,
+            team_b: bestMatch,
+            team_a_was_duo: true,
+            team_b_was_duo: false
+          });
+
+          duo.forEach((p: any) => processedPlayers.add(p.player_id));
+          bestMatch.forEach((p: any) => processedPlayers.add(p.player_id));
+          solos.splice(bestIndex, 2);
         }
       }
     }
@@ -179,19 +221,30 @@ Deno.serve(async (req: Request) => {
               approved: null
             }))
           );
+
+        await supabase
+          .from('queue_entries')
+          .update({ status: 'matched' })
+          .in('player_id', allPlayers)
+          .eq('status', 'active');
       }
     }
 
     return new Response(
       JSON.stringify({ 
         message: `Found ${matchesFound.length} matches`,
-        found: matchesFound.length
+        found: matchesFound.length,
+        details: matchesFound.map(m => ({
+          gender: m.gender,
+          team_a: [m.team_a[0].player_id, m.team_a[1].player_id],
+          team_b: [m.team_b[0].player_id, m.team_b[1].player_id]
+        }))
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error: any) {
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error.message, stack: error.stack }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
