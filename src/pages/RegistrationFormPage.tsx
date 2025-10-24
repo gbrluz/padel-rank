@@ -119,14 +119,29 @@ export default function RegistrationFormPage() {
     setLoading(true);
 
     try {
-      const { error: insertError } = await supabase
+      const { data: existingProfile } = await supabase
         .from('profiles')
-        .insert([{
-          id: user!.id,
-          ...formData
-        }]);
+        .select('id')
+        .eq('id', user!.id)
+        .maybeSingle();
 
-      if (insertError) throw insertError;
+      if (existingProfile) {
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update(formData)
+          .eq('id', user!.id);
+
+        if (updateError) throw updateError;
+      } else {
+        const { error: insertError } = await supabase
+          .from('profiles')
+          .insert([{
+            id: user!.id,
+            ...formData
+          }]);
+
+        if (insertError) throw insertError;
+      }
 
       await refreshProfile();
     } catch (err: any) {
