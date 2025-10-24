@@ -222,11 +222,10 @@ export default function MatchesPage() {
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50 py-8 px-4">
       <div className="container mx-auto max-w-6xl">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center">
+          <h1 className="text-3xl font-bold text-gray-900 flex items-center">
             <Calendar className="w-8 h-8 mr-3 text-emerald-600" />
             Minhas Partidas
           </h1>
-          <p className="text-gray-600">Acompanhe suas partidas agendadas e histórico</p>
         </div>
 
         <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">

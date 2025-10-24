@@ -155,11 +155,10 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50 py-8 px-4">
       <div className="container mx-auto max-w-4xl">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center">
+          <h1 className="text-3xl font-bold text-gray-900 flex items-center">
             <PlayCircle className="w-8 h-8 mr-3 text-emerald-600" />
             Jogar
           </h1>
-          <p className="text-gray-600">Entre na fila e encontre adversários do seu nível</p>
         </div>
 
         {matchFound && (

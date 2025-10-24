@@ -81,10 +81,9 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50">
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          <h1 className="text-3xl font-bold text-gray-900">
             Olá, {profile.full_name.split(' ')[0]}!
           </h1>
-          <p className="text-gray-600">Bem-vindo ao seu painel de controle</p>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 mb-8">
@@ -299,10 +298,7 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
             <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center mb-4">
               <Calendar className="w-8 h-8 text-white" />
             </div>
-            <h3 className="text-2xl font-bold text-white mb-2">Partidas</h3>
-            <p className="text-blue-50">
-              Acompanhe suas partidas agendadas e histórico
-            </p>
+            <h3 className="text-2xl font-bold text-white">Partidas</h3>
           </button>
 
           <button

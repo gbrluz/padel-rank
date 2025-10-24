@@ -48,7 +48,7 @@ export default function WelcomePage({ onGetStarted }: WelcomePageProps) {
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-3">Gerenciamento Inteligente</h3>
               <p className="text-gray-600">
-                Acompanhe suas partidas, disponibilidade e receba notificações de novos jogos
+                Sistema de aprovação de partidas e gerenciamento de disponibilidade
               </p>
             </div>
           </div>

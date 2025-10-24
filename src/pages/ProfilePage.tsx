@@ -178,11 +178,10 @@ export default function ProfilePage() {
       <div className="container mx-auto max-w-4xl">
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center">
+            <h1 className="text-3xl font-bold text-gray-900 flex items-center">
               <User className="w-8 h-8 mr-3 text-emerald-600" />
               Meu Perfil
             </h1>
-            <p className="text-gray-600">Gerencie suas informações e estatísticas</p>
           </div>
           {!isEditing && (
             <button
