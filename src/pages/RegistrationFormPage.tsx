@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { User, Calendar, MapPin, Target, Clock, ArrowRight } from 'lucide-react';
+import { User, Calendar, MapPin, Target, Clock, ArrowRight, LogOut } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 
@@ -23,7 +23,7 @@ const PERIOD_LABELS: Record<string, string> = {
 };
 
 export default function RegistrationFormPage() {
-  const { user, refreshProfile } = useAuth();
+  const { user, refreshProfile, signOut } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [states, setStates] = useState<State[]>([]);
@@ -151,12 +151,27 @@ export default function RegistrationFormPage() {
     }
   };
 
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+    } catch (err) {
+      console.error('Erro ao sair:', err);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50 py-8 px-4">
       <div className="max-w-3xl mx-auto">
         <div className="bg-white rounded-3xl shadow-2xl p-8 md:p-10">
-          <div className="text-center mb-8">
+          <div className="flex items-center justify-between mb-8">
             <h2 className="text-3xl font-bold text-gray-900">Complete seu Perfil</h2>
+            <button
+              onClick={handleSignOut}
+              className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <LogOut className="w-5 h-5" />
+              <span className="text-sm font-medium">Sair</span>
+            </button>
           </div>
 
           {error && (
