@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Users, CheckCircle, XCircle, Clock, Trophy, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { Calendar, Users, CheckCircle, XCircle, Clock, Trophy, ThumbsUp, ThumbsDown, ArrowLeft, ArrowRight } from 'lucide-react';
 import { supabase, Match, Profile } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -238,15 +238,45 @@ export default function MatchesPage() {
 
                   <div className="grid md:grid-cols-3 gap-4 items-center">
                     <div className={`p-4 rounded-xl ${isTeamA ? 'bg-emerald-50 border-2 border-emerald-200' : 'bg-gray-50'}`}>
-                      <div className="text-sm font-semibold text-gray-600 mb-2">Time A</div>
-                      <div className="space-y-1">
-                        <div className="flex items-center">
-                          <Users className="w-4 h-4 mr-2 text-emerald-600" />
-                          <span className="text-sm font-medium">{match.team_a_player1.full_name}</span>
+                      <div className="text-sm font-semibold text-gray-600 mb-3">Time A</div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center flex-1">
+                            <Users className="w-4 h-4 mr-2 text-emerald-600" />
+                            <span className="text-sm font-medium">{match.team_a_player1.full_name}</span>
+                          </div>
+                          <div className="flex items-center ml-2">
+                            {(match as any).team_a_player1_side === 'left' ? (
+                              <>
+                                <ArrowLeft className="w-4 h-4 text-blue-600 mr-1" />
+                                <span className="text-xs font-semibold text-blue-600">ESQ</span>
+                              </>
+                            ) : (
+                              <>
+                                <ArrowRight className="w-4 h-4 text-orange-600 mr-1" />
+                                <span className="text-xs font-semibold text-orange-600">DIR</span>
+                              </>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex items-center">
-                          <Users className="w-4 h-4 mr-2 text-emerald-600" />
-                          <span className="text-sm font-medium">{match.team_a_player2.full_name}</span>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center flex-1">
+                            <Users className="w-4 h-4 mr-2 text-emerald-600" />
+                            <span className="text-sm font-medium">{match.team_a_player2.full_name}</span>
+                          </div>
+                          <div className="flex items-center ml-2">
+                            {(match as any).team_a_player2_side === 'left' ? (
+                              <>
+                                <ArrowLeft className="w-4 h-4 text-blue-600 mr-1" />
+                                <span className="text-xs font-semibold text-blue-600">ESQ</span>
+                              </>
+                            ) : (
+                              <>
+                                <ArrowRight className="w-4 h-4 text-orange-600 mr-1" />
+                                <span className="text-xs font-semibold text-orange-600">DIR</span>
+                              </>
+                            )}
+                          </div>
                         </div>
                       </div>
                       {match.team_a_was_duo && (
@@ -267,15 +297,45 @@ export default function MatchesPage() {
                     </div>
 
                     <div className={`p-4 rounded-xl ${!isTeamA ? 'bg-emerald-50 border-2 border-emerald-200' : 'bg-gray-50'}`}>
-                      <div className="text-sm font-semibold text-gray-600 mb-2">Time B</div>
-                      <div className="space-y-1">
-                        <div className="flex items-center">
-                          <Users className="w-4 h-4 mr-2 text-emerald-600" />
-                          <span className="text-sm font-medium">{match.team_b_player1.full_name}</span>
+                      <div className="text-sm font-semibold text-gray-600 mb-3">Time B</div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center flex-1">
+                            <Users className="w-4 h-4 mr-2 text-emerald-600" />
+                            <span className="text-sm font-medium">{match.team_b_player1.full_name}</span>
+                          </div>
+                          <div className="flex items-center ml-2">
+                            {(match as any).team_b_player1_side === 'left' ? (
+                              <>
+                                <ArrowLeft className="w-4 h-4 text-blue-600 mr-1" />
+                                <span className="text-xs font-semibold text-blue-600">ESQ</span>
+                              </>
+                            ) : (
+                              <>
+                                <ArrowRight className="w-4 h-4 text-orange-600 mr-1" />
+                                <span className="text-xs font-semibold text-orange-600">DIR</span>
+                              </>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex items-center">
-                          <Users className="w-4 h-4 mr-2 text-emerald-600" />
-                          <span className="text-sm font-medium">{match.team_b_player2.full_name}</span>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center flex-1">
+                            <Users className="w-4 h-4 mr-2 text-emerald-600" />
+                            <span className="text-sm font-medium">{match.team_b_player2.full_name}</span>
+                          </div>
+                          <div className="flex items-center ml-2">
+                            {(match as any).team_b_player2_side === 'left' ? (
+                              <>
+                                <ArrowLeft className="w-4 h-4 text-blue-600 mr-1" />
+                                <span className="text-xs font-semibold text-blue-600">ESQ</span>
+                              </>
+                            ) : (
+                              <>
+                                <ArrowRight className="w-4 h-4 text-orange-600 mr-1" />
+                                <span className="text-xs font-semibold text-orange-600">DIR</span>
+                              </>
+                            )}
+                          </div>
                         </div>
                       </div>
                       {match.team_b_was_duo && (

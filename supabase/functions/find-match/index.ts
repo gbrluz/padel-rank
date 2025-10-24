@@ -6,6 +6,31 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
 };
 
+function assignSides(player1: any, player2: any): { player1Side: string, player2Side: string } {
+  const p1Pref = player1.preferred_side;
+  const p2Pref = player2.preferred_side;
+
+  if (p1Pref === 'left' && p2Pref === 'right') {
+    return { player1Side: 'left', player2Side: 'right' };
+  }
+  if (p1Pref === 'right' && p2Pref === 'left') {
+    return { player1Side: 'right', player2Side: 'left' };
+  }
+  if (p1Pref === 'left' && (p2Pref === 'left' || p2Pref === 'both')) {
+    return { player1Side: 'left', player2Side: 'right' };
+  }
+  if (p1Pref === 'right' && (p2Pref === 'right' || p2Pref === 'both')) {
+    return { player1Side: 'right', player2Side: 'left' };
+  }
+  if (p1Pref === 'both' && p2Pref === 'left') {
+    return { player1Side: 'right', player2Side: 'left' };
+  }
+  if (p1Pref === 'both' && p2Pref === 'right') {
+    return { player1Side: 'left', player2Side: 'right' };
+  }
+  return { player1Side: 'left', player2Side: 'right' };
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, {
@@ -189,6 +214,9 @@ Deno.serve(async (req: Request) => {
     }
 
     for (const match of matchesFound) {
+      const teamASides = assignSides(match.team_a[0], match.team_a[1]);
+      const teamBSides = assignSides(match.team_b[0], match.team_b[1]);
+
       const { data: newMatch, error: insertError } = await supabase
         .from('matches')
         .insert([{
@@ -198,6 +226,10 @@ Deno.serve(async (req: Request) => {
           team_a_player2_id: match.team_a[1].player_id,
           team_b_player1_id: match.team_b[0].player_id,
           team_b_player2_id: match.team_b[1].player_id,
+          team_a_player1_side: teamASides.player1Side,
+          team_a_player2_side: teamASides.player2Side,
+          team_b_player1_side: teamBSides.player1Side,
+          team_b_player2_side: teamBSides.player2Side,
           team_a_was_duo: match.team_a_was_duo,
           team_b_was_duo: match.team_b_was_duo
         }])
