@@ -19,7 +19,7 @@ export type Profile = {
   ranking_points: number;
   total_matches: number;
   total_wins: number;
-  win_rate: number;
+  win_rate: string | number;
   is_admin: boolean;
   created_at: string;
   updated_at: string;

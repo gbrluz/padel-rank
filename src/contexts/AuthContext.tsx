@@ -21,14 +21,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = async (userId: string) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .maybeSingle();
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
 
-    if (!error && data) {
-      setProfile(data as Profile);
+      if (error) {
+        console.error('Erro ao buscar perfil:', error);
+        setProfile(null);
+        return;
+      }
+
+      if (data) {
+        console.log('Perfil encontrado:', data);
+        setProfile(data as Profile);
+      } else {
+        console.log('Nenhum perfil encontrado para o usuário:', userId);
+        setProfile(null);
+      }
+    } catch (err) {
+      console.error('Erro inesperado ao buscar perfil:', err);
+      setProfile(null);
     }
   };
 
