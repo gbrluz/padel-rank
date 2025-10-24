@@ -8,6 +8,7 @@ import RankingPage from './pages/RankingPage';
 import MatchesPage from './pages/MatchesPage';
 import PlayPage from './pages/PlayPage';
 import ProfilePage from './pages/ProfilePage';
+import BackofficePage from './pages/BackofficePage';
 import Navigation from './components/Navigation';
 
 function AppContent() {
@@ -54,6 +55,8 @@ function AppContent() {
         return <PlayPage onNavigate={setCurrentPage} />;
       case 'profile':
         return <ProfilePage />;
+      case 'backoffice':
+        return <BackofficePage onNavigate={setCurrentPage} />;
       default:
         return <DashboardPage onNavigate={setCurrentPage} />;
     }

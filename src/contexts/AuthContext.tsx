@@ -10,6 +10,7 @@ type AuthContextType = {
   signUp: (email: string, password: string) => Promise<{ user: User | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  isAdmin: boolean;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -84,8 +85,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const isAdmin = profile?.is_admin ?? false;
+
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signIn, signUp, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ user, profile, loading, signIn, signUp, signOut, refreshProfile, isAdmin }}>
       {children}
     </AuthContext.Provider>
   );

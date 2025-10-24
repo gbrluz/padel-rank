@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Trophy, Calendar, PlayCircle, Home, User } from 'lucide-react';
+import { Trophy, Calendar, PlayCircle, Home, User, Shield } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 
@@ -9,7 +9,7 @@ type NavigationProps = {
 };
 
 export default function Navigation({ currentPage, onNavigate }: NavigationProps) {
-  const { profile } = useAuth();
+  const { profile, isAdmin } = useAuth();
   const [pendingApprovals, setPendingApprovals] = useState(0);
 
   useEffect(() => {
@@ -56,7 +56,8 @@ export default function Navigation({ currentPage, onNavigate }: NavigationProps)
     { id: 'dashboard', icon: Home, label: 'Início' },
     { id: 'ranking', icon: Trophy, label: 'Ranking' },
     { id: 'matches', icon: Calendar, label: 'Partidas' },
-    { id: 'play', icon: PlayCircle, label: 'Jogar', highlight: true }
+    { id: 'play', icon: PlayCircle, label: 'Jogar', highlight: true },
+    ...(isAdmin ? [{ id: 'backoffice', icon: Shield, label: 'Admin', adminOnly: true }] : [])
   ];
 
   return (
@@ -84,9 +85,13 @@ export default function Navigation({ currentPage, onNavigate }: NavigationProps)
                       ? isActive
                         ? 'bg-orange-600 text-white shadow-lg'
                         : 'bg-orange-500 text-white hover:bg-orange-600 shadow-md'
-                      : isActive
-                        ? 'bg-emerald-600 text-white'
-                        : 'text-gray-600 hover:bg-gray-100'
+                      : item.adminOnly
+                        ? isActive
+                          ? 'bg-red-600 text-white shadow-lg'
+                          : 'bg-red-500 text-white hover:bg-red-600 shadow-md'
+                        : isActive
+                          ? 'bg-emerald-600 text-white'
+                          : 'text-gray-600 hover:bg-gray-100'
                   }`}
                 >
                   <Icon className="w-5 h-5 mr-2" />
@@ -137,9 +142,11 @@ export default function Navigation({ currentPage, onNavigate }: NavigationProps)
                 className={`relative flex flex-col items-center space-y-1 ${
                   item.highlight
                     ? 'text-orange-600'
-                    : isActive
-                      ? 'text-emerald-600'
-                      : 'text-gray-500'
+                    : item.adminOnly
+                      ? 'text-red-600'
+                      : isActive
+                        ? 'text-emerald-600'
+                        : 'text-gray-500'
                 }`}
               >
                 <Icon className="w-6 h-6" />
