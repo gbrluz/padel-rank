@@ -182,12 +182,14 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className={`font-semibold truncate ${
-                          isCurrentUser ? 'text-emerald-700' : 'text-gray-900'
-                        }`}>
-                          {player.full_name}
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`font-semibold truncate ${
+                            isCurrentUser ? 'text-emerald-700' : 'text-gray-900'
+                          }`}>
+                            {player.full_name}
+                          </span>
                           {isCurrentUser && (
-                            <span className="ml-2 text-xs bg-emerald-600 text-white px-2 py-1 rounded-full">
+                            <span className="flex-shrink-0 text-xs bg-emerald-600 text-white px-2 py-1 rounded-full whitespace-nowrap">
                               Você
                             </span>
                           )}
