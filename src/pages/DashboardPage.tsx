@@ -277,38 +277,6 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
           </div>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6 mb-8">
-          <button
-            onClick={() => onNavigate('ranking')}
-            className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all transform hover:scale-105 text-left"
-          >
-            <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center mb-4">
-              <Trophy className="w-8 h-8 text-white" />
-            </div>
-            <h3 className="text-2xl font-bold text-white">Ranking</h3>
-          </button>
-
-          <button
-            onClick={() => onNavigate('matches')}
-            className="bg-gradient-to-br from-blue-500 to-cyan-600 rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all transform hover:scale-105 text-left"
-          >
-            <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center mb-4">
-              <Calendar className="w-8 h-8 text-white" />
-            </div>
-            <h3 className="text-2xl font-bold text-white">Partidas</h3>
-          </button>
-
-          <button
-            onClick={() => onNavigate('play')}
-            className="bg-gradient-to-br from-orange-500 to-red-600 rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all transform hover:scale-110 text-left border-4 border-white"
-          >
-            <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center mb-4">
-              <PlayCircle className="w-8 h-8 text-white" />
-            </div>
-            <h3 className="text-2xl font-bold text-white">Jogar</h3>
-          </button>
-        </div>
-
         <div className="bg-white rounded-2xl p-8 shadow-lg">
           <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
             <Users className="w-6 h-6 mr-2 text-emerald-600" />
