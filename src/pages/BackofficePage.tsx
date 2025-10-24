@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Users, UserCog, Trophy, Calendar, Trash2, Save, X } from 'lucide-react';
+import { Users, UserCog, Trophy, Calendar, Trash2, Save, X, Edit } from 'lucide-react';
 import { supabase, Profile } from '../lib/supabase';
 
 interface BackofficePageProps {
   onNavigate: (page: string) => void;
+}
+
+interface ProfileWithEmail extends Profile {
+  email: string;
 }
 
 interface Match {
@@ -15,6 +19,13 @@ interface Match {
   scheduled_date: string | null;
   completed_at: string | null;
   created_at: string;
+  location: string | null;
+  match_date: string | null;
+  match_time: string | null;
+  sets: any;
+  has_tiebreak: boolean;
+  tiebreak_score: any;
+  winner_team: string | null;
   team_a_player1: Profile;
   team_a_player2: Profile;
   team_b_player1: Profile;
@@ -22,12 +33,14 @@ interface Match {
 }
 
 export default function BackofficePage({ onNavigate }: BackofficePageProps) {
-  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [profiles, setProfiles] = useState<ProfileWithEmail[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'profiles' | 'matches'>('profiles');
-  const [editingProfile, setEditingProfile] = useState<Profile | null>(null);
-  const [formData, setFormData] = useState<Partial<Profile>>({});
+  const [editingProfile, setEditingProfile] = useState<ProfileWithEmail | null>(null);
+  const [formData, setFormData] = useState<Partial<ProfileWithEmail>>({});
+  const [editingMatch, setEditingMatch] = useState<Match | null>(null);
+  const [matchFormData, setMatchFormData] = useState<Partial<Match>>({});
 
   useEffect(() => {
     loadData();
@@ -44,14 +57,24 @@ export default function BackofficePage({ onNavigate }: BackofficePageProps) {
   };
 
   const loadProfiles = async () => {
-    const { data, error } = await supabase
+    const { data: profilesData, error: profilesError } = await supabase
       .from('profiles')
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (!error && data) {
-      setProfiles(data);
-    }
+    if (profilesError || !profilesData) return;
+
+    const { data: usersData } = await supabase.auth.admin.listUsers();
+
+    const profilesWithEmail = profilesData.map(profile => {
+      const user = usersData?.users.find(u => u.id === profile.id);
+      return {
+        ...profile,
+        email: user?.email || 'Email não encontrado'
+      };
+    });
+
+    setProfiles(profilesWithEmail);
   };
 
   const loadMatches = async () => {
@@ -135,6 +158,40 @@ export default function BackofficePage({ onNavigate }: BackofficePageProps) {
 
     if (!error) {
       await loadMatches();
+    }
+  };
+
+  const handleEditMatch = (match: Match) => {
+    setEditingMatch(match);
+    setMatchFormData(match);
+  };
+
+  const handleCancelMatchEdit = () => {
+    setEditingMatch(null);
+    setMatchFormData({});
+  };
+
+  const handleSaveMatch = async () => {
+    if (!editingMatch) return;
+
+    const { error } = await supabase
+      .from('matches')
+      .update({
+        status: matchFormData.status,
+        team_a_score: matchFormData.team_a_score,
+        team_b_score: matchFormData.team_b_score,
+        winner_team: matchFormData.winner_team,
+        location: matchFormData.location,
+        match_date: matchFormData.match_date,
+        match_time: matchFormData.match_time,
+      })
+      .eq('id', editingMatch.id);
+
+    if (!error) {
+      await loadMatches();
+      handleCancelMatchEdit();
+    } else {
+      alert('Erro ao atualizar partida: ' + error.message);
     }
   };
 
@@ -335,7 +392,7 @@ export default function BackofficePage({ onNavigate }: BackofficePageProps) {
                       {profiles.map((profile) => (
                         <tr key={profile.id} className="border-b border-gray-100 hover:bg-gray-50">
                           <td className="px-4 py-3 text-sm text-gray-900">{profile.full_name}</td>
-                          <td className="px-4 py-3 text-sm text-gray-600">{profile.id}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600">{profile.email}</td>
                           <td className="px-4 py-3 text-sm">
                             <span className="inline-flex items-center">
                               <Trophy className="w-4 h-4 mr-1 text-yellow-500" />
@@ -385,6 +442,116 @@ export default function BackofficePage({ onNavigate }: BackofficePageProps) {
                   </h2>
                 </div>
 
+                {editingMatch ? (
+                  <div className="bg-slate-50 rounded-lg p-6 mb-6">
+                    <h3 className="text-lg font-bold text-gray-900 mb-4">
+                      Editando Partida
+                    </h3>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Status
+                        </label>
+                        <select
+                          value={matchFormData.status || ''}
+                          onChange={(e) => setMatchFormData({ ...matchFormData, status: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                        >
+                          <option value="pending_approval">Aguardando Aprovação</option>
+                          <option value="scheduled">Agendada</option>
+                          <option value="completed">Concluída</option>
+                          <option value="cancelled">Cancelada</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Local
+                        </label>
+                        <input
+                          type="text"
+                          value={matchFormData.location || ''}
+                          onChange={(e) => setMatchFormData({ ...matchFormData, location: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Data
+                        </label>
+                        <input
+                          type="date"
+                          value={matchFormData.match_date || ''}
+                          onChange={(e) => setMatchFormData({ ...matchFormData, match_date: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Hora
+                        </label>
+                        <input
+                          type="time"
+                          value={matchFormData.match_time || ''}
+                          onChange={(e) => setMatchFormData({ ...matchFormData, match_time: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Placar Time A
+                        </label>
+                        <input
+                          type="number"
+                          value={matchFormData.team_a_score || 0}
+                          onChange={(e) => setMatchFormData({ ...matchFormData, team_a_score: parseInt(e.target.value) })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Placar Time B
+                        </label>
+                        <input
+                          type="number"
+                          value={matchFormData.team_b_score || 0}
+                          onChange={(e) => setMatchFormData({ ...matchFormData, team_b_score: parseInt(e.target.value) })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Time Vencedor
+                        </label>
+                        <select
+                          value={matchFormData.winner_team || ''}
+                          onChange={(e) => setMatchFormData({ ...matchFormData, winner_team: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                        >
+                          <option value="">Nenhum</option>
+                          <option value="team_a">Time A</option>
+                          <option value="team_b">Time B</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="flex gap-3 mt-6">
+                      <button
+                        onClick={handleSaveMatch}
+                        className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors flex items-center"
+                      >
+                        <Save className="w-4 h-4 mr-2" />
+                        Salvar Alterações
+                      </button>
+                      <button
+                        onClick={handleCancelMatchEdit}
+                        className="px-6 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors flex items-center"
+                      >
+                        <X className="w-4 h-4 mr-2" />
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+
                 <div className="space-y-4">
                   {matches.map((match) => (
                     <div key={match.id} className="bg-slate-50 rounded-lg p-6">
@@ -405,13 +572,22 @@ export default function BackofficePage({ onNavigate }: BackofficePageProps) {
                             {new Date(match.created_at).toLocaleDateString('pt-BR')}
                           </span>
                         </div>
-                        <button
-                          onClick={() => handleDeleteMatch(match.id)}
-                          className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center text-sm"
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Excluir
-                        </button>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleEditMatch(match)}
+                            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center text-sm"
+                          >
+                            <Edit className="w-4 h-4 mr-2" />
+                            Editar
+                          </button>
+                          <button
+                            onClick={() => handleDeleteMatch(match.id)}
+                            className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center text-sm"
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Excluir
+                          </button>
+                        </div>
                       </div>
 
                       <div className="grid md:grid-cols-2 gap-6">
