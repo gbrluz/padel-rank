@@ -48,12 +48,18 @@ export default function MatchesPage() {
 
     setApprovingMatch(matchId);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        throw new Error('Não autenticado');
+      }
+
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/match-approval`,
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Authorization': `Bearer ${session.access_token}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ matchId, approved })
@@ -61,15 +67,16 @@ export default function MatchesPage() {
       );
 
       if (!response.ok) {
-        throw new Error('Erro ao processar aprovação');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erro ao processar aprovação');
       }
 
       setApprovalStatus(prev => ({ ...prev, [matchId]: approved }));
       await loadMatches();
       await loadApprovalStatus();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error approving match:', error);
-      alert('Erro ao processar sua resposta. Tente novamente.');
+      alert(error.message || 'Erro ao processar sua resposta. Tente novamente.');
     } finally {
       setApprovingMatch(null);
     }
