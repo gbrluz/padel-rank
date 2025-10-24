@@ -41,6 +41,33 @@ export default function RegistrationFormPage() {
   });
 
   useEffect(() => {
+    const loadExistingProfile = async () => {
+      if (user) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (data && !error) {
+          setFormData({
+            full_name: data.full_name || '',
+            gender: data.gender || '',
+            birth_date: data.birth_date || '',
+            preferred_side: data.preferred_side || '',
+            category: data.category || '',
+            state: data.state || '',
+            city: data.city || '',
+            availability: data.availability || {}
+          });
+        }
+      }
+    };
+
+    loadExistingProfile();
+  }, [user]);
+
+  useEffect(() => {
     fetch('https://servicodados.ibge.gov.br/api/v1/localidades/estados?orderBy=nome')
       .then(res => res.json())
       .then(data => setStates(data))
