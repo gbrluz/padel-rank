@@ -410,11 +410,11 @@ export default function ProfilePage() {
                   <p className="text-gray-600">{profile.category}</p>
                 </div>
 
-                <div className="grid md:grid-cols-4 gap-4 mb-8">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-8">
                   <div className="bg-emerald-50 rounded-xl p-4">
                     <div className="flex items-center mb-2">
                       <Trophy className="w-5 h-5 text-emerald-600 mr-2" />
-                      <span className="text-sm text-gray-600">Pontuação</span>
+                      <span className="text-xs md:text-sm text-gray-600">Pontuação</span>
                     </div>
                     <p className="text-2xl font-bold text-gray-900">{profile.ranking_points}</p>
                   </div>
@@ -422,7 +422,7 @@ export default function ProfilePage() {
                   <div className="bg-blue-50 rounded-xl p-4">
                     <div className="flex items-center mb-2">
                       <Calendar className="w-5 h-5 text-blue-600 mr-2" />
-                      <span className="text-sm text-gray-600">Partidas</span>
+                      <span className="text-xs md:text-sm text-gray-600">Partidas</span>
                     </div>
                     <p className="text-2xl font-bold text-gray-900">{profile.total_matches}</p>
                   </div>
@@ -430,7 +430,7 @@ export default function ProfilePage() {
                   <div className="bg-green-50 rounded-xl p-4">
                     <div className="flex items-center mb-2">
                       <Award className="w-5 h-5 text-green-600 mr-2" />
-                      <span className="text-sm text-gray-600">Vitórias</span>
+                      <span className="text-xs md:text-sm text-gray-600">Vitórias</span>
                     </div>
                     <p className="text-2xl font-bold text-gray-900">{profile.total_wins}</p>
                   </div>
@@ -438,7 +438,7 @@ export default function ProfilePage() {
                   <div className="bg-purple-50 rounded-xl p-4">
                     <div className="flex items-center mb-2">
                       <Trophy className="w-5 h-5 text-purple-600 mr-2" />
-                      <span className="text-sm text-gray-600">Taxa</span>
+                      <span className="text-xs md:text-sm text-gray-600">Taxa</span>
                     </div>
                     <p className="text-2xl font-bold text-gray-900">{profile.win_rate}%</p>
                   </div>
