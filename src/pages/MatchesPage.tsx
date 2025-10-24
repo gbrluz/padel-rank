@@ -10,6 +10,11 @@ type MatchWithPlayers = Match & {
   team_b_player2: Profile;
 };
 
+type PlayerApprovalStatus = {
+  player_id: string;
+  approved: boolean | null;
+};
+
 type StatusFilter = 'all' | 'pending_approval' | 'scheduled' | 'cancelled' | 'completed';
 
 export default function MatchesPage() {
@@ -19,11 +24,13 @@ export default function MatchesPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [genderFilter, setGenderFilter] = useState<'all' | 'male' | 'female'>('all');
   const [approvalStatus, setApprovalStatus] = useState<Record<string, boolean | null>>({});
+  const [matchApprovals, setMatchApprovals] = useState<Record<string, PlayerApprovalStatus[]>>({});
   const [approvingMatch, setApprovingMatch] = useState<string | null>(null);
 
   useEffect(() => {
     loadMatches();
     loadApprovalStatus();
+    loadAllApprovals();
   }, [profile]);
 
   const loadApprovalStatus = async () => {
@@ -40,6 +47,28 @@ export default function MatchesPage() {
         statusMap[approval.match_id] = approval.approved;
       });
       setApprovalStatus(statusMap);
+    }
+  };
+
+  const loadAllApprovals = async () => {
+    if (!profile) return;
+
+    const { data } = await supabase
+      .from('match_approvals')
+      .select('match_id, player_id, approved');
+
+    if (data) {
+      const approvalsMap: Record<string, PlayerApprovalStatus[]> = {};
+      data.forEach(approval => {
+        if (!approvalsMap[approval.match_id]) {
+          approvalsMap[approval.match_id] = [];
+        }
+        approvalsMap[approval.match_id].push({
+          player_id: approval.player_id,
+          approved: approval.approved
+        });
+      });
+      setMatchApprovals(approvalsMap);
     }
   };
 
@@ -74,6 +103,7 @@ export default function MatchesPage() {
       setApprovalStatus(prev => ({ ...prev, [matchId]: approved }));
       await loadMatches();
       await loadApprovalStatus();
+      await loadAllApprovals();
     } catch (error: any) {
       console.error('Error approving match:', error);
       alert(error.message || 'Erro ao processar sua resposta. Tente novamente.');
@@ -154,6 +184,38 @@ export default function MatchesPage() {
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  const getPlayerApprovalStatus = (matchId: string, playerId: string) => {
+    const approvals = matchApprovals[matchId];
+    if (!approvals) return null;
+    const playerApproval = approvals.find(a => a.player_id === playerId);
+    return playerApproval?.approved ?? null;
+  };
+
+  const renderApprovalBadge = (status: boolean | null) => {
+    if (status === true) {
+      return (
+        <span className="inline-flex items-center text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full whitespace-nowrap">
+          <CheckCircle className="w-3 h-3 mr-1" />
+          Aprovado
+        </span>
+      );
+    } else if (status === false) {
+      return (
+        <span className="inline-flex items-center text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full whitespace-nowrap">
+          <XCircle className="w-3 h-3 mr-1" />
+          Recusado
+        </span>
+      );
+    } else {
+      return (
+        <span className="inline-flex items-center text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full whitespace-nowrap">
+          <Clock className="w-3 h-3 mr-1" />
+          Pendente
+        </span>
+      );
+    }
   };
 
   return (
@@ -240,43 +302,57 @@ export default function MatchesPage() {
                     <div className={`p-4 rounded-xl ${isTeamA ? 'bg-emerald-50 border-2 border-emerald-200' : 'bg-gray-50'}`}>
                       <div className="text-sm font-semibold text-gray-600 mb-3">Time A</div>
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center flex-1">
-                            <Users className="w-4 h-4 mr-2 text-emerald-600" />
-                            <span className="text-sm font-medium">{match.team_a_player1.full_name}</span>
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center flex-1">
+                              <Users className="w-4 h-4 mr-2 text-emerald-600" />
+                              <span className="text-sm font-medium">{match.team_a_player1.full_name}</span>
+                            </div>
+                            <div className="flex items-center ml-2">
+                              {(match as any).team_a_player1_side === 'left' ? (
+                                <>
+                                  <ArrowLeft className="w-4 h-4 text-blue-600 mr-1" />
+                                  <span className="text-xs font-semibold text-blue-600">ESQ</span>
+                                </>
+                              ) : (
+                                <>
+                                  <ArrowRight className="w-4 h-4 text-orange-600 mr-1" />
+                                  <span className="text-xs font-semibold text-orange-600">DIR</span>
+                                </>
+                              )}
+                            </div>
                           </div>
-                          <div className="flex items-center ml-2">
-                            {(match as any).team_a_player1_side === 'left' ? (
-                              <>
-                                <ArrowLeft className="w-4 h-4 text-blue-600 mr-1" />
-                                <span className="text-xs font-semibold text-blue-600">ESQ</span>
-                              </>
-                            ) : (
-                              <>
-                                <ArrowRight className="w-4 h-4 text-orange-600 mr-1" />
-                                <span className="text-xs font-semibold text-orange-600">DIR</span>
-                              </>
-                            )}
-                          </div>
+                          {match.status === 'pending_approval' && (
+                            <div className="ml-6">
+                              {renderApprovalBadge(getPlayerApprovalStatus(match.id, match.team_a_player1_id))}
+                            </div>
+                          )}
                         </div>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center flex-1">
-                            <Users className="w-4 h-4 mr-2 text-emerald-600" />
-                            <span className="text-sm font-medium">{match.team_a_player2.full_name}</span>
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center flex-1">
+                              <Users className="w-4 h-4 mr-2 text-emerald-600" />
+                              <span className="text-sm font-medium">{match.team_a_player2.full_name}</span>
+                            </div>
+                            <div className="flex items-center ml-2">
+                              {(match as any).team_a_player2_side === 'left' ? (
+                                <>
+                                  <ArrowLeft className="w-4 h-4 text-blue-600 mr-1" />
+                                  <span className="text-xs font-semibold text-blue-600">ESQ</span>
+                                </>
+                              ) : (
+                                <>
+                                  <ArrowRight className="w-4 h-4 text-orange-600 mr-1" />
+                                  <span className="text-xs font-semibold text-orange-600">DIR</span>
+                                </>
+                              )}
+                            </div>
                           </div>
-                          <div className="flex items-center ml-2">
-                            {(match as any).team_a_player2_side === 'left' ? (
-                              <>
-                                <ArrowLeft className="w-4 h-4 text-blue-600 mr-1" />
-                                <span className="text-xs font-semibold text-blue-600">ESQ</span>
-                              </>
-                            ) : (
-                              <>
-                                <ArrowRight className="w-4 h-4 text-orange-600 mr-1" />
-                                <span className="text-xs font-semibold text-orange-600">DIR</span>
-                              </>
-                            )}
-                          </div>
+                          {match.status === 'pending_approval' && (
+                            <div className="ml-6">
+                              {renderApprovalBadge(getPlayerApprovalStatus(match.id, match.team_a_player2_id))}
+                            </div>
+                          )}
                         </div>
                       </div>
                       {match.team_a_was_duo && (
@@ -299,43 +375,57 @@ export default function MatchesPage() {
                     <div className={`p-4 rounded-xl ${!isTeamA ? 'bg-emerald-50 border-2 border-emerald-200' : 'bg-gray-50'}`}>
                       <div className="text-sm font-semibold text-gray-600 mb-3">Time B</div>
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center flex-1">
-                            <Users className="w-4 h-4 mr-2 text-emerald-600" />
-                            <span className="text-sm font-medium">{match.team_b_player1.full_name}</span>
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center flex-1">
+                              <Users className="w-4 h-4 mr-2 text-emerald-600" />
+                              <span className="text-sm font-medium">{match.team_b_player1.full_name}</span>
+                            </div>
+                            <div className="flex items-center ml-2">
+                              {(match as any).team_b_player1_side === 'left' ? (
+                                <>
+                                  <ArrowLeft className="w-4 h-4 text-blue-600 mr-1" />
+                                  <span className="text-xs font-semibold text-blue-600">ESQ</span>
+                                </>
+                              ) : (
+                                <>
+                                  <ArrowRight className="w-4 h-4 text-orange-600 mr-1" />
+                                  <span className="text-xs font-semibold text-orange-600">DIR</span>
+                                </>
+                              )}
+                            </div>
                           </div>
-                          <div className="flex items-center ml-2">
-                            {(match as any).team_b_player1_side === 'left' ? (
-                              <>
-                                <ArrowLeft className="w-4 h-4 text-blue-600 mr-1" />
-                                <span className="text-xs font-semibold text-blue-600">ESQ</span>
-                              </>
-                            ) : (
-                              <>
-                                <ArrowRight className="w-4 h-4 text-orange-600 mr-1" />
-                                <span className="text-xs font-semibold text-orange-600">DIR</span>
-                              </>
-                            )}
-                          </div>
+                          {match.status === 'pending_approval' && (
+                            <div className="ml-6">
+                              {renderApprovalBadge(getPlayerApprovalStatus(match.id, match.team_b_player1_id))}
+                            </div>
+                          )}
                         </div>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center flex-1">
-                            <Users className="w-4 h-4 mr-2 text-emerald-600" />
-                            <span className="text-sm font-medium">{match.team_b_player2.full_name}</span>
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center flex-1">
+                              <Users className="w-4 h-4 mr-2 text-emerald-600" />
+                              <span className="text-sm font-medium">{match.team_b_player2.full_name}</span>
+                            </div>
+                            <div className="flex items-center ml-2">
+                              {(match as any).team_b_player2_side === 'left' ? (
+                                <>
+                                  <ArrowLeft className="w-4 h-4 text-blue-600 mr-1" />
+                                  <span className="text-xs font-semibold text-blue-600">ESQ</span>
+                                </>
+                              ) : (
+                                <>
+                                  <ArrowRight className="w-4 h-4 text-orange-600 mr-1" />
+                                  <span className="text-xs font-semibold text-orange-600">DIR</span>
+                                </>
+                              )}
+                            </div>
                           </div>
-                          <div className="flex items-center ml-2">
-                            {(match as any).team_b_player2_side === 'left' ? (
-                              <>
-                                <ArrowLeft className="w-4 h-4 text-blue-600 mr-1" />
-                                <span className="text-xs font-semibold text-blue-600">ESQ</span>
-                              </>
-                            ) : (
-                              <>
-                                <ArrowRight className="w-4 h-4 text-orange-600 mr-1" />
-                                <span className="text-xs font-semibold text-orange-600">DIR</span>
-                              </>
-                            )}
-                          </div>
+                          {match.status === 'pending_approval' && (
+                            <div className="ml-6">
+                              {renderApprovalBadge(getPlayerApprovalStatus(match.id, match.team_b_player2_id))}
+                            </div>
+                          )}
                         </div>
                       </div>
                       {match.team_b_was_duo && (
