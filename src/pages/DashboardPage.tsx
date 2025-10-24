@@ -285,10 +285,7 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
             <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center mb-4">
               <Trophy className="w-8 h-8 text-white" />
             </div>
-            <h3 className="text-2xl font-bold text-white mb-2">Ranking</h3>
-            <p className="text-emerald-50">
-              Veja sua posição e compare com outros jogadores
-            </p>
+            <h3 className="text-2xl font-bold text-white">Ranking</h3>
           </button>
 
           <button
@@ -308,10 +305,7 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
             <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center mb-4">
               <PlayCircle className="w-8 h-8 text-white" />
             </div>
-            <h3 className="text-2xl font-bold text-white mb-2">Jogar</h3>
-            <p className="text-orange-50">
-              Entre na fila e encontre adversários
-            </p>
+            <h3 className="text-2xl font-bold text-white">Jogar</h3>
           </button>
         </div>
 
