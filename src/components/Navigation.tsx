@@ -1,5 +1,7 @@
+import { useState, useEffect } from 'react';
 import { Trophy, Calendar, PlayCircle, Home, User } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 
 type NavigationProps = {
   currentPage: string;
@@ -8,6 +10,45 @@ type NavigationProps = {
 
 export default function Navigation({ currentPage, onNavigate }: NavigationProps) {
   const { profile } = useAuth();
+  const [pendingApprovals, setPendingApprovals] = useState(0);
+
+  useEffect(() => {
+    if (profile) {
+      loadPendingApprovals();
+
+      const channel = supabase
+        .channel('approval-updates')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'match_approvals',
+            filter: `player_id=eq.${profile.id}`
+          },
+          () => {
+            loadPendingApprovals();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        channel.unsubscribe();
+      };
+    }
+  }, [profile]);
+
+  const loadPendingApprovals = async () => {
+    if (!profile) return;
+
+    const { data } = await supabase
+      .from('match_approvals')
+      .select('*')
+      .eq('player_id', profile.id)
+      .is('approved', null);
+
+    setPendingApprovals(data?.length || 0);
+  };
 
   if (!profile) return null;
 
@@ -38,7 +79,7 @@ export default function Navigation({ currentPage, onNavigate }: NavigationProps)
                 <button
                   key={item.id}
                   onClick={() => onNavigate(item.id)}
-                  className={`flex items-center px-6 py-3 rounded-xl font-semibold transition-all ${
+                  className={`relative flex items-center px-6 py-3 rounded-xl font-semibold transition-all ${
                     item.highlight
                       ? isActive
                         ? 'bg-orange-600 text-white shadow-lg'
@@ -50,6 +91,11 @@ export default function Navigation({ currentPage, onNavigate }: NavigationProps)
                 >
                   <Icon className="w-5 h-5 mr-2" />
                   {item.label}
+                  {item.id === 'matches' && pendingApprovals > 0 && (
+                    <span className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center animate-pulse">
+                      {pendingApprovals}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -88,7 +134,7 @@ export default function Navigation({ currentPage, onNavigate }: NavigationProps)
               <button
                 key={item.id}
                 onClick={() => onNavigate(item.id)}
-                className={`flex flex-col items-center space-y-1 ${
+                className={`relative flex flex-col items-center space-y-1 ${
                   item.highlight
                     ? 'text-orange-600'
                     : isActive
@@ -98,6 +144,11 @@ export default function Navigation({ currentPage, onNavigate }: NavigationProps)
               >
                 <Icon className="w-6 h-6" />
                 <span className="text-xs font-medium">{item.label}</span>
+                {item.id === 'matches' && pendingApprovals > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                    {pendingApprovals}
+                  </span>
+                )}
               </button>
             );
           })}

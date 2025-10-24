@@ -1,19 +1,65 @@
 import { useState, useEffect } from 'react';
-import { PlayCircle, Users, User, AlertCircle, Loader } from 'lucide-react';
+import { PlayCircle, Users, User, AlertCircle, Loader, CheckCircle } from 'lucide-react';
 import { supabase, Profile } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
-export default function PlayPage() {
+type PlayPageProps = {
+  onNavigate?: (page: string) => void;
+};
+
+export default function PlayPage({ onNavigate }: PlayPageProps) {
   const { profile } = useAuth();
   const [inQueue, setInQueue] = useState(false);
   const [selectedPartner, setSelectedPartner] = useState<string | null>(null);
   const [availablePlayers, setAvailablePlayers] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(false);
   const [queueEntry, setQueueEntry] = useState<any>(null);
+  const [matchFound, setMatchFound] = useState(false);
 
   useEffect(() => {
     checkQueueStatus();
     loadAvailablePlayers();
+
+    const channel = supabase
+      .channel('queue-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'queue_entries',
+          filter: `player_id=eq.${profile?.id}`
+        },
+        (payload) => {
+          if (payload.new && (payload.new as any).status === 'matched') {
+            setMatchFound(true);
+            setInQueue(false);
+          }
+        }
+      )
+      .subscribe();
+
+    const matchChannel = supabase
+      .channel('match-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'match_approvals',
+          filter: `player_id=eq.${profile?.id}`
+        },
+        () => {
+          setMatchFound(true);
+          setInQueue(false);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      channel.unsubscribe();
+      matchChannel.unsubscribe();
+    };
   }, [profile]);
 
   const checkQueueStatus = async () => {
@@ -115,6 +161,31 @@ export default function PlayPage() {
           </h1>
           <p className="text-gray-600">Entre na fila e encontre adversários do seu nível</p>
         </div>
+
+        {matchFound && (
+          <div className="bg-green-50 border-2 border-green-500 rounded-2xl p-6 mb-6 animate-pulse">
+            <div className="flex items-start">
+              <CheckCircle className="w-8 h-8 text-green-600 mr-3 flex-shrink-0" />
+              <div className="flex-1">
+                <h3 className="text-xl font-bold text-green-900 mb-2">Partida Encontrada!</h3>
+                <p className="text-green-800 mb-4">
+                  Uma partida foi encontrada para você! Vá até a aba <strong>Partidas</strong> para aprovar e ver os detalhes.
+                </p>
+                <button
+                  onClick={() => {
+                    setMatchFound(false);
+                    if (onNavigate) {
+                      onNavigate('matches');
+                    }
+                  }}
+                  className="px-6 py-2 bg-green-600 text-white font-semibold rounded-xl hover:bg-green-700 transition-colors"
+                >
+                  Ver Partidas
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {inQueue ? (
           <div className="bg-white rounded-2xl shadow-lg p-8">

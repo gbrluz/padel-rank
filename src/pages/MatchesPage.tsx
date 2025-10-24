@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Users, CheckCircle, XCircle, Clock, Trophy } from 'lucide-react';
+import { Calendar, Users, CheckCircle, XCircle, Clock, Trophy, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { supabase, Match, Profile } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -18,10 +18,62 @@ export default function MatchesPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [genderFilter, setGenderFilter] = useState<'all' | 'male' | 'female'>('all');
+  const [approvalStatus, setApprovalStatus] = useState<Record<string, boolean | null>>({});
+  const [approvingMatch, setApprovingMatch] = useState<string | null>(null);
 
   useEffect(() => {
     loadMatches();
+    loadApprovalStatus();
   }, [profile]);
+
+  const loadApprovalStatus = async () => {
+    if (!profile) return;
+
+    const { data } = await supabase
+      .from('match_approvals')
+      .select('match_id, approved')
+      .eq('player_id', profile.id);
+
+    if (data) {
+      const statusMap: Record<string, boolean | null> = {};
+      data.forEach(approval => {
+        statusMap[approval.match_id] = approval.approved;
+      });
+      setApprovalStatus(statusMap);
+    }
+  };
+
+  const handleApproval = async (matchId: string, approved: boolean) => {
+    if (!profile) return;
+
+    setApprovingMatch(matchId);
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/match-approval`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ matchId, approved })
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Erro ao processar aprovação');
+      }
+
+      setApprovalStatus(prev => ({ ...prev, [matchId]: approved }));
+      await loadMatches();
+      await loadApprovalStatus();
+    } catch (error) {
+      console.error('Error approving match:', error);
+      alert('Erro ao processar sua resposta. Tente novamente.');
+    } finally {
+      setApprovingMatch(null);
+    }
+  };
 
   const loadMatches = async () => {
     if (!profile) return;
@@ -226,6 +278,65 @@ export default function MatchesPage() {
                       )}
                     </div>
                   </div>
+
+                  {match.status === 'pending_approval' && approvalStatus[match.id] === null && (
+                    <div className="mt-6 pt-6 border-t border-gray-200">
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-4">
+                        <p className="text-sm text-yellow-800 font-semibold mb-2">
+                          Esta partida precisa da sua aprovação!
+                        </p>
+                        <p className="text-xs text-yellow-700">
+                          Você tem até 24 horas para aprovar. Se todos aprovarem, a partida será agendada.
+                        </p>
+                      </div>
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => handleApproval(match.id, true)}
+                          disabled={approvingMatch === match.id}
+                          className="flex-1 flex items-center justify-center px-6 py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <ThumbsUp className="w-5 h-5 mr-2" />
+                          {approvingMatch === match.id ? 'Processando...' : 'Aprovar'}
+                        </button>
+                        <button
+                          onClick={() => handleApproval(match.id, false)}
+                          disabled={approvingMatch === match.id}
+                          className="flex-1 flex items-center justify-center px-6 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <ThumbsDown className="w-5 h-5 mr-2" />
+                          {approvingMatch === match.id ? 'Processando...' : 'Recusar'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {match.status === 'pending_approval' && approvalStatus[match.id] === true && (
+                    <div className="mt-6 pt-6 border-t border-gray-200">
+                      <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
+                        <CheckCircle className="w-8 h-8 text-green-600 mx-auto mb-2" />
+                        <p className="text-sm text-green-800 font-semibold">
+                          Você aprovou esta partida
+                        </p>
+                        <p className="text-xs text-green-700 mt-1">
+                          Aguardando aprovação dos outros jogadores
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {match.status === 'pending_approval' && approvalStatus[match.id] === false && (
+                    <div className="mt-6 pt-6 border-t border-gray-200">
+                      <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
+                        <XCircle className="w-8 h-8 text-red-600 mx-auto mb-2" />
+                        <p className="text-sm text-red-800 font-semibold">
+                          Você recusou esta partida
+                        </p>
+                        <p className="text-xs text-red-700 mt-1">
+                          A partida será cancelada
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}

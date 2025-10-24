@@ -51,7 +51,7 @@ function AppContent() {
       case 'matches':
         return <MatchesPage />;
       case 'play':
-        return <PlayPage />;
+        return <PlayPage onNavigate={setCurrentPage} />;
       case 'profile':
         return <ProfilePage />;
       default:
