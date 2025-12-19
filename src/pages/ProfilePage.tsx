@@ -1,22 +1,7 @@
-import { useState, useEffect } from 'react';
-import { User, Trophy, Calendar, Award, LogOut, MapPin, Target, Edit2, Save, X, Camera } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { User, Trophy, Calendar, Award, LogOut, MapPin, Target, Edit2, Save, X, Camera, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase, getCategoryFromPoints } from '../lib/supabase';
-
-const AVATAR_OPTIONS = [
-  'https://images.pexels.com/photos/2379004/pexels-photo-2379004.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
-  'https://images.pexels.com/photos/1222271/pexels-photo-1222271.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
-  'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
-  'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
-  'https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
-  'https://images.pexels.com/photos/1681010/pexels-photo-1681010.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
-  'https://images.pexels.com/photos/733872/pexels-photo-733872.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
-  'https://images.pexels.com/photos/1043471/pexels-photo-1043471.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
-  'https://images.pexels.com/photos/1130626/pexels-photo-1130626.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
-  'https://images.pexels.com/photos/1040881/pexels-photo-1040881.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
-  'https://images.pexels.com/photos/1181686/pexels-photo-1181686.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
-  'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
-];
 
 type State = {
   id: number;
@@ -53,7 +38,8 @@ export default function ProfilePage() {
     availability: {} as Record<string, string[]>,
     photo_url: '' as string | null
   });
-  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (profile) {
@@ -157,7 +143,6 @@ export default function ProfilePage() {
 
       await refreshProfile();
       setIsEditing(false);
-      setShowAvatarPicker(false);
     } catch (err: any) {
       setError(err.message || 'Erro ao atualizar perfil');
     } finally {
@@ -177,8 +162,51 @@ export default function ProfilePage() {
       });
     }
     setIsEditing(false);
-    setShowAvatarPicker(false);
     setError('');
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !profile) return;
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      setError('Formato de arquivo nao suportado. Use JPG, PNG, GIF ou WebP.');
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      setError('O arquivo deve ter no maximo 2MB.');
+      return;
+    }
+
+    setUploading(true);
+    setError('');
+
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${profile.id}/avatar.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(fileName);
+
+      const photoUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+      setFormData({ ...formData, photo_url: photoUrl });
+    } catch (err: any) {
+      setError(err.message || 'Erro ao fazer upload da foto');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
   };
 
   const handleSignOut = async () => {
@@ -222,7 +250,7 @@ export default function ProfilePage() {
           <div className="bg-gradient-to-r from-emerald-600 to-teal-600 h-32"></div>
           <div className="px-8 pb-8">
             <div className="relative -mt-16 mb-6">
-              <div className="relative">
+              <div className="relative inline-block">
                 <div className="w-32 h-32 bg-white rounded-full border-4 border-white shadow-lg flex items-center justify-center overflow-hidden">
                   {(isEditing ? formData.photo_url : profile.photo_url) ? (
                     <img
@@ -235,57 +263,32 @@ export default function ProfilePage() {
                   )}
                 </div>
                 {isEditing && (
-                  <button
-                    type="button"
-                    onClick={() => setShowAvatarPicker(!showAvatarPicker)}
-                    className="absolute bottom-0 right-0 w-10 h-10 bg-emerald-600 rounded-full flex items-center justify-center text-white shadow-lg hover:bg-emerald-700 transition-colors"
-                  >
-                    <Camera className="w-5 h-5" />
-                  </button>
-                )}
-              </div>
-
-              {showAvatarPicker && (
-                <div className="absolute top-full left-0 mt-4 bg-white rounded-xl shadow-xl p-4 z-10 w-80">
-                  <p className="text-sm font-semibold text-gray-700 mb-3">Escolha um avatar</p>
-                  <div className="grid grid-cols-4 gap-2 mb-3">
+                  <>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/gif,image/webp"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                      disabled={uploading}
+                    />
                     <button
                       type="button"
-                      onClick={() => {
-                        setFormData({ ...formData, photo_url: null });
-                        setShowAvatarPicker(false);
-                      }}
-                      className={`w-16 h-16 rounded-full border-2 flex items-center justify-center transition-all ${
-                        !formData.photo_url
-                          ? 'border-emerald-600 ring-2 ring-emerald-200'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploading}
+                      className="absolute bottom-0 right-0 w-10 h-10 bg-emerald-600 rounded-full flex items-center justify-center text-white shadow-lg hover:bg-emerald-700 transition-colors disabled:opacity-50"
                     >
-                      <User className="w-8 h-8 text-gray-400" />
+                      {uploading ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <Camera className="w-5 h-5" />
+                      )}
                     </button>
-                    {AVATAR_OPTIONS.map((url, index) => (
-                      <button
-                        key={index}
-                        type="button"
-                        onClick={() => {
-                          setFormData({ ...formData, photo_url: url });
-                          setShowAvatarPicker(false);
-                        }}
-                        className={`w-16 h-16 rounded-full border-2 overflow-hidden transition-all ${
-                          formData.photo_url === url
-                            ? 'border-emerald-600 ring-2 ring-emerald-200'
-                            : 'border-gray-200 hover:border-gray-300'
-                        }`}
-                      >
-                        <img
-                          src={url}
-                          alt={`Avatar ${index + 1}`}
-                          className="w-full h-full object-cover"
-                        />
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                  </>
+                )}
+              </div>
+              {isEditing && (
+                <p className="text-xs text-gray-500 mt-2">Clique no icone para alterar a foto (max 2MB)</p>
               )}
             </div>
 
