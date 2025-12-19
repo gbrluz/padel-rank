@@ -34,7 +34,6 @@ export default function RegistrationFormPage() {
     gender: '',
     birth_date: '',
     preferred_side: '',
-    category: '',
     state: '',
     city: '',
     availability: {} as Record<string, string[]>
@@ -55,7 +54,6 @@ export default function RegistrationFormPage() {
             gender: data.gender || '',
             birth_date: data.birth_date || '',
             preferred_side: data.preferred_side || '',
-            category: data.category || '',
             state: data.state || '',
             city: data.city || '',
             availability: data.availability || {}
@@ -138,7 +136,7 @@ export default function RegistrationFormPage() {
     setError('');
 
     if (!formData.full_name || !formData.gender || !formData.birth_date ||
-        !formData.preferred_side || !formData.category || !formData.state || !formData.city) {
+        !formData.preferred_side || !formData.state || !formData.city) {
       setError('Por favor, preencha todos os campos obrigatórios');
       return;
     }
@@ -255,46 +253,22 @@ export default function RegistrationFormPage() {
               </div>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-6">
-              <div>
-                <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
-                  <Target className="w-4 h-4 mr-2" />
-                  Lado de Preferência *
-                </label>
-                <select
-                  value={formData.preferred_side}
-                  onChange={(e) => setFormData({ ...formData, preferred_side: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:outline-none transition-colors"
-                  disabled={loading}
-                >
-                  <option value="">Selecione</option>
-                  <option value="left">Esquerda</option>
-                  <option value="right">Direita</option>
-                  <option value="both">Ambos</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Categoria *
-                </label>
-                <select
-                  value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:outline-none transition-colors"
-                  disabled={loading}
-                >
-                  <option value="">Selecione</option>
-                  <option value="Iniciante">Iniciante</option>
-                  <option value="1ª">1ª</option>
-                  <option value="2ª">2ª</option>
-                  <option value="3ª">3ª</option>
-                  <option value="4ª">4ª</option>
-                  <option value="5ª">5ª</option>
-                  <option value="6ª">6ª</option>
-                  <option value="7ª">7ª</option>
-                </select>
-              </div>
+            <div>
+              <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
+                <Target className="w-4 h-4 mr-2" />
+                Lado de Preferência *
+              </label>
+              <select
+                value={formData.preferred_side}
+                onChange={(e) => setFormData({ ...formData, preferred_side: e.target.value })}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:outline-none transition-colors"
+                disabled={loading}
+              >
+                <option value="">Selecione</option>
+                <option value="left">Esquerda</option>
+                <option value="right">Direita</option>
+                <option value="both">Ambos</option>
+              </select>
             </div>
 
             <div className="grid md:grid-cols-2 gap-6">

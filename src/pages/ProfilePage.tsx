@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { User, Trophy, Calendar, Award, LogOut, MapPin, Target, Edit2, Save, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../lib/supabase';
+import { supabase, getCategoryFromPoints } from '../lib/supabase';
 
 type State = {
   id: number;
@@ -33,7 +33,6 @@ export default function ProfilePage() {
   const [formData, setFormData] = useState({
     full_name: '',
     preferred_side: '',
-    category: '',
     state: '',
     city: '',
     availability: {} as Record<string, string[]>
@@ -44,7 +43,6 @@ export default function ProfilePage() {
       setFormData({
         full_name: profile.full_name,
         preferred_side: profile.preferred_side,
-        category: profile.category,
         state: profile.state,
         city: profile.city,
         availability: profile.availability
@@ -130,7 +128,6 @@ export default function ProfilePage() {
         .update({
           full_name: formData.full_name,
           preferred_side: formData.preferred_side,
-          category: formData.category,
           state: formData.state,
           city: formData.city,
           availability: formData.availability
@@ -153,7 +150,6 @@ export default function ProfilePage() {
       setFormData({
         full_name: profile.full_name,
         preferred_side: profile.preferred_side,
-        category: profile.category,
         state: profile.state,
         city: profile.city,
         availability: profile.availability
@@ -232,43 +228,20 @@ export default function ProfilePage() {
                   />
                 </div>
 
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Lado de Preferência
-                    </label>
-                    <select
-                      value={formData.preferred_side}
-                      onChange={(e) => setFormData({ ...formData, preferred_side: e.target.value })}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:outline-none"
-                      disabled={loading}
-                    >
-                      <option value="left">Esquerda</option>
-                      <option value="right">Direita</option>
-                      <option value="both">Ambos</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Categoria
-                    </label>
-                    <select
-                      value={formData.category}
-                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:outline-none"
-                      disabled={loading}
-                    >
-                      <option value="Iniciante">Iniciante</option>
-                      <option value="1ª">1ª</option>
-                      <option value="2ª">2ª</option>
-                      <option value="3ª">3ª</option>
-                      <option value="4ª">4ª</option>
-                      <option value="5ª">5ª</option>
-                      <option value="6ª">6ª</option>
-                      <option value="7ª">7ª</option>
-                    </select>
-                  </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Lado de Preferência
+                  </label>
+                  <select
+                    value={formData.preferred_side}
+                    onChange={(e) => setFormData({ ...formData, preferred_side: e.target.value })}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:outline-none"
+                    disabled={loading}
+                  >
+                    <option value="left">Esquerda</option>
+                    <option value="right">Direita</option>
+                    <option value="both">Ambos</option>
+                  </select>
                 </div>
 
                 <div className="grid md:grid-cols-2 gap-6">
@@ -407,7 +380,7 @@ export default function ProfilePage() {
               <>
                 <div className="mb-6">
                   <h2 className="text-2xl font-bold text-gray-900 mb-1">{profile.full_name}</h2>
-                  <p className="text-gray-600">{profile.category}</p>
+                  <p className="text-gray-600">{getCategoryFromPoints(profile.ranking_points)}</p>
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-8">
@@ -478,7 +451,7 @@ export default function ProfilePage() {
                       </div>
                       <div>
                         <p className="text-sm text-gray-600 mb-1">Categoria</p>
-                        <p className="font-medium text-gray-900">{profile.category}</p>
+                        <p className="font-medium text-gray-900">{getCategoryFromPoints(profile.ranking_points)}</p>
                       </div>
                     </div>
                   </div>

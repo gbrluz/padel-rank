@@ -6,24 +6,75 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
 };
 
-function calculatePointsChange(
-  winnerAvgRanking: number,
-  loserAvgRanking: number,
-  isDuo: boolean
-): number {
-  const rankingDiff = loserAvgRanking - winnerAvgRanking;
-  const basePoints = 50;
-  const diffMultiplier = 0.1;
-  
-  let points = basePoints + (rankingDiff * diffMultiplier);
-  
-  points = Math.max(10, Math.min(100, points));
-  
-  if (isDuo) {
-    points = points * 0.8;
+function getCategoryFromPoints(points: number): string {
+  if (points < 200) return 'iniciante';
+  if (points < 400) return '7a';
+  if (points < 600) return '6a';
+  if (points < 800) return '5a';
+  if (points < 1000) return '4a';
+  if (points < 1200) return '3a';
+  if (points < 1400) return '2a';
+  if (points < 1600) return '1a';
+  return 'avancado';
+}
+
+interface SetScore {
+  teamA: number;
+  teamB: number;
+}
+
+function calculateScoreMargin(sets: SetScore[], winnerTeam: 'team_a' | 'team_b'): number {
+  let winnerGames = 0;
+  let loserGames = 0;
+
+  for (const set of sets) {
+    if (winnerTeam === 'team_a') {
+      winnerGames += set.teamA;
+      loserGames += set.teamB;
+    } else {
+      winnerGames += set.teamB;
+      loserGames += set.teamA;
+    }
   }
-  
-  return Math.round(points);
+
+  return winnerGames - loserGames;
+}
+
+function calculatePointsChange(
+  winnerTeamPoints: number,
+  loserTeamPoints: number,
+  scoreMargin: number,
+  isDuo: boolean
+): { winnerPoints: number; loserPoints: number } {
+  const BASE_POINTS = 25;
+
+  const scoreMultiplier = 1 + (scoreMargin - 4) * 0.05;
+  const clampedScoreMultiplier = Math.max(0.7, Math.min(1.5, scoreMultiplier));
+
+  const rankingDiff = loserTeamPoints - winnerTeamPoints;
+  const rankingMultiplier = 1 + (rankingDiff / 400) * 0.3;
+  const clampedRankingMultiplier = Math.max(0.6, Math.min(1.6, rankingMultiplier));
+
+  let winnerPoints = Math.round(BASE_POINTS * clampedScoreMultiplier * clampedRankingMultiplier);
+
+  if (isDuo) {
+    winnerPoints = Math.round(winnerPoints * 0.85);
+  }
+
+  winnerPoints = Math.max(10, Math.min(50, winnerPoints));
+
+  const loserRankingMultiplier = 1 + (winnerTeamPoints - loserTeamPoints) / 400 * 0.3;
+  const clampedLoserRankingMultiplier = Math.max(0.6, Math.min(1.6, loserRankingMultiplier));
+
+  let loserPoints = Math.round(BASE_POINTS * 0.6 * clampedScoreMultiplier * clampedLoserRankingMultiplier);
+
+  if (isDuo) {
+    loserPoints = Math.round(loserPoints * 0.85);
+  }
+
+  loserPoints = Math.max(5, Math.min(35, loserPoints));
+
+  return { winnerPoints, loserPoints: -loserPoints };
 }
 
 Deno.serve(async (req: Request) => {
@@ -95,54 +146,78 @@ Deno.serve(async (req: Request) => {
     const teamBPlayer1 = profiles.find(p => p.id === match.team_b_player1_id)!;
     const teamBPlayer2 = profiles.find(p => p.id === match.team_b_player2_id)!;
 
-    const teamAAvgRanking = (teamAPlayer1.ranking_points + teamAPlayer2.ranking_points) / 2;
-    const teamBAvgRanking = (teamBPlayer1.ranking_points + teamBPlayer2.ranking_points) / 2;
+    const teamATotalPoints = teamAPlayer1.ranking_points + teamAPlayer2.ranking_points;
+    const teamBTotalPoints = teamBPlayer1.ranking_points + teamBPlayer2.ranking_points;
 
-    let teamAPointsChange, teamBPointsChange;
+    const scoreMargin = calculateScoreMargin(sets || [], winnerTeam);
+
+    let teamAPointsChange: number;
+    let teamBPointsChange: number;
 
     if (winnerTeam === 'team_a') {
-      teamAPointsChange = calculatePointsChange(teamAAvgRanking, teamBAvgRanking, match.team_a_was_duo);
-      teamBPointsChange = -Math.round(teamAPointsChange * 0.5);
+      const { winnerPoints, loserPoints } = calculatePointsChange(
+        teamATotalPoints,
+        teamBTotalPoints,
+        scoreMargin,
+        match.team_a_was_duo
+      );
+      teamAPointsChange = winnerPoints;
+      teamBPointsChange = loserPoints;
     } else {
-      teamBPointsChange = calculatePointsChange(teamBAvgRanking, teamAAvgRanking, match.team_b_was_duo);
-      teamAPointsChange = -Math.round(teamBPointsChange * 0.5);
+      const { winnerPoints, loserPoints } = calculatePointsChange(
+        teamBTotalPoints,
+        teamATotalPoints,
+        scoreMargin,
+        match.team_b_was_duo
+      );
+      teamBPointsChange = winnerPoints;
+      teamAPointsChange = loserPoints;
     }
 
     const teamAWon = winnerTeam === 'team_a';
 
+    const newTeamAPlayer1Points = Math.max(0, teamAPlayer1.ranking_points + teamAPointsChange);
+    const newTeamAPlayer2Points = Math.max(0, teamAPlayer2.ranking_points + teamAPointsChange);
+    const newTeamBPlayer1Points = Math.max(0, teamBPlayer1.ranking_points + teamBPointsChange);
+    const newTeamBPlayer2Points = Math.max(0, teamBPlayer2.ranking_points + teamBPointsChange);
+
     await supabase
       .from('profiles')
       .update({
-        ranking_points: teamAPlayer1.ranking_points + teamAPointsChange,
+        ranking_points: newTeamAPlayer1Points,
         total_matches: teamAPlayer1.total_matches + 1,
-        total_wins: teamAPlayer1.total_wins + (teamAWon ? 1 : 0)
+        total_wins: teamAPlayer1.total_wins + (teamAWon ? 1 : 0),
+        category: getCategoryFromPoints(newTeamAPlayer1Points)
       })
       .eq('id', match.team_a_player1_id);
 
     await supabase
       .from('profiles')
       .update({
-        ranking_points: teamAPlayer2.ranking_points + teamAPointsChange,
+        ranking_points: newTeamAPlayer2Points,
         total_matches: teamAPlayer2.total_matches + 1,
-        total_wins: teamAPlayer2.total_wins + (teamAWon ? 1 : 0)
+        total_wins: teamAPlayer2.total_wins + (teamAWon ? 1 : 0),
+        category: getCategoryFromPoints(newTeamAPlayer2Points)
       })
       .eq('id', match.team_a_player2_id);
 
     await supabase
       .from('profiles')
       .update({
-        ranking_points: teamBPlayer1.ranking_points + teamBPointsChange,
+        ranking_points: newTeamBPlayer1Points,
         total_matches: teamBPlayer1.total_matches + 1,
-        total_wins: teamBPlayer1.total_wins + (!teamAWon ? 1 : 0)
+        total_wins: teamBPlayer1.total_wins + (!teamAWon ? 1 : 0),
+        category: getCategoryFromPoints(newTeamBPlayer1Points)
       })
       .eq('id', match.team_b_player1_id);
 
     await supabase
       .from('profiles')
       .update({
-        ranking_points: teamBPlayer2.ranking_points + teamBPointsChange,
+        ranking_points: newTeamBPlayer2Points,
         total_matches: teamBPlayer2.total_matches + 1,
-        total_wins: teamBPlayer2.total_wins + (!teamAWon ? 1 : 0)
+        total_wins: teamBPlayer2.total_wins + (!teamAWon ? 1 : 0),
+        category: getCategoryFromPoints(newTeamBPlayer2Points)
       })
       .eq('id', match.team_b_player2_id);
 
@@ -153,28 +228,28 @@ Deno.serve(async (req: Request) => {
           player_id: match.team_a_player1_id,
           match_id: matchId,
           points_before: teamAPlayer1.ranking_points,
-          points_after: teamAPlayer1.ranking_points + teamAPointsChange,
+          points_after: newTeamAPlayer1Points,
           points_change: teamAPointsChange
         },
         {
           player_id: match.team_a_player2_id,
           match_id: matchId,
           points_before: teamAPlayer2.ranking_points,
-          points_after: teamAPlayer2.ranking_points + teamAPointsChange,
+          points_after: newTeamAPlayer2Points,
           points_change: teamAPointsChange
         },
         {
           player_id: match.team_b_player1_id,
           match_id: matchId,
           points_before: teamBPlayer1.ranking_points,
-          points_after: teamBPlayer1.ranking_points + teamBPointsChange,
+          points_after: newTeamBPlayer1Points,
           points_change: teamBPointsChange
         },
         {
           player_id: match.team_b_player2_id,
           match_id: matchId,
           points_before: teamBPlayer2.ranking_points,
-          points_after: teamBPlayer2.ranking_points + teamBPointsChange,
+          points_after: newTeamBPlayer2Points,
           points_change: teamBPointsChange
         }
       ]);

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Trophy, Medal, TrendingUp, User } from 'lucide-react';
-import { supabase, Profile } from '../lib/supabase';
+import { supabase, Profile, getCategoryFromPoints } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function RankingPage() {
@@ -172,7 +172,7 @@ export default function RankingPage() {
                                   </span>
                                 )}
                               </div>
-                              <div className="text-sm text-gray-500">{player.category}</div>
+                              <div className="text-sm text-gray-500">{getCategoryFromPoints(player.ranking_points)}</div>
                             </div>
                           </div>
                         </td>
@@ -249,7 +249,7 @@ export default function RankingPage() {
                             </span>
                           )}
                         </div>
-                        <div className="text-sm text-gray-500">{player.category}</div>
+                        <div className="text-sm text-gray-500">{getCategoryFromPoints(player.ranking_points)}</div>
                       </div>
                     </div>
                     <div className="grid grid-cols-4 gap-2 text-center">
