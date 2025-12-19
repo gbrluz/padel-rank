@@ -1,7 +1,22 @@
 import { useState, useEffect } from 'react';
-import { User, Trophy, Calendar, Award, LogOut, MapPin, Target, Edit2, Save, X } from 'lucide-react';
+import { User, Trophy, Calendar, Award, LogOut, MapPin, Target, Edit2, Save, X, Camera } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase, getCategoryFromPoints } from '../lib/supabase';
+
+const AVATAR_OPTIONS = [
+  'https://images.pexels.com/photos/2379004/pexels-photo-2379004.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
+  'https://images.pexels.com/photos/1222271/pexels-photo-1222271.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
+  'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
+  'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
+  'https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
+  'https://images.pexels.com/photos/1681010/pexels-photo-1681010.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
+  'https://images.pexels.com/photos/733872/pexels-photo-733872.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
+  'https://images.pexels.com/photos/1043471/pexels-photo-1043471.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
+  'https://images.pexels.com/photos/1130626/pexels-photo-1130626.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
+  'https://images.pexels.com/photos/1040881/pexels-photo-1040881.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
+  'https://images.pexels.com/photos/1181686/pexels-photo-1181686.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
+  'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
+];
 
 type State = {
   id: number;
@@ -35,8 +50,10 @@ export default function ProfilePage() {
     preferred_side: '',
     state: '',
     city: '',
-    availability: {} as Record<string, string[]>
+    availability: {} as Record<string, string[]>,
+    photo_url: '' as string | null
   });
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
 
   useEffect(() => {
     if (profile) {
@@ -45,7 +62,8 @@ export default function ProfilePage() {
         preferred_side: profile.preferred_side,
         state: profile.state,
         city: profile.city,
-        availability: profile.availability
+        availability: profile.availability,
+        photo_url: profile.photo_url
       });
     }
   }, [profile]);
@@ -130,7 +148,8 @@ export default function ProfilePage() {
           preferred_side: formData.preferred_side,
           state: formData.state,
           city: formData.city,
-          availability: formData.availability
+          availability: formData.availability,
+          photo_url: formData.photo_url
         })
         .eq('id', profile.id);
 
@@ -138,6 +157,7 @@ export default function ProfilePage() {
 
       await refreshProfile();
       setIsEditing(false);
+      setShowAvatarPicker(false);
     } catch (err: any) {
       setError(err.message || 'Erro ao atualizar perfil');
     } finally {
@@ -152,10 +172,12 @@ export default function ProfilePage() {
         preferred_side: profile.preferred_side,
         state: profile.state,
         city: profile.city,
-        availability: profile.availability
+        availability: profile.availability,
+        photo_url: profile.photo_url
       });
     }
     setIsEditing(false);
+    setShowAvatarPicker(false);
     setError('');
   };
 
@@ -200,17 +222,71 @@ export default function ProfilePage() {
           <div className="bg-gradient-to-r from-emerald-600 to-teal-600 h-32"></div>
           <div className="px-8 pb-8">
             <div className="relative -mt-16 mb-6">
-              <div className="w-32 h-32 bg-white rounded-full border-4 border-white shadow-lg flex items-center justify-center">
-                {profile.photo_url ? (
-                  <img
-                    src={profile.photo_url}
-                    alt={profile.full_name}
-                    className="w-full h-full rounded-full object-cover"
-                  />
-                ) : (
-                  <User className="w-16 h-16 text-emerald-600" />
+              <div className="relative">
+                <div className="w-32 h-32 bg-white rounded-full border-4 border-white shadow-lg flex items-center justify-center overflow-hidden">
+                  {(isEditing ? formData.photo_url : profile.photo_url) ? (
+                    <img
+                      src={(isEditing ? formData.photo_url : profile.photo_url) || ''}
+                      alt={profile.full_name}
+                      className="w-full h-full rounded-full object-cover"
+                    />
+                  ) : (
+                    <User className="w-16 h-16 text-emerald-600" />
+                  )}
+                </div>
+                {isEditing && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAvatarPicker(!showAvatarPicker)}
+                    className="absolute bottom-0 right-0 w-10 h-10 bg-emerald-600 rounded-full flex items-center justify-center text-white shadow-lg hover:bg-emerald-700 transition-colors"
+                  >
+                    <Camera className="w-5 h-5" />
+                  </button>
                 )}
               </div>
+
+              {showAvatarPicker && (
+                <div className="absolute top-full left-0 mt-4 bg-white rounded-xl shadow-xl p-4 z-10 w-80">
+                  <p className="text-sm font-semibold text-gray-700 mb-3">Escolha um avatar</p>
+                  <div className="grid grid-cols-4 gap-2 mb-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormData({ ...formData, photo_url: null });
+                        setShowAvatarPicker(false);
+                      }}
+                      className={`w-16 h-16 rounded-full border-2 flex items-center justify-center transition-all ${
+                        !formData.photo_url
+                          ? 'border-emerald-600 ring-2 ring-emerald-200'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <User className="w-8 h-8 text-gray-400" />
+                    </button>
+                    {AVATAR_OPTIONS.map((url, index) => (
+                      <button
+                        key={index}
+                        type="button"
+                        onClick={() => {
+                          setFormData({ ...formData, photo_url: url });
+                          setShowAvatarPicker(false);
+                        }}
+                        className={`w-16 h-16 rounded-full border-2 overflow-hidden transition-all ${
+                          formData.photo_url === url
+                            ? 'border-emerald-600 ring-2 ring-emerald-200'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <img
+                          src={url}
+                          alt={`Avatar ${index + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {isEditing ? (
