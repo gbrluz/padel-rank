@@ -57,24 +57,13 @@ export default function BackofficePage({ onNavigate }: BackofficePageProps) {
   };
 
   const loadProfiles = async () => {
-    const { data: profilesData, error: profilesError } = await supabase
-      .from('profiles')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const { data, error } = await supabase.rpc('get_profiles_with_email');
 
-    if (profilesError || !profilesData) return;
-
-    const { data: usersData } = await supabase.auth.admin.listUsers();
-
-    const profilesWithEmail = profilesData.map(profile => {
-      const user = usersData?.users.find(u => u.id === profile.id);
-      return {
-        ...profile,
-        email: user?.email || 'Email não encontrado'
-      };
-    });
-
-    setProfiles(profilesWithEmail);
+    if (!error && data) {
+      setProfiles(data);
+    } else if (error) {
+      console.error('Error loading profiles:', error);
+    }
   };
 
   const loadMatches = async () => {
