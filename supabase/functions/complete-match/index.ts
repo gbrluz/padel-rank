@@ -7,15 +7,14 @@ const corsHeaders = {
 };
 
 function getCategoryFromPoints(points: number): string {
-  if (points < 200) return 'iniciante';
-  if (points < 400) return '7a';
-  if (points < 600) return '6a';
-  if (points < 800) return '5a';
-  if (points < 1000) return '4a';
-  if (points < 1200) return '3a';
-  if (points < 1400) return '2a';
-  if (points < 1600) return '1a';
-  return 'avancado';
+  if (points < 200) return 'Iniciante';
+  if (points < 400) return '7ª';
+  if (points < 600) return '6ª';
+  if (points < 800) return '5ª';
+  if (points < 1000) return '4ª';
+  if (points < 1200) return '3ª';
+  if (points < 1400) return '2ª';
+  return '1ª';
 }
 
 interface SetScore {
