@@ -30,6 +30,17 @@ export default function Navigation({ currentPage, onNavigate }: NavigationProps)
             loadPendingApprovals();
           }
         )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'matches'
+          },
+          () => {
+            loadPendingApprovals();
+          }
+        )
         .subscribe();
 
       return () => {
@@ -43,9 +54,10 @@ export default function Navigation({ currentPage, onNavigate }: NavigationProps)
 
     const { data } = await supabase
       .from('match_approvals')
-      .select('*')
+      .select('*, matches!inner(status)')
       .eq('player_id', profile.id)
-      .is('approved', null);
+      .is('approved', null)
+      .neq('matches.status', 'cancelled');
 
     setPendingApprovals(data?.length || 0);
   };
