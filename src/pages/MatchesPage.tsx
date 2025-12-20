@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Users, CheckCircle, XCircle, Clock, Trophy, ThumbsUp, ThumbsDown, ArrowLeft, ArrowRight, FileText } from 'lucide-react';
+import { Calendar, Users, CheckCircle, XCircle, Clock, Trophy, ThumbsUp, ThumbsDown, ArrowLeft, ArrowRight, FileText, CalendarCheck } from 'lucide-react';
 import { supabase, Match, Profile } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import ReportMatchResultModal from '../components/ReportMatchResultModal';
@@ -289,6 +289,77 @@ export default function MatchesPage() {
     }
   };
 
+  const renderCommonAvailability = (commonAvailability: Record<string, string[]>) => {
+    if (!commonAvailability || Object.keys(commonAvailability).length === 0) {
+      return (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+          <div className="flex items-start">
+            <CalendarCheck className="w-5 h-5 text-yellow-600 mr-2 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-yellow-800 mb-1">
+                Sem Horarios Comuns
+              </p>
+              <p className="text-xs text-yellow-700">
+                Nenhum horario comum foi encontrado entre todos os jogadores. Voces precisarao coordenar individualmente.
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const dayNames: Record<string, string> = {
+      segunda: 'Segunda',
+      terça: 'Terca',
+      quarta: 'Quarta',
+      quinta: 'Quinta',
+      sexta: 'Sexta',
+      sábado: 'Sabado',
+      domingo: 'Domingo'
+    };
+
+    const periodNames: Record<string, string> = {
+      morning: 'Manha',
+      afternoon: 'Tarde',
+      evening: 'Noite'
+    };
+
+    return (
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+        <div className="flex items-start mb-3">
+          <CalendarCheck className="w-5 h-5 text-blue-600 mr-2 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-blue-800 mb-1">
+              Horarios Disponiveis para Todos
+            </p>
+            <p className="text-xs text-blue-700">
+              Estes sao os horarios em que todos os 4 jogadores estao disponiveis:
+            </p>
+          </div>
+        </div>
+        <div className="space-y-2">
+          {Object.entries(commonAvailability).map(([day, periods]) => (
+            <div key={day} className="flex items-start">
+              <span className="text-sm font-medium text-blue-900 min-w-[80px]">
+                {dayNames[day] || day}:
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {(periods as string[]).map(period => (
+                  <span
+                    key={period}
+                    className="px-2 py-1 bg-blue-100 text-blue-800 rounded-lg text-xs font-medium"
+                  >
+                    {periodNames[period] || period}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50 py-8 px-4">
       <div className="container mx-auto max-w-6xl">
@@ -505,6 +576,12 @@ export default function MatchesPage() {
                       )}
                     </div>
                   </div>
+
+                  {(match.status === 'pending_approval' || match.status === 'scheduled') && (
+                    <div className="mt-4">
+                      {renderCommonAvailability((match as any).common_availability || {})}
+                    </div>
+                  )}
 
                   {match.status === 'pending_approval' && approvalStatus[match.id] === null && (
                     <div className="mt-6 pt-6 border-t border-gray-200">

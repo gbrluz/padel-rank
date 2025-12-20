@@ -31,6 +31,36 @@ function assignSides(player1: any, player2: any): { player1Side: string, player2
   return { player1Side: 'left', player2Side: 'right' };
 }
 
+function calculateCommonAvailability(players: any[]): Record<string, string[]> {
+  if (players.length === 0) return {};
+
+  const commonAvailability: Record<string, string[]> = {};
+  const days = ['segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado', 'domingo'];
+  const periods = ['morning', 'afternoon', 'evening'];
+
+  for (const day of days) {
+    const commonPeriods: string[] = [];
+
+    for (const period of periods) {
+      const allHavePeriod = players.every(player => {
+        const availability = player.availability || {};
+        const dayAvailability = availability[day] || [];
+        return dayAvailability.includes(period);
+      });
+
+      if (allHavePeriod) {
+        commonPeriods.push(period);
+      }
+    }
+
+    if (commonPeriods.length > 0) {
+      commonAvailability[day] = commonPeriods;
+    }
+  }
+
+  return commonAvailability;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, {
@@ -217,6 +247,20 @@ Deno.serve(async (req: Request) => {
       const teamASides = assignSides(match.team_a[0], match.team_a[1]);
       const teamBSides = assignSides(match.team_b[0], match.team_b[1]);
 
+      const allPlayerIds = [
+        match.team_a[0].player_id,
+        match.team_a[1].player_id,
+        match.team_b[0].player_id,
+        match.team_b[1].player_id
+      ];
+
+      const { data: playerProfiles } = await supabase
+        .from('profiles')
+        .select('id, availability')
+        .in('id', allPlayerIds);
+
+      const commonAvailability = calculateCommonAvailability(playerProfiles || []);
+
       const { data: newMatch, error: insertError } = await supabase
         .from('matches')
         .insert([{
@@ -231,7 +275,8 @@ Deno.serve(async (req: Request) => {
           team_b_player1_side: teamBSides.player1Side,
           team_b_player2_side: teamBSides.player2Side,
           team_a_was_duo: match.team_a_was_duo,
-          team_b_was_duo: match.team_b_was_duo
+          team_b_was_duo: match.team_b_was_duo,
+          common_availability: commonAvailability
         }])
         .select()
         .single();
