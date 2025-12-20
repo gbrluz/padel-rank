@@ -195,24 +195,52 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
 
     setLoading(true);
     try {
-      const averageRanking = selectedPartner
-        ? Math.floor((profile.ranking_points + (availablePlayers.find(p => p.id === selectedPartner)?.ranking_points || 0)) / 2)
+      const partner = selectedPartner ? availablePlayers.find(p => p.id === selectedPartner) : null;
+      const averageRanking = partner
+        ? Math.floor((profile.ranking_points + partner.ranking_points) / 2)
         : profile.ranking_points;
 
-      const { error } = await supabase
-        .from('queue_entries')
-        .insert([{
-          player_id: profile.id,
-          partner_id: selectedPartner,
-          gender: profile.gender,
-          average_ranking: averageRanking,
-          status: 'active'
-        }]);
+      if (selectedPartner && partner) {
+        const { error } = await supabase
+          .from('queue_entries')
+          .insert([
+            {
+              player_id: profile.id,
+              partner_id: selectedPartner,
+              gender: profile.gender,
+              average_ranking: averageRanking,
+              status: 'active',
+              preferred_side: profile.preferred_side
+            },
+            {
+              player_id: selectedPartner,
+              partner_id: profile.id,
+              gender: partner.gender,
+              average_ranking: averageRanking,
+              status: 'active',
+              preferred_side: partner.preferred_side
+            }
+          ]);
 
-      if (error) throw error;
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('queue_entries')
+          .insert([{
+            player_id: profile.id,
+            partner_id: null,
+            gender: profile.gender,
+            average_ranking: averageRanking,
+            status: 'active',
+            preferred_side: profile.preferred_side
+          }]);
+
+        if (error) throw error;
+      }
 
       setInQueue(true);
-      checkQueueStatus();
+      await checkQueueStatus();
+      await loadQueuePlayers();
 
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -238,17 +266,28 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
 
     setLoading(true);
     try {
-      const { error } = await supabase
-        .from('queue_entries')
-        .update({ status: 'cancelled' })
-        .eq('player_id', profile.id)
-        .eq('status', 'active');
+      if (selectedPartner) {
+        const { error } = await supabase
+          .from('queue_entries')
+          .update({ status: 'cancelled' })
+          .in('player_id', [profile.id, selectedPartner])
+          .eq('status', 'active');
 
-      if (error) throw error;
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('queue_entries')
+          .update({ status: 'cancelled' })
+          .eq('player_id', profile.id)
+          .eq('status', 'active');
+
+        if (error) throw error;
+      }
 
       setInQueue(false);
       setQueueEntry(null);
       setSelectedPartner(null);
+      await loadQueuePlayers();
     } catch (error) {
       console.error('Error leaving queue:', error);
       alert('Erro ao sair da fila. Tente novamente.');
