@@ -151,30 +151,24 @@ Deno.serve(async (req: Request) => {
         const rankingSpread = maxRanking - minRanking;
 
         if (rankingSpread <= 300) {
-          const leftPlayers = players.filter(p => 
-            p.preferred_side === 'left' || p.preferred_side === 'both'
-          );
-          const rightPlayers = players.filter(p => 
-            p.preferred_side === 'right' || p.preferred_side === 'both'
-          );
+          const leftOnlyPlayers = players.filter(p => p.preferred_side === 'left');
+          const rightOnlyPlayers = players.filter(p => p.preferred_side === 'right');
+          const bothPlayers = players.filter(p => p.preferred_side === 'both');
 
           let team1, team2;
-          
-          if (leftPlayers.length >= 2 && rightPlayers.length >= 2) {
-            team1 = [leftPlayers[0], rightPlayers[0]];
-            team2 = [leftPlayers[1], rightPlayers[1]];
-          } else if (leftPlayers.length >= 1 && rightPlayers.length >= 1) {
-            const bothPlayers = players.filter(p => p.preferred_side === 'both');
-            if (bothPlayers.length >= 2) {
-              team1 = [leftPlayers[0] || bothPlayers[0], rightPlayers[0] || bothPlayers[1]];
-              const remaining = players.filter(p => 
-                p.player_id !== team1[0].player_id && p.player_id !== team1[1].player_id
-              );
-              team2 = remaining.slice(0, 2);
-            } else {
-              team1 = [players[0], players[1]];
-              team2 = [players[2], players[3]];
-            }
+
+          if (leftOnlyPlayers.length >= 2 && rightOnlyPlayers.length >= 2) {
+            team1 = [leftOnlyPlayers[0], rightOnlyPlayers[0]];
+            team2 = [leftOnlyPlayers[1], rightOnlyPlayers[1]];
+          } else if (leftOnlyPlayers.length >= 1 && rightOnlyPlayers.length >= 1 && bothPlayers.length >= 2) {
+            team1 = [leftOnlyPlayers[0], rightOnlyPlayers[0]];
+            team2 = [bothPlayers[0], bothPlayers[1]];
+          } else if (leftOnlyPlayers.length >= 1 && bothPlayers.length >= 3) {
+            team1 = [leftOnlyPlayers[0], bothPlayers[0]];
+            team2 = [bothPlayers[1], bothPlayers[2]];
+          } else if (rightOnlyPlayers.length >= 1 && bothPlayers.length >= 3) {
+            team1 = [rightOnlyPlayers[0], bothPlayers[0]];
+            team2 = [bothPlayers[1], bothPlayers[2]];
           } else {
             team1 = [players[0], players[1]];
             team2 = [players[2], players[3]];
@@ -182,7 +176,7 @@ Deno.serve(async (req: Request) => {
 
           const team1Avg = (team1[0].average_ranking + team1[1].average_ranking) / 2;
           const team2Avg = (team2[0].average_ranking + team2[1].average_ranking) / 2;
-          
+
           if (Math.abs(team1Avg - team2Avg) <= 200) {
             matchesFound.push({
               gender,
