@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { PlayCircle, Users, User, AlertCircle, Loader, CheckCircle } from 'lucide-react';
+import { PlayCircle, Users, User, AlertCircle, Loader, CheckCircle, Search } from 'lucide-react';
 import { supabase, Profile } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -26,6 +26,7 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
   const [queueEntry, setQueueEntry] = useState<any>(null);
   const [matchFound, setMatchFound] = useState(false);
   const [queuePlayers, setQueuePlayers] = useState<QueuePlayer[]>([]);
+  const [searchingMatch, setSearchingMatch] = useState(false);
 
   useEffect(() => {
     checkQueueStatus();
@@ -212,6 +213,18 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
 
       setInQueue(true);
       checkQueueStatus();
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      fetch(`${supabaseUrl}/functions/v1/find-match`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+        },
+      }).catch(err => console.error('Error calling find-match:', err));
+
     } catch (error) {
       console.error('Error joining queue:', error);
       alert('Erro ao entrar na fila. Tente novamente.');
@@ -241,6 +254,37 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
       alert('Erro ao sair da fila. Tente novamente.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const findMatchNow = async () => {
+    setSearchingMatch(true);
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/find-match`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const result = await response.json();
+
+      if (result.found > 0) {
+        alert(`${result.found} partida(s) encontrada(s)! Verifique a aba Partidas.`);
+      } else {
+        alert('Nenhuma partida encontrada no momento. Aguarde mais jogadores ou ajuste seu perfil.');
+      }
+
+      loadQueuePlayers();
+    } catch (error) {
+      console.error('Error finding match:', error);
+      alert('Erro ao buscar partida. Tente novamente.');
+    } finally {
+      setSearchingMatch(false);
     }
   };
 
@@ -465,10 +509,32 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
         )}
 
         <div className="mt-8 bg-white rounded-2xl shadow-lg p-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-            <Users className="w-7 h-7 mr-3 text-emerald-600" />
-            Jogadores na Fila
-          </h2>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold text-gray-900 flex items-center">
+              <Users className="w-7 h-7 mr-3 text-emerald-600" />
+              Jogadores na Fila
+            </h2>
+
+            {queuePlayers.length >= 4 && (
+              <button
+                onClick={findMatchNow}
+                disabled={searchingMatch}
+                className="px-6 py-3 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+              >
+                {searchingMatch ? (
+                  <>
+                    <Loader className="w-5 h-5 mr-2 animate-spin" />
+                    Buscando...
+                  </>
+                ) : (
+                  <>
+                    <Search className="w-5 h-5 mr-2" />
+                    Buscar Partida Agora
+                  </>
+                )}
+              </button>
+            )}
+          </div>
 
           {queuePlayers.length === 0 ? (
             <div className="text-center py-8">
