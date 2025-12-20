@@ -7,6 +7,16 @@ type PlayPageProps = {
   onNavigate?: (page: string) => void;
 };
 
+type QueuePlayer = {
+  player_id: string;
+  partner_id: string | null;
+  gender: string;
+  average_ranking: number;
+  created_at: string;
+  profile: Profile;
+  partner_profile?: Profile;
+};
+
 export default function PlayPage({ onNavigate }: PlayPageProps) {
   const { profile } = useAuth();
   const [inQueue, setInQueue] = useState(false);
@@ -15,10 +25,12 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
   const [loading, setLoading] = useState(false);
   const [queueEntry, setQueueEntry] = useState<any>(null);
   const [matchFound, setMatchFound] = useState(false);
+  const [queuePlayers, setQueuePlayers] = useState<QueuePlayer[]>([]);
 
   useEffect(() => {
     checkQueueStatus();
     loadAvailablePlayers();
+    loadQueuePlayers();
 
     const channel = supabase
       .channel('queue-updates')
@@ -56,9 +68,25 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
       )
       .subscribe();
 
+    const queueChannel = supabase
+      .channel('all-queue-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'queue_entries'
+        },
+        () => {
+          loadQueuePlayers();
+        }
+      )
+      .subscribe();
+
     return () => {
       channel.unsubscribe();
       matchChannel.unsubscribe();
+      queueChannel.unsubscribe();
     };
   }, [profile]);
 
@@ -92,6 +120,73 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
       .order('full_name');
 
     setAvailablePlayers(data || []);
+  };
+
+  const loadQueuePlayers = async () => {
+    if (!profile) return;
+
+    const { data: queueEntries } = await supabase
+      .from('queue_entries')
+      .select('*')
+      .eq('status', 'active')
+      .order('created_at');
+
+    if (!queueEntries) {
+      setQueuePlayers([]);
+      return;
+    }
+
+    const playerIds = queueEntries.map(entry => entry.player_id);
+    const partnerIds = queueEntries
+      .filter(entry => entry.partner_id)
+      .map(entry => entry.partner_id as string);
+    const allIds = [...new Set([...playerIds, ...partnerIds])];
+
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('*')
+      .in('id', allIds);
+
+    if (!profiles) {
+      setQueuePlayers([]);
+      return;
+    }
+
+    const profileMap = new Map(profiles.map(p => [p.id, p]));
+
+    const processedEntries = new Set<string>();
+    const queuePlayersData: QueuePlayer[] = [];
+
+    queueEntries.forEach(entry => {
+      if (processedEntries.has(entry.player_id)) return;
+
+      const playerProfile = profileMap.get(entry.player_id);
+      if (!playerProfile) return;
+
+      const queuePlayer: QueuePlayer = {
+        player_id: entry.player_id,
+        partner_id: entry.partner_id,
+        gender: entry.gender,
+        average_ranking: entry.average_ranking,
+        created_at: entry.created_at,
+        profile: playerProfile,
+      };
+
+      if (entry.partner_id) {
+        const partnerProfile = profileMap.get(entry.partner_id);
+        if (partnerProfile) {
+          queuePlayer.partner_profile = partnerProfile;
+        }
+        processedEntries.add(entry.player_id);
+        processedEntries.add(entry.partner_id);
+      } else {
+        processedEntries.add(entry.player_id);
+      }
+
+      queuePlayersData.push(queuePlayer);
+    });
+
+    setQueuePlayers(queuePlayersData);
   };
 
   const joinQueue = async () => {
@@ -368,6 +463,114 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
             </button>
           </div>
         )}
+
+        <div className="mt-8 bg-white rounded-2xl shadow-lg p-8">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
+            <Users className="w-7 h-7 mr-3 text-emerald-600" />
+            Jogadores na Fila
+          </h2>
+
+          {queuePlayers.length === 0 ? (
+            <div className="text-center py-8">
+              <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500">Nenhum jogador na fila no momento</p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {['male', 'female'].map(gender => {
+                const genderPlayers = queuePlayers.filter(qp => qp.gender === gender);
+                if (genderPlayers.length === 0) return null;
+
+                return (
+                  <div key={gender}>
+                    <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                      <span className={`w-3 h-3 rounded-full mr-2 ${
+                        gender === 'male' ? 'bg-blue-500' : 'bg-pink-500'
+                      }`}></span>
+                      {gender === 'male' ? 'Masculino' : 'Feminino'}
+                      <span className="ml-2 text-sm font-normal text-gray-500">
+                        ({genderPlayers.length} {genderPlayers.length === 1 ? 'jogador' : 'jogadores'})
+                      </span>
+                    </h3>
+
+                    <div className="grid md:grid-cols-2 gap-4">
+                      {genderPlayers.map(queuePlayer => (
+                        <div
+                          key={queuePlayer.player_id}
+                          className={`p-4 rounded-xl border-2 ${
+                            queuePlayer.player_id === profile?.id
+                              ? 'bg-emerald-50 border-emerald-300'
+                              : 'bg-gray-50 border-gray-200'
+                          }`}
+                        >
+                          {queuePlayer.partner_id && queuePlayer.partner_profile ? (
+                            <div>
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center">
+                                  <Users className="w-5 h-5 text-emerald-600 mr-2" />
+                                  <span className="font-semibold text-gray-900">Dupla</span>
+                                </div>
+                                <span className="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs rounded-full font-medium">
+                                  -20% pts
+                                </span>
+                              </div>
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm text-gray-700">
+                                    {queuePlayer.profile.full_name}
+                                  </span>
+                                  <span className="text-xs font-bold text-gray-600">
+                                    {queuePlayer.profile.ranking_points} pts
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm text-gray-700">
+                                    {queuePlayer.partner_profile.full_name}
+                                  </span>
+                                  <span className="text-xs font-bold text-gray-600">
+                                    {queuePlayer.partner_profile.ranking_points} pts
+                                  </span>
+                                </div>
+                                <div className="pt-2 border-t border-gray-300">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs text-gray-600">Media da Dupla:</span>
+                                    <span className="text-sm font-bold text-emerald-700">
+                                      {queuePlayer.average_ranking} pts
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div>
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center">
+                                  <User className="w-5 h-5 text-emerald-600 mr-2" />
+                                  <span className="font-semibold text-gray-900">Solo</span>
+                                </div>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm text-gray-700">
+                                  {queuePlayer.profile.full_name}
+                                </span>
+                                <span className="text-sm font-bold text-emerald-700">
+                                  {queuePlayer.profile.ranking_points} pts
+                                </span>
+                              </div>
+                              <div className="mt-2 text-xs text-gray-500">
+                                Categoria: {queuePlayer.profile.category}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
