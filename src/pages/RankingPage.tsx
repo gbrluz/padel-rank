@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Trophy, Medal, TrendingUp, User } from 'lucide-react';
+import { Trophy, Medal, TrendingUp, User, Globe, MapPin } from 'lucide-react';
 import { supabase, Profile, getCategoryFromPoints } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function RankingPage() {
   const { profile } = useAuth();
+  const [rankingType, setRankingType] = useState<'regional' | 'global'>('regional');
   const [gender, setGender] = useState<'male' | 'female'>(profile?.gender || 'male');
   const [rankings, setRankings] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -12,16 +13,28 @@ export default function RankingPage() {
 
   useEffect(() => {
     loadRankings();
-  }, [gender]);
+  }, [gender, rankingType]);
 
   const loadRankings = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('profiles')
         .select('*')
-        .eq('gender', gender)
-        .order('ranking_points', { ascending: false });
+        .eq('gender', gender);
+
+      if (rankingType === 'regional') {
+        if (profile?.state && profile?.city) {
+          query = query
+            .eq('state', profile.state)
+            .eq('city', profile.city);
+        }
+        query = query.order('ranking_points', { ascending: false });
+      } else {
+        query = query.order('global_ranking_points', { ascending: false });
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
 
@@ -56,21 +69,76 @@ export default function RankingPage() {
         </div>
 
         {userPosition && (
-          <div className="bg-gradient-to-r from-emerald-600 to-teal-600 rounded-2xl p-6 mb-6 text-white shadow-lg">
+          <div className={`bg-gradient-to-r ${
+            rankingType === 'regional' ? 'from-emerald-600 to-teal-600' : 'from-blue-600 to-indigo-600'
+          } rounded-2xl p-6 mb-6 text-white shadow-lg`}>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-emerald-100 mb-1">Sua Posição</p>
+                <p className={rankingType === 'regional' ? 'text-emerald-100' : 'text-blue-100'}>
+                  Sua Posição
+                </p>
                 <p className="text-4xl font-bold">#{userPosition}</p>
               </div>
               <div className="text-right">
-                <p className="text-emerald-100 mb-1">Pontuação</p>
-                <p className="text-3xl font-bold">{profile?.ranking_points}</p>
+                <p className={rankingType === 'regional' ? 'text-emerald-100' : 'text-blue-100'}>
+                  Pontuação {rankingType === 'global' && '(Global)'}
+                </p>
+                <p className="text-3xl font-bold">
+                  {rankingType === 'regional'
+                    ? profile?.ranking_points
+                    : Math.round(profile?.global_ranking_points || 0)}
+                </p>
               </div>
             </div>
           </div>
         )}
 
         <div className="bg-white rounded-2xl shadow-lg overflow-hidden mb-6">
+          <div className="p-4 border-b">
+            <div className="flex gap-2 mb-4">
+              <button
+                onClick={() => setRankingType('regional')}
+                className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${
+                  rankingType === 'regional'
+                    ? 'bg-emerald-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                <MapPin className="w-5 h-5" />
+                Ranking Regional
+              </button>
+              <button
+                onClick={() => setRankingType('global')}
+                className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${
+                  rankingType === 'global'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                <Globe className="w-5 h-5" />
+                Ranking Global
+              </button>
+            </div>
+
+            {rankingType === 'regional' && profile && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                <p className="text-sm text-emerald-800">
+                  <MapPin className="w-4 h-4 inline mr-1" />
+                  Exibindo ranking de {profile.city}, {profile.state}
+                </p>
+              </div>
+            )}
+
+            {rankingType === 'global' && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-sm text-blue-800">
+                  <Globe className="w-4 h-4 inline mr-1" />
+                  Ranking calculado considerando a força de cada região
+                </p>
+              </div>
+            )}
+          </div>
+
           <div className="flex border-b">
             <button
               onClick={() => setGender('male')}
@@ -180,7 +248,9 @@ export default function RankingPage() {
                           <div className="flex items-center justify-center">
                             <TrendingUp className="w-4 h-4 mr-1 text-emerald-600" />
                             <span className="text-lg font-bold text-gray-900">
-                              {player.ranking_points}
+                              {rankingType === 'regional'
+                                ? player.ranking_points
+                                : Math.round(player.global_ranking_points || 0)}
                             </span>
                           </div>
                         </td>
@@ -256,7 +326,9 @@ export default function RankingPage() {
                       <div>
                         <div className="text-xs text-gray-500 mb-1">Pontos</div>
                         <div className="text-lg font-bold text-emerald-600">
-                          {player.ranking_points}
+                          {rankingType === 'regional'
+                            ? player.ranking_points
+                            : Math.round(player.global_ranking_points || 0)}
                         </div>
                       </div>
                       <div>

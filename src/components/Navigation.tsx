@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Trophy, Calendar, PlayCircle, Home, User, Shield } from 'lucide-react';
+import { Trophy, Calendar, PlayCircle, Home, User, Shield, Medal } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 
@@ -67,6 +67,7 @@ export default function Navigation({ currentPage, onNavigate }: NavigationProps)
   const navItems = [
     { id: 'dashboard', icon: Home, label: 'Início' },
     { id: 'ranking', icon: Trophy, label: 'Ranking' },
+    { id: 'leagues', icon: Medal, label: 'Ligas' },
     { id: 'matches', icon: Calendar, label: 'Partidas' },
     { id: 'play', icon: PlayCircle, label: 'Jogar', highlight: true },
     ...(isAdmin ? [{ id: 'backoffice', icon: Shield, label: 'Admin', adminOnly: true }] : [])

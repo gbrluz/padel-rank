@@ -148,6 +148,10 @@ Deno.serve(async (req: Request) => {
     const teamATotalPoints = teamAPlayer1.ranking_points + teamAPlayer2.ranking_points;
     const teamBTotalPoints = teamBPlayer1.ranking_points + teamBPlayer2.ranking_points;
 
+    const isInterRegional =
+      (teamAPlayer1.state !== teamBPlayer1.state || teamAPlayer1.city !== teamBPlayer1.city) ||
+      (teamAPlayer1.state !== teamBPlayer2.state || teamAPlayer1.city !== teamBPlayer2.city);
+
     const scoreMargin = calculateScoreMargin(sets || [], winnerTeam);
 
     let teamAPointsChange: number;
@@ -175,83 +179,151 @@ Deno.serve(async (req: Request) => {
 
     const teamAWon = winnerTeam === 'team_a';
 
-    const newTeamAPlayer1Points = Math.max(0, teamAPlayer1.ranking_points + teamAPointsChange);
-    const newTeamAPlayer2Points = Math.max(0, teamAPlayer2.ranking_points + teamAPointsChange);
-    const newTeamBPlayer1Points = Math.max(0, teamBPlayer1.ranking_points + teamBPointsChange);
-    const newTeamBPlayer2Points = Math.max(0, teamBPlayer2.ranking_points + teamBPointsChange);
+    let shouldUpdateRegionalRanking = true;
 
-    await supabase
-      .from('profiles')
-      .update({
-        ranking_points: newTeamAPlayer1Points,
-        total_matches: teamAPlayer1.total_matches + 1,
-        total_wins: teamAPlayer1.total_wins + (teamAWon ? 1 : 0),
-        category: getCategoryFromPoints(newTeamAPlayer1Points)
-      })
-      .eq('id', match.team_a_player1_id);
+    if (match.league_id) {
+      const { data: league } = await supabase
+        .from('leagues')
+        .select('affects_regional_ranking')
+        .eq('id', match.league_id)
+        .single();
 
-    await supabase
-      .from('profiles')
-      .update({
-        ranking_points: newTeamAPlayer2Points,
-        total_matches: teamAPlayer2.total_matches + 1,
-        total_wins: teamAPlayer2.total_wins + (teamAWon ? 1 : 0),
-        category: getCategoryFromPoints(newTeamAPlayer2Points)
-      })
-      .eq('id', match.team_a_player2_id);
+      if (league) {
+        shouldUpdateRegionalRanking = league.affects_regional_ranking;
 
-    await supabase
-      .from('profiles')
-      .update({
-        ranking_points: newTeamBPlayer1Points,
-        total_matches: teamBPlayer1.total_matches + 1,
-        total_wins: teamBPlayer1.total_wins + (!teamAWon ? 1 : 0),
-        category: getCategoryFromPoints(newTeamBPlayer1Points)
-      })
-      .eq('id', match.team_b_player1_id);
+        await supabase.rpc('update_league_ranking', {
+          p_league_id: match.league_id,
+          p_player_id: match.team_a_player1_id,
+          p_points_change: teamAPointsChange,
+          p_won: teamAWon
+        });
 
-    await supabase
-      .from('profiles')
-      .update({
-        ranking_points: newTeamBPlayer2Points,
-        total_matches: teamBPlayer2.total_matches + 1,
-        total_wins: teamBPlayer2.total_wins + (!teamAWon ? 1 : 0),
-        category: getCategoryFromPoints(newTeamBPlayer2Points)
-      })
-      .eq('id', match.team_b_player2_id);
+        await supabase.rpc('update_league_ranking', {
+          p_league_id: match.league_id,
+          p_player_id: match.team_a_player2_id,
+          p_points_change: teamAPointsChange,
+          p_won: teamAWon
+        });
 
-    await supabase
-      .from('ranking_history')
-      .insert([
-        {
-          player_id: match.team_a_player1_id,
-          match_id: matchId,
-          points_before: teamAPlayer1.ranking_points,
-          points_after: newTeamAPlayer1Points,
-          points_change: teamAPointsChange
-        },
-        {
-          player_id: match.team_a_player2_id,
-          match_id: matchId,
-          points_before: teamAPlayer2.ranking_points,
-          points_after: newTeamAPlayer2Points,
-          points_change: teamAPointsChange
-        },
-        {
-          player_id: match.team_b_player1_id,
-          match_id: matchId,
-          points_before: teamBPlayer1.ranking_points,
-          points_after: newTeamBPlayer1Points,
-          points_change: teamBPointsChange
-        },
-        {
-          player_id: match.team_b_player2_id,
-          match_id: matchId,
-          points_before: teamBPlayer2.ranking_points,
-          points_after: newTeamBPlayer2Points,
-          points_change: teamBPointsChange
-        }
-      ]);
+        await supabase.rpc('update_league_ranking', {
+          p_league_id: match.league_id,
+          p_player_id: match.team_b_player1_id,
+          p_points_change: teamBPointsChange,
+          p_won: !teamAWon
+        });
+
+        await supabase.rpc('update_league_ranking', {
+          p_league_id: match.league_id,
+          p_player_id: match.team_b_player2_id,
+          p_points_change: teamBPointsChange,
+          p_won: !teamAWon
+        });
+      }
+    }
+
+    const newTeamAPlayer1Points = shouldUpdateRegionalRanking
+      ? Math.max(0, teamAPlayer1.ranking_points + teamAPointsChange)
+      : teamAPlayer1.ranking_points;
+    const newTeamAPlayer2Points = shouldUpdateRegionalRanking
+      ? Math.max(0, teamAPlayer2.ranking_points + teamAPointsChange)
+      : teamAPlayer2.ranking_points;
+    const newTeamBPlayer1Points = shouldUpdateRegionalRanking
+      ? Math.max(0, teamBPlayer1.ranking_points + teamBPointsChange)
+      : teamBPlayer1.ranking_points;
+    const newTeamBPlayer2Points = shouldUpdateRegionalRanking
+      ? Math.max(0, teamBPlayer2.ranking_points + teamBPointsChange)
+      : teamBPlayer2.ranking_points;
+
+    if (shouldUpdateRegionalRanking) {
+      await supabase
+        .from('profiles')
+        .update({
+          ranking_points: newTeamAPlayer1Points,
+          total_matches: teamAPlayer1.total_matches + 1,
+          total_wins: teamAPlayer1.total_wins + (teamAWon ? 1 : 0),
+          category: getCategoryFromPoints(newTeamAPlayer1Points)
+        })
+        .eq('id', match.team_a_player1_id);
+
+      await supabase
+        .from('profiles')
+        .update({
+          ranking_points: newTeamAPlayer2Points,
+          total_matches: teamAPlayer2.total_matches + 1,
+          total_wins: teamAPlayer2.total_wins + (teamAWon ? 1 : 0),
+          category: getCategoryFromPoints(newTeamAPlayer2Points)
+        })
+        .eq('id', match.team_a_player2_id);
+
+      await supabase
+        .from('profiles')
+        .update({
+          ranking_points: newTeamBPlayer1Points,
+          total_matches: teamBPlayer1.total_matches + 1,
+          total_wins: teamBPlayer1.total_wins + (!teamAWon ? 1 : 0),
+          category: getCategoryFromPoints(newTeamBPlayer1Points)
+        })
+        .eq('id', match.team_b_player1_id);
+
+      await supabase
+        .from('profiles')
+        .update({
+          ranking_points: newTeamBPlayer2Points,
+          total_matches: teamBPlayer2.total_matches + 1,
+          total_wins: teamBPlayer2.total_wins + (!teamAWon ? 1 : 0),
+          category: getCategoryFromPoints(newTeamBPlayer2Points)
+        })
+        .eq('id', match.team_b_player2_id);
+    }
+
+    if (isInterRegional && shouldUpdateRegionalRanking) {
+      const winnerState = teamAWon ? teamAPlayer1.state : teamBPlayer1.state;
+      const winnerCity = teamAWon ? teamAPlayer1.city : teamBPlayer1.city;
+      const loserState = teamAWon ? teamBPlayer1.state : teamAPlayer1.state;
+      const loserCity = teamAWon ? teamBPlayer1.city : teamAPlayer1.city;
+
+      await supabase.rpc('update_region_strength', {
+        p_winner_state: winnerState,
+        p_winner_city: winnerCity,
+        p_loser_state: loserState,
+        p_loser_city: loserCity
+      });
+    }
+
+    if (shouldUpdateRegionalRanking) {
+      await supabase
+        .from('ranking_history')
+        .insert([
+          {
+            player_id: match.team_a_player1_id,
+            match_id: matchId,
+            points_before: teamAPlayer1.ranking_points,
+            points_after: newTeamAPlayer1Points,
+            points_change: teamAPointsChange
+          },
+          {
+            player_id: match.team_a_player2_id,
+            match_id: matchId,
+            points_before: teamAPlayer2.ranking_points,
+            points_after: newTeamAPlayer2Points,
+            points_change: teamAPointsChange
+          },
+          {
+            player_id: match.team_b_player1_id,
+            match_id: matchId,
+            points_before: teamBPlayer1.ranking_points,
+            points_after: newTeamBPlayer1Points,
+            points_change: teamBPointsChange
+          },
+          {
+            player_id: match.team_b_player2_id,
+            match_id: matchId,
+            points_before: teamBPlayer2.ranking_points,
+            points_after: newTeamBPlayer2Points,
+            points_change: teamBPointsChange
+          }
+        ]);
+    }
 
     await supabase
       .from('matches')
@@ -266,7 +338,8 @@ Deno.serve(async (req: Request) => {
         match_time: matchTime,
         sets: sets,
         has_tiebreak: hasTiebreak,
-        tiebreak_score: tiebreakScore
+        tiebreak_score: tiebreakScore,
+        is_inter_regional: isInterRegional
       })
       .eq('id', matchId);
 

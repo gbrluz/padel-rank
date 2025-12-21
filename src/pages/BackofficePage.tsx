@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Users, UserCog, Trophy, Calendar, Trash2, Save, X, Edit } from 'lucide-react';
+import { Users, UserCog, Trophy, Calendar, Trash2, Save, X, Edit, Medal } from 'lucide-react';
 import { supabase, Profile } from '../lib/supabase';
+import LeaguesManagement from '../components/LeaguesManagement';
 
 interface BackofficePageProps {
   onNavigate: (page: string) => void;
@@ -36,7 +37,7 @@ export default function BackofficePage({ onNavigate }: BackofficePageProps) {
   const [profiles, setProfiles] = useState<ProfileWithEmail[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'profiles' | 'matches'>('profiles');
+  const [activeTab, setActiveTab] = useState<'profiles' | 'matches' | 'leagues'>('profiles');
   const [editingProfile, setEditingProfile] = useState<ProfileWithEmail | null>(null);
   const [formData, setFormData] = useState<Partial<ProfileWithEmail>>({});
   const [editingMatch, setEditingMatch] = useState<Match | null>(null);
@@ -47,6 +48,11 @@ export default function BackofficePage({ onNavigate }: BackofficePageProps) {
   }, [activeTab]);
 
   const loadData = async () => {
+    if (activeTab === 'leagues') {
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     if (activeTab === 'profiles') {
       await loadProfiles();
@@ -226,6 +232,17 @@ export default function BackofficePage({ onNavigate }: BackofficePageProps) {
             >
               <Calendar className="w-5 h-5 mr-2" />
               Partidas
+            </button>
+            <button
+              onClick={() => setActiveTab('leagues')}
+              className={`flex-1 px-6 py-4 text-center font-semibold transition-colors flex items-center justify-center ${
+                activeTab === 'leagues'
+                  ? 'bg-emerald-500 text-white'
+                  : 'bg-white text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <Medal className="w-5 h-5 mr-2" />
+              Ligas
             </button>
           </div>
 
@@ -423,6 +440,8 @@ export default function BackofficePage({ onNavigate }: BackofficePageProps) {
                   </table>
                 </div>
               </div>
+            ) : activeTab === 'leagues' ? (
+              <LeaguesManagement />
             ) : (
               <div>
                 <div className="mb-4 flex items-center justify-between">

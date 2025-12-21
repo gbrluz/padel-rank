@@ -9,6 +9,7 @@ import MatchesPage from './pages/MatchesPage';
 import PlayPage from './pages/PlayPage';
 import ProfilePage from './pages/ProfilePage';
 import BackofficePage from './pages/BackofficePage';
+import LeaguesPage from './pages/LeaguesPage';
 import Navigation from './components/Navigation';
 
 function AppContent() {
@@ -53,6 +54,8 @@ function AppContent() {
         return <MatchesPage />;
       case 'play':
         return <PlayPage onNavigate={setCurrentPage} />;
+      case 'leagues':
+        return <LeaguesPage onNavigate={setCurrentPage} />;
       case 'profile':
         return <ProfilePage />;
       case 'backoffice':
