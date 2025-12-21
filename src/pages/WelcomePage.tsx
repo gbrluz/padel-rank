@@ -15,9 +15,16 @@ export default function WelcomePage({ onGetStarted }: WelcomePageProps) {
           <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-4">
             Padel <span className="text-emerald-600">Ranking</span>
           </h1>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+          <p className="text-xl text-gray-600 max-w-2xl mx-auto mb-8">
             O sistema definitivo para gerenciar suas partidas de padel e acompanhar seu progresso no ranking
           </p>
+          <button
+            onClick={onGetStarted}
+            className="inline-flex items-center px-12 py-5 bg-emerald-600 text-white text-xl font-bold rounded-2xl hover:bg-emerald-700 transition-all transform hover:scale-105 shadow-lg hover:shadow-xl"
+          >
+            <Trophy className="w-6 h-6 mr-3" />
+            Começar Agora
+          </button>
         </header>
 
         <div className="max-w-6xl mx-auto mb-16">
