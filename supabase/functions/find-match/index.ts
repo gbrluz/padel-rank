@@ -80,40 +80,74 @@ Deno.serve(async (req: Request) => {
       .eq('status', 'active')
       .order('created_at');
 
-    if (queueError || !activeQueue || activeQueue.length < 4) {
+    if (queueError || !activeQueue || activeQueue.length < 2) {
       return new Response(
         JSON.stringify({ message: 'Not enough players in queue', found: 0 }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
+    const allPlayerIds = new Set<string>();
+    activeQueue.forEach(entry => {
+      allPlayerIds.add(entry.player_id);
+      if (entry.partner_id) {
+        allPlayerIds.add(entry.partner_id);
+      }
+    });
+
+    const { data: playerProfiles } = await supabase
+      .from('profiles')
+      .select('*')
+      .in('id', Array.from(allPlayerIds));
+
+    if (!playerProfiles) {
+      return new Response(
+        JSON.stringify({ message: 'Could not fetch player profiles', found: 0 }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const profileMap = new Map(playerProfiles.map(p => [p.id, p]));
+
     const matchesFound = [];
     const processedPlayers = new Set();
 
     for (const gender of ['male', 'female']) {
-      const genderQueue = activeQueue.filter(q => 
+      const genderQueue = activeQueue.filter(q =>
         q.gender === gender && !processedPlayers.has(q.player_id)
       );
-      
-      if (genderQueue.length < 4) continue;
+
+      if (genderQueue.length < 2) continue;
 
       const duos: any[] = [];
       const solos: any[] = [];
 
-      genderQueue.forEach(entry => {
-        if (entry.partner_id) {
-          const partnerEntry = genderQueue.find(e => 
-            e.player_id === entry.partner_id && e.partner_id === entry.player_id
-          );
-          if (partnerEntry && !duos.some(d => 
-            d.some((e: any) => e.player_id === entry.player_id || e.player_id === partnerEntry.player_id)
-          )) {
-            duos.push([entry, partnerEntry]);
+      for (const entry of genderQueue) {
+        if (entry.partner_id && !processedPlayers.has(entry.player_id)) {
+          const playerProfile = profileMap.get(entry.player_id);
+          const partnerProfile = profileMap.get(entry.partner_id);
+
+          if (playerProfile && partnerProfile) {
+            duos.push([
+              { ...entry, ...playerProfile },
+              {
+                player_id: entry.partner_id,
+                partner_id: entry.player_id,
+                gender: partnerProfile.gender,
+                average_ranking: entry.average_ranking,
+                preferred_side: partnerProfile.preferred_side,
+                ...partnerProfile
+              }
+            ]);
+            processedPlayers.add(entry.partner_id);
           }
-        } else {
-          solos.push(entry);
+        } else if (!entry.partner_id && !processedPlayers.has(entry.player_id)) {
+          const playerProfile = profileMap.get(entry.player_id);
+          if (playerProfile) {
+            solos.push({ ...entry, ...playerProfile });
+          }
         }
-      });
+      }
 
       while (duos.length >= 2) {
         const duo1 = duos.shift()!;
@@ -143,7 +177,7 @@ Deno.serve(async (req: Request) => {
 
       while (solos.length >= 4) {
         solos.sort((a, b) => a.average_ranking - b.average_ranking);
-        
+
         const players = solos.slice(0, 4);
         const rankings = players.map(p => p.average_ranking);
         const minRanking = Math.min(...rankings);
@@ -248,12 +282,12 @@ Deno.serve(async (req: Request) => {
         match.team_b[1].player_id
       ];
 
-      const { data: playerProfiles } = await supabase
+      const { data: matchPlayerProfiles } = await supabase
         .from('profiles')
         .select('id, availability')
         .in('id', allPlayerIds);
 
-      const commonAvailability = calculateCommonAvailability(playerProfiles || []);
+      const commonAvailability = calculateCommonAvailability(matchPlayerProfiles || []);
 
       const { data: newMatch, error: insertError } = await supabase
         .from('matches')
@@ -302,7 +336,7 @@ Deno.serve(async (req: Request) => {
     }
 
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         message: `Found ${matchesFound.length} matches`,
         found: matchesFound.length,
         details: matchesFound.map(m => ({

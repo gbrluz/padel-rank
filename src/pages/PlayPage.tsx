@@ -200,43 +200,18 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
         ? Math.floor((profile.ranking_points + partner.ranking_points) / 2)
         : profile.ranking_points;
 
-      if (selectedPartner && partner) {
-        const { error } = await supabase
-          .from('queue_entries')
-          .insert([
-            {
-              player_id: profile.id,
-              partner_id: selectedPartner,
-              gender: profile.gender,
-              average_ranking: averageRanking,
-              status: 'active',
-              preferred_side: profile.preferred_side
-            },
-            {
-              player_id: selectedPartner,
-              partner_id: profile.id,
-              gender: partner.gender,
-              average_ranking: averageRanking,
-              status: 'active',
-              preferred_side: partner.preferred_side
-            }
-          ]);
+      const { error } = await supabase
+        .from('queue_entries')
+        .insert([{
+          player_id: profile.id,
+          partner_id: selectedPartner || null,
+          gender: profile.gender,
+          average_ranking: averageRanking,
+          status: 'active',
+          preferred_side: profile.preferred_side
+        }]);
 
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('queue_entries')
-          .insert([{
-            player_id: profile.id,
-            partner_id: null,
-            gender: profile.gender,
-            average_ranking: averageRanking,
-            status: 'active',
-            preferred_side: profile.preferred_side
-          }]);
-
-        if (error) throw error;
-      }
+      if (error) throw error;
 
       setInQueue(true);
       await checkQueueStatus();
@@ -266,23 +241,13 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
 
     setLoading(true);
     try {
-      if (selectedPartner) {
-        const { error } = await supabase
-          .from('queue_entries')
-          .update({ status: 'cancelled' })
-          .in('player_id', [profile.id, selectedPartner])
-          .eq('status', 'active');
+      const { error } = await supabase
+        .from('queue_entries')
+        .update({ status: 'cancelled' })
+        .eq('player_id', profile.id)
+        .eq('status', 'active');
 
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('queue_entries')
-          .update({ status: 'cancelled' })
-          .eq('player_id', profile.id)
-          .eq('status', 'active');
-
-        if (error) throw error;
-      }
+      if (error) throw error;
 
       setInQueue(false);
       setQueueEntry(null);
