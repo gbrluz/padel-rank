@@ -323,37 +323,55 @@ export default function ProfilePage() {
                   </select>
                 </div>
 
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Estado
-                    </label>
-                    <select
-                      value={formData.state}
-                      onChange={(e) => setFormData({ ...formData, state: e.target.value, city: '' })}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:outline-none"
-                      disabled={loading}
-                    >
-                      {states.map(state => (
-                        <option key={state.id} value={state.nome}>{state.nome}</option>
-                      ))}
-                    </select>
+                <div>
+                  <div className="grid md:grid-cols-2 gap-6 mb-3">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Estado
+                      </label>
+                      <select
+                        value={formData.state}
+                        onChange={(e) => setFormData({ ...formData, state: e.target.value, city: '' })}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:outline-none"
+                        disabled={loading}
+                      >
+                        {states.map(state => (
+                          <option key={state.id} value={state.nome}>{state.nome}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Cidade
+                      </label>
+                      <select
+                        value={formData.city}
+                        onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:outline-none"
+                        disabled={loading}
+                      >
+                        {cities.map(city => (
+                          <option key={city.id} value={city.nome}>{city.nome}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Cidade
-                    </label>
-                    <select
-                      value={formData.city}
-                      onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:outline-none"
-                      disabled={loading}
-                    >
-                      {cities.map(city => (
-                        <option key={city.id} value={city.nome}>{city.nome}</option>
-                      ))}
-                    </select>
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                    <div className="flex items-start gap-3">
+                      <MapPin className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="text-sm font-semibold text-blue-900 mb-1">
+                          Importante: Rankings Regionais
+                        </p>
+                        <p className="text-sm text-blue-800">
+                          Ao alterar sua cidade, você passará a jogar no ranking regional dessa nova cidade.
+                          Seus pontos atuais serão mantidos, mas você competirá com jogadores dessa região
+                          e só será pareado com jogadores da mesma cidade.
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
 

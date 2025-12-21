@@ -112,40 +112,39 @@ Deno.serve(async (req: Request) => {
     const matchesFound = [];
     const processedPlayers = new Set();
 
-    for (const gender of ['male', 'female']) {
-      const genderQueue = activeQueue.filter(q =>
-        q.gender === gender && !processedPlayers.has(q.player_id)
-      );
+    const regionMap = new Map<string, any[]>();
+    for (const entry of activeQueue) {
+      const profile = profileMap.get(entry.player_id);
+      if (profile && !processedPlayers.has(entry.player_id)) {
+        const regionKey = `${profile.state}-${profile.city}-${entry.gender}`;
+        if (!regionMap.has(regionKey)) {
+          regionMap.set(regionKey, []);
+        }
+        regionMap.get(regionKey)!.push({ ...entry, ...profile });
+      }
+    }
 
-      if (genderQueue.length < 2) continue;
+    for (const [regionKey, regionQueue] of regionMap) {
+      if (regionQueue.length < 2) continue;
+
+      const gender = regionKey.split('-')[2];
 
       const duos: any[] = [];
       const solos: any[] = [];
 
-      for (const entry of genderQueue) {
-        if (entry.partner_id && !processedPlayers.has(entry.player_id)) {
-          const partnerEntry = genderQueue.find(e =>
-            e.player_id === entry.partner_id && e.partner_id === entry.player_id
+      for (const player of regionQueue) {
+        if (player.partner_id && !processedPlayers.has(player.player_id)) {
+          const partnerPlayer = regionQueue.find(p =>
+            p.player_id === player.partner_id && p.partner_id === player.player_id
           );
 
-          if (partnerEntry && !processedPlayers.has(partnerEntry.player_id)) {
-            const playerProfile = profileMap.get(entry.player_id);
-            const partnerProfile = profileMap.get(entry.partner_id);
-
-            if (playerProfile && partnerProfile) {
-              duos.push([
-                { ...entry, ...playerProfile },
-                { ...partnerEntry, ...partnerProfile }
-              ]);
-              processedPlayers.add(entry.player_id);
-              processedPlayers.add(entry.partner_id);
-            }
+          if (partnerPlayer && !processedPlayers.has(partnerPlayer.player_id)) {
+            duos.push([player, partnerPlayer]);
+            processedPlayers.add(player.player_id);
+            processedPlayers.add(partnerPlayer.player_id);
           }
-        } else if (!entry.partner_id && !processedPlayers.has(entry.player_id)) {
-          const playerProfile = profileMap.get(entry.player_id);
-          if (playerProfile) {
-            solos.push({ ...entry, ...playerProfile });
-          }
+        } else if (!player.partner_id && !processedPlayers.has(player.player_id)) {
+          solos.push(player);
         }
       }
 
