@@ -47,6 +47,8 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
   const [pendingInvitations, setPendingInvitations] = useState<DuoInvitation[]>([]);
   const [sentInvitation, setSentInvitation] = useState<DuoInvitation | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showDropdown, setShowDropdown] = useState(false);
 
   const showNotification = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     const id = Date.now();
@@ -55,6 +57,38 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
       setNotifications(prev => prev.filter(n => n.id !== id));
     }, 5000);
   };
+
+  const filteredPlayers = searchTerm.trim() === ''
+    ? []
+    : availablePlayers.filter(player =>
+        player.full_name.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+
+  const handleSelectPlayer = (playerId: string, playerName: string) => {
+    setSelectedPartner(playerId);
+    setSearchTerm(playerName);
+    setShowDropdown(false);
+  };
+
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    setShowDropdown(value.trim() !== '');
+    if (value.trim() === '') {
+      setSelectedPartner('');
+    }
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.autocomplete-container')) {
+        setShowDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     checkQueueStatus();
@@ -762,7 +796,11 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
 
               <div className="grid md:grid-cols-2 gap-4 mb-6">
                 <button
-                  onClick={() => setSelectedPartner(null)}
+                  onClick={() => {
+                    setSelectedPartner(null);
+                    setSearchTerm('');
+                    setShowDropdown(false);
+                  }}
                   className={`p-6 rounded-xl border-2 transition-all ${
                     selectedPartner === null
                       ? 'border-emerald-500 bg-emerald-50'
@@ -777,7 +815,11 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
                 </button>
 
                 <button
-                  onClick={() => setSelectedPartner('')}
+                  onClick={() => {
+                    setSelectedPartner('');
+                    setSearchTerm('');
+                    setShowDropdown(false);
+                  }}
                   className={`p-6 rounded-xl border-2 transition-all ${
                     selectedPartner !== null
                       ? 'border-emerald-500 bg-emerald-50'
@@ -793,22 +835,48 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
               </div>
 
               {selectedPartner !== null && (
-                <div className="mb-6">
+                <div className="mb-6 relative autocomplete-container">
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Escolha seu Parceiro
                   </label>
-                  <select
-                    value={selectedPartner || ''}
-                    onChange={(e) => setSelectedPartner(e.target.value || null)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:outline-none"
-                  >
-                    <option value="">Selecione um parceiro</option>
-                    {availablePlayers.map(player => (
-                      <option key={player.id} value={player.id}>
-                        {player.full_name} - {player.ranking_points} pts
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={searchTerm}
+                      onChange={(e) => handleSearchChange(e.target.value)}
+                      onFocus={() => {
+                        if (searchTerm.trim() !== '') {
+                          setShowDropdown(true);
+                        }
+                      }}
+                      placeholder="Digite o nome do parceiro..."
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:outline-none"
+                    />
+                    <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  </div>
+
+                  {showDropdown && filteredPlayers.length > 0 && (
+                    <div className="absolute z-10 w-full mt-2 bg-white border-2 border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+                      {filteredPlayers.map(player => (
+                        <button
+                          key={player.id}
+                          onClick={() => handleSelectPlayer(player.id, player.full_name)}
+                          className="w-full px-4 py-3 text-left hover:bg-emerald-50 transition-colors border-b border-gray-100 last:border-b-0"
+                        >
+                          <div className="font-semibold text-gray-900">{player.full_name}</div>
+                          <div className="text-sm text-gray-600">
+                            {player.ranking_points} pts • {player.category}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {showDropdown && searchTerm.trim() !== '' && filteredPlayers.length === 0 && (
+                    <div className="absolute z-10 w-full mt-2 bg-white border-2 border-gray-200 rounded-xl shadow-lg p-4">
+                      <p className="text-gray-600 text-center">Nenhum parceiro encontrado</p>
+                    </div>
+                  )}
                 </div>
               )}
 
