@@ -34,6 +34,7 @@ export default function RegistrationFormPage() {
     gender: '',
     birth_date: '',
     preferred_side: '',
+    category: '',
     state: '',
     city: '',
     availability: {} as Record<string, string[]>
@@ -54,6 +55,7 @@ export default function RegistrationFormPage() {
             gender: data.gender || '',
             birth_date: data.birth_date || '',
             preferred_side: data.preferred_side || '',
+            category: data.category || '',
             state: data.state || '',
             city: data.city || '',
             availability: data.availability || {}
@@ -136,7 +138,7 @@ export default function RegistrationFormPage() {
     setError('');
 
     if (!formData.full_name || !formData.gender || !formData.birth_date ||
-        !formData.preferred_side || !formData.state || !formData.city) {
+        !formData.preferred_side || !formData.category || !formData.state || !formData.city) {
       setError('Por favor, preencha todos os campos obrigatórios');
       return;
     }
@@ -150,6 +152,10 @@ export default function RegistrationFormPage() {
         .eq('id', user!.id)
         .maybeSingle();
 
+      const { data: initialPoints } = await supabase.rpc('get_initial_points_for_category', {
+        category_name: formData.category
+      });
+
       if (existingProfile) {
         const { error: updateError } = await supabase
           .from('profiles')
@@ -162,7 +168,11 @@ export default function RegistrationFormPage() {
           .from('profiles')
           .insert([{
             id: user!.id,
-            ...formData
+            ...formData,
+            ranking_points: initialPoints || 100,
+            is_provisional: true,
+            provisional_games_played: 0,
+            can_join_leagues: false
           }]);
 
         if (insertError) throw insertError;
@@ -269,6 +279,33 @@ export default function RegistrationFormPage() {
                 <option value="right">Direita</option>
                 <option value="both">Ambos</option>
               </select>
+            </div>
+
+            <div>
+              <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
+                <Target className="w-4 h-4 mr-2" />
+                Categoria Inicial *
+              </label>
+              <select
+                value={formData.category}
+                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:outline-none transition-colors"
+                disabled={loading}
+              >
+                <option value="">Selecione sua categoria</option>
+                <option value="iniciante">Iniciante (100 pontos)</option>
+                <option value="7a">7ª Categoria (300 pontos)</option>
+                <option value="6a">6ª Categoria (500 pontos)</option>
+                <option value="5a">5ª Categoria (700 pontos)</option>
+                <option value="4a">4ª Categoria (900 pontos)</option>
+                <option value="3a">3ª Categoria (1100 pontos)</option>
+                <option value="2a">2ª Categoria (1300 pontos)</option>
+                <option value="1a">1ª Categoria (1500 pontos)</option>
+                <option value="avancado">Avançado (1700 pontos)</option>
+              </select>
+              <p className="mt-2 text-xs text-gray-500">
+                Você começará com pontos provisórios no meio da categoria selecionada. Seus primeiros 5 jogos terão impacto maior no ranking para ajustar sua posição real.
+              </p>
             </div>
 
             <div className="grid md:grid-cols-2 gap-6">

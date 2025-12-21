@@ -478,6 +478,37 @@ export default function ProfilePage() {
                 <div className="mb-6">
                   <h2 className="text-2xl font-bold text-gray-900 mb-1">{profile.full_name}</h2>
                   <p className="text-gray-600">{getCategoryFromPoints(profile.ranking_points)}</p>
+                  {profile.is_provisional && (
+                    <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
+                          <Award className="w-5 h-5 text-amber-600" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-amber-900 mb-1">
+                            Período Provisório ({profile.provisional_games_played || 0}/5 jogos)
+                          </p>
+                          <p className="text-sm text-amber-800">
+                            Você está no período provisório. Seus primeiros 5 jogos têm impacto maior no ranking
+                            para ajustar sua posição real. Após completar 5 jogos, você poderá participar de ligas.
+                          </p>
+                          {profile.provisional_games_played > 0 && (
+                            <div className="mt-2">
+                              <div className="w-full bg-amber-200 rounded-full h-2">
+                                <div
+                                  className="bg-amber-600 h-2 rounded-full transition-all"
+                                  style={{ width: `${(profile.provisional_games_played / 5) * 100}%` }}
+                                />
+                              </div>
+                              <p className="text-xs text-amber-700 mt-1">
+                                Faltam {5 - profile.provisional_games_played} jogos para ranking completo
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-8">

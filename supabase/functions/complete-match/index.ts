@@ -43,7 +43,8 @@ function calculatePointsChange(
   winnerTeamPoints: number,
   loserTeamPoints: number,
   scoreMargin: number,
-  isDuo: boolean
+  isDuo: boolean,
+  hasProvisionalPlayer: boolean
 ): { winnerPoints: number; loserPoints: number } {
   const BASE_POINTS = 25;
 
@@ -60,7 +61,19 @@ function calculatePointsChange(
     winnerPoints = Math.round(winnerPoints * 0.85);
   }
 
-  winnerPoints = Math.max(10, Math.min(50, winnerPoints));
+  // Provisional player multiplier: enhanced impact based on performance
+  if (hasProvisionalPlayer) {
+    // If winning with a large margin, boost points more
+    if (scoreMargin >= 8) {
+      winnerPoints = Math.round(winnerPoints * 1.8);
+    } else if (scoreMargin >= 6) {
+      winnerPoints = Math.round(winnerPoints * 1.5);
+    } else {
+      winnerPoints = Math.round(winnerPoints * 1.3);
+    }
+  }
+
+  winnerPoints = Math.max(10, Math.min(hasProvisionalPlayer ? 80 : 50, winnerPoints));
 
   const loserRankingMultiplier = 1 + (winnerTeamPoints - loserTeamPoints) / 400 * 0.3;
   const clampedLoserRankingMultiplier = Math.max(0.6, Math.min(1.6, loserRankingMultiplier));
@@ -71,7 +84,19 @@ function calculatePointsChange(
     loserPoints = Math.round(loserPoints * 0.85);
   }
 
-  loserPoints = Math.max(5, Math.min(35, loserPoints));
+  // Provisional player multiplier: enhanced penalty for losing badly
+  if (hasProvisionalPlayer) {
+    // If losing with a large margin, penalize more
+    if (scoreMargin >= 8) {
+      loserPoints = Math.round(loserPoints * 1.8);
+    } else if (scoreMargin >= 6) {
+      loserPoints = Math.round(loserPoints * 1.5);
+    } else {
+      loserPoints = Math.round(loserPoints * 1.3);
+    }
+  }
+
+  loserPoints = Math.max(5, Math.min(hasProvisionalPlayer ? 60 : 35, loserPoints));
 
   return { winnerPoints, loserPoints: -loserPoints };
 }
@@ -154,6 +179,13 @@ Deno.serve(async (req: Request) => {
 
     const scoreMargin = calculateScoreMargin(sets || [], winnerTeam);
 
+    // Check if any player is provisional
+    const hasProvisionalPlayer =
+      teamAPlayer1.is_provisional ||
+      teamAPlayer2.is_provisional ||
+      teamBPlayer1.is_provisional ||
+      teamBPlayer2.is_provisional;
+
     let teamAPointsChange: number;
     let teamBPointsChange: number;
 
@@ -162,7 +194,8 @@ Deno.serve(async (req: Request) => {
         teamATotalPoints,
         teamBTotalPoints,
         scoreMargin,
-        match.team_a_was_duo
+        match.team_a_was_duo,
+        hasProvisionalPlayer
       );
       teamAPointsChange = winnerPoints;
       teamBPointsChange = loserPoints;
@@ -171,7 +204,8 @@ Deno.serve(async (req: Request) => {
         teamBTotalPoints,
         teamATotalPoints,
         scoreMargin,
-        match.team_b_was_duo
+        match.team_b_was_duo,
+        hasProvisionalPlayer
       );
       teamBPointsChange = winnerPoints;
       teamAPointsChange = loserPoints;
@@ -235,43 +269,63 @@ Deno.serve(async (req: Request) => {
       : teamBPlayer2.ranking_points;
 
     if (shouldUpdateRegionalRanking) {
+      // Update Team A Player 1
+      const newProvisionalGamesA1 = teamAPlayer1.provisional_games_played + 1;
       await supabase
         .from('profiles')
         .update({
           ranking_points: newTeamAPlayer1Points,
           total_matches: teamAPlayer1.total_matches + 1,
           total_wins: teamAPlayer1.total_wins + (teamAWon ? 1 : 0),
-          category: getCategoryFromPoints(newTeamAPlayer1Points)
+          category: getCategoryFromPoints(newTeamAPlayer1Points),
+          provisional_games_played: newProvisionalGamesA1,
+          is_provisional: newProvisionalGamesA1 < 5,
+          can_join_leagues: newProvisionalGamesA1 >= 5
         })
         .eq('id', match.team_a_player1_id);
 
+      // Update Team A Player 2
+      const newProvisionalGamesA2 = teamAPlayer2.provisional_games_played + 1;
       await supabase
         .from('profiles')
         .update({
           ranking_points: newTeamAPlayer2Points,
           total_matches: teamAPlayer2.total_matches + 1,
           total_wins: teamAPlayer2.total_wins + (teamAWon ? 1 : 0),
-          category: getCategoryFromPoints(newTeamAPlayer2Points)
+          category: getCategoryFromPoints(newTeamAPlayer2Points),
+          provisional_games_played: newProvisionalGamesA2,
+          is_provisional: newProvisionalGamesA2 < 5,
+          can_join_leagues: newProvisionalGamesA2 >= 5
         })
         .eq('id', match.team_a_player2_id);
 
+      // Update Team B Player 1
+      const newProvisionalGamesB1 = teamBPlayer1.provisional_games_played + 1;
       await supabase
         .from('profiles')
         .update({
           ranking_points: newTeamBPlayer1Points,
           total_matches: teamBPlayer1.total_matches + 1,
           total_wins: teamBPlayer1.total_wins + (!teamAWon ? 1 : 0),
-          category: getCategoryFromPoints(newTeamBPlayer1Points)
+          category: getCategoryFromPoints(newTeamBPlayer1Points),
+          provisional_games_played: newProvisionalGamesB1,
+          is_provisional: newProvisionalGamesB1 < 5,
+          can_join_leagues: newProvisionalGamesB1 >= 5
         })
         .eq('id', match.team_b_player1_id);
 
+      // Update Team B Player 2
+      const newProvisionalGamesB2 = teamBPlayer2.provisional_games_played + 1;
       await supabase
         .from('profiles')
         .update({
           ranking_points: newTeamBPlayer2Points,
           total_matches: teamBPlayer2.total_matches + 1,
           total_wins: teamBPlayer2.total_wins + (!teamAWon ? 1 : 0),
-          category: getCategoryFromPoints(newTeamBPlayer2Points)
+          category: getCategoryFromPoints(newTeamBPlayer2Points),
+          provisional_games_played: newProvisionalGamesB2,
+          is_provisional: newProvisionalGamesB2 < 5,
+          can_join_leagues: newProvisionalGamesB2 >= 5
         })
         .eq('id', match.team_b_player2_id);
     }
