@@ -124,22 +124,22 @@ Deno.serve(async (req: Request) => {
 
       for (const entry of genderQueue) {
         if (entry.partner_id && !processedPlayers.has(entry.player_id)) {
-          const playerProfile = profileMap.get(entry.player_id);
-          const partnerProfile = profileMap.get(entry.partner_id);
+          const partnerEntry = genderQueue.find(e =>
+            e.player_id === entry.partner_id && e.partner_id === entry.player_id
+          );
 
-          if (playerProfile && partnerProfile) {
-            duos.push([
-              { ...entry, ...playerProfile },
-              {
-                player_id: entry.partner_id,
-                partner_id: entry.player_id,
-                gender: partnerProfile.gender,
-                average_ranking: entry.average_ranking,
-                preferred_side: partnerProfile.preferred_side,
-                ...partnerProfile
-              }
-            ]);
-            processedPlayers.add(entry.partner_id);
+          if (partnerEntry && !processedPlayers.has(partnerEntry.player_id)) {
+            const playerProfile = profileMap.get(entry.player_id);
+            const partnerProfile = profileMap.get(entry.partner_id);
+
+            if (playerProfile && partnerProfile) {
+              duos.push([
+                { ...entry, ...playerProfile },
+                { ...partnerEntry, ...partnerProfile }
+              ]);
+              processedPlayers.add(entry.player_id);
+              processedPlayers.add(entry.partner_id);
+            }
           }
         } else if (!entry.partner_id && !processedPlayers.has(entry.player_id)) {
           const playerProfile = profileMap.get(entry.player_id);

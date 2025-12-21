@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { PlayCircle, Users, User, AlertCircle, Loader, CheckCircle, Search } from 'lucide-react';
+import { PlayCircle, Users, User, AlertCircle, Loader, CheckCircle, Search, UserPlus, X, Check, Clock } from 'lucide-react';
 import { supabase, Profile } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -17,6 +17,17 @@ type QueuePlayer = {
   partner_profile?: Profile;
 };
 
+type DuoInvitation = {
+  id: string;
+  sender_id: string;
+  receiver_id: string;
+  status: string;
+  created_at: string;
+  expires_at: string;
+  sender_profile?: Profile;
+  receiver_profile?: Profile;
+};
+
 export default function PlayPage({ onNavigate }: PlayPageProps) {
   const { profile } = useAuth();
   const [inQueue, setInQueue] = useState(false);
@@ -27,11 +38,14 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
   const [matchFound, setMatchFound] = useState(false);
   const [queuePlayers, setQueuePlayers] = useState<QueuePlayer[]>([]);
   const [searchingMatch, setSearchingMatch] = useState(false);
+  const [pendingInvitations, setPendingInvitations] = useState<DuoInvitation[]>([]);
+  const [sentInvitation, setSentInvitation] = useState<DuoInvitation | null>(null);
 
   useEffect(() => {
     checkQueueStatus();
     loadAvailablePlayers();
     loadQueuePlayers();
+    loadInvitations();
 
     const channel = supabase
       .channel('queue-updates')
@@ -84,10 +98,39 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
       )
       .subscribe();
 
+    const invitationsChannel = supabase
+      .channel('invitations-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'duo_invitations',
+          filter: `receiver_id=eq.${profile?.id}`
+        },
+        () => {
+          loadInvitations();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'duo_invitations',
+          filter: `sender_id=eq.${profile?.id}`
+        },
+        () => {
+          loadInvitations();
+        }
+      )
+      .subscribe();
+
     return () => {
       channel.unsubscribe();
       matchChannel.unsubscribe();
       queueChannel.unsubscribe();
+      invitationsChannel.unsubscribe();
     };
   }, [profile]);
 
@@ -190,23 +233,211 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
     setQueuePlayers(queuePlayersData);
   };
 
-  const joinQueue = async () => {
+  const loadInvitations = async () => {
+    if (!profile) return;
+
+    const { data: receivedInvites } = await supabase
+      .from('duo_invitations')
+      .select('*')
+      .eq('receiver_id', profile.id)
+      .eq('status', 'pending')
+      .gt('expires_at', new Date().toISOString());
+
+    const { data: sentInvite } = await supabase
+      .from('duo_invitations')
+      .select('*')
+      .eq('sender_id', profile.id)
+      .eq('status', 'pending')
+      .gt('expires_at', new Date().toISOString())
+      .maybeSingle();
+
+    if (receivedInvites && receivedInvites.length > 0) {
+      const allUserIds = receivedInvites.map(inv => inv.sender_id);
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('*')
+        .in('id', allUserIds);
+
+      const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
+
+      const invitesWithProfiles = receivedInvites.map(inv => ({
+        ...inv,
+        sender_profile: profileMap.get(inv.sender_id)
+      }));
+
+      setPendingInvitations(invitesWithProfiles);
+    } else {
+      setPendingInvitations([]);
+    }
+
+    if (sentInvite) {
+      const { data: receiverProfile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', sentInvite.receiver_id)
+        .maybeSingle();
+
+      setSentInvitation({
+        ...sentInvite,
+        receiver_profile: receiverProfile || undefined
+      });
+    } else {
+      setSentInvitation(null);
+    }
+  };
+
+  const sendDuoInvitation = async () => {
+    if (!profile || !selectedPartner) return;
+
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from('duo_invitations')
+        .insert([{
+          sender_id: profile.id,
+          receiver_id: selectedPartner,
+          status: 'pending'
+        }]);
+
+      if (error) throw error;
+
+      await loadInvitations();
+      alert('Convite enviado! Aguarde a resposta do seu parceiro.');
+    } catch (error) {
+      console.error('Error sending invitation:', error);
+      alert('Erro ao enviar convite. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cancelInvitation = async () => {
+    if (!sentInvitation) return;
+
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from('duo_invitations')
+        .update({ status: 'cancelled' })
+        .eq('id', sentInvitation.id);
+
+      if (error) throw error;
+
+      await loadInvitations();
+      setSelectedPartner(null);
+    } catch (error) {
+      console.error('Error canceling invitation:', error);
+      alert('Erro ao cancelar convite.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const acceptInvitation = async (invitationId: string, senderId: string) => {
     if (!profile) return;
 
     setLoading(true);
     try {
-      const partner = selectedPartner ? availablePlayers.find(p => p.id === selectedPartner) : null;
-      const averageRanking = partner
-        ? Math.floor((profile.ranking_points + partner.ranking_points) / 2)
-        : profile.ranking_points;
+      const { error: updateError } = await supabase
+        .from('duo_invitations')
+        .update({ status: 'accepted', responded_at: new Date().toISOString() })
+        .eq('id', invitationId);
 
+      if (updateError) throw updateError;
+
+      const { data: senderProfile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', senderId)
+        .maybeSingle();
+
+      if (!senderProfile) throw new Error('Sender profile not found');
+
+      const averageRanking = Math.floor((profile.ranking_points + senderProfile.ranking_points) / 2);
+
+      const { error: queueError } = await supabase
+        .from('queue_entries')
+        .insert([
+          {
+            player_id: profile.id,
+            partner_id: senderId,
+            gender: profile.gender,
+            average_ranking: averageRanking,
+            status: 'active',
+            preferred_side: profile.preferred_side
+          },
+          {
+            player_id: senderId,
+            partner_id: profile.id,
+            gender: senderProfile.gender,
+            average_ranking: averageRanking,
+            status: 'active',
+            preferred_side: senderProfile.preferred_side
+          }
+        ]);
+
+      if (queueError) throw queueError;
+
+      await loadInvitations();
+      await checkQueueStatus();
+      await loadQueuePlayers();
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      fetch(`${supabaseUrl}/functions/v1/find-match`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+        },
+      }).catch(err => console.error('Error calling find-match:', err));
+
+      alert('Convite aceito! Você e seu parceiro entraram na fila.');
+    } catch (error) {
+      console.error('Error accepting invitation:', error);
+      alert('Erro ao aceitar convite. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const rejectInvitation = async (invitationId: string) => {
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from('duo_invitations')
+        .update({ status: 'rejected', responded_at: new Date().toISOString() })
+        .eq('id', invitationId);
+
+      if (error) throw error;
+
+      await loadInvitations();
+    } catch (error) {
+      console.error('Error rejecting invitation:', error);
+      alert('Erro ao rejeitar convite.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const joinQueue = async () => {
+    if (!profile) return;
+
+    if (selectedPartner) {
+      await sendDuoInvitation();
+      return;
+    }
+
+    setLoading(true);
+    try {
       const { error } = await supabase
         .from('queue_entries')
         .insert([{
           player_id: profile.id,
-          partner_id: selectedPartner || null,
+          partner_id: null,
           gender: profile.gender,
-          average_ranking: averageRanking,
+          average_ranking: profile.ranking_points,
           status: 'active',
           preferred_side: profile.preferred_side
         }]);
@@ -323,6 +554,91 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
                   className="px-6 py-2 bg-green-600 text-white font-semibold rounded-xl hover:bg-green-700 transition-colors"
                 >
                   Ver Partidas
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {pendingInvitations.length > 0 && (
+          <div className="bg-white rounded-2xl shadow-lg p-8 mb-6">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center">
+              <UserPlus className="w-7 h-7 mr-3 text-emerald-600" />
+              Convites Recebidos
+            </h2>
+            <div className="space-y-4">
+              {pendingInvitations.map(invitation => (
+                <div key={invitation.id} className="bg-emerald-50 border-2 border-emerald-200 rounded-xl p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center flex-1">
+                      <Users className="w-6 h-6 text-emerald-600 mr-3" />
+                      <div>
+                        <p className="font-semibold text-gray-900">
+                          {invitation.sender_profile?.full_name}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          {invitation.sender_profile?.ranking_points} pts • {invitation.sender_profile?.category}
+                        </p>
+                        <div className="flex items-center text-xs text-gray-500 mt-1">
+                          <Clock className="w-3 h-3 mr-1" />
+                          Expira em {Math.max(0, Math.floor((new Date(invitation.expires_at).getTime() - Date.now()) / 60000))} min
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => acceptInvitation(invitation.id, invitation.sender_id)}
+                        disabled={loading}
+                        className="px-4 py-2 bg-emerald-600 text-white font-semibold rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center"
+                      >
+                        <Check className="w-4 h-4 mr-1" />
+                        Aceitar
+                      </button>
+                      <button
+                        onClick={() => rejectInvitation(invitation.id)}
+                        disabled={loading}
+                        className="px-4 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center"
+                      >
+                        <X className="w-4 h-4 mr-1" />
+                        Recusar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {sentInvitation && (
+          <div className="bg-white rounded-2xl shadow-lg p-8 mb-6">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center">
+              <Clock className="w-7 h-7 mr-3 text-blue-600" />
+              Convite Enviado
+            </h2>
+            <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center flex-1">
+                  <Users className="w-6 h-6 text-blue-600 mr-3" />
+                  <div>
+                    <p className="font-semibold text-gray-900">
+                      Aguardando resposta de {sentInvitation.receiver_profile?.full_name}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      {sentInvitation.receiver_profile?.ranking_points} pts • {sentInvitation.receiver_profile?.category}
+                    </p>
+                    <div className="flex items-center text-xs text-gray-500 mt-1">
+                      <Clock className="w-3 h-3 mr-1" />
+                      Expira em {Math.max(0, Math.floor((new Date(sentInvitation.expires_at).getTime() - Date.now()) / 60000))} min
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={cancelInvitation}
+                  disabled={loading}
+                  className="px-4 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                >
+                  Cancelar
                 </button>
               </div>
             </div>
