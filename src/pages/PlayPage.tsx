@@ -28,6 +28,12 @@ type DuoInvitation = {
   receiver_profile?: Profile;
 };
 
+type Notification = {
+  id: number;
+  type: 'success' | 'error' | 'info';
+  message: string;
+};
+
 export default function PlayPage({ onNavigate }: PlayPageProps) {
   const { profile } = useAuth();
   const [inQueue, setInQueue] = useState(false);
@@ -40,6 +46,15 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
   const [searchingMatch, setSearchingMatch] = useState(false);
   const [pendingInvitations, setPendingInvitations] = useState<DuoInvitation[]>([]);
   const [sentInvitation, setSentInvitation] = useState<DuoInvitation | null>(null);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+
+  const showNotification = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    const id = Date.now();
+    setNotifications(prev => [...prev, { id, type, message }]);
+    setTimeout(() => {
+      setNotifications(prev => prev.filter(n => n.id !== id));
+    }, 5000);
+  };
 
   useEffect(() => {
     checkQueueStatus();
@@ -302,10 +317,10 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
       if (error) throw error;
 
       await loadInvitations();
-      alert('Convite enviado! Aguarde a resposta do seu parceiro.');
+      showNotification('Convite enviado! Aguarde a resposta do seu parceiro.', 'success');
     } catch (error) {
       console.error('Error sending invitation:', error);
-      alert('Erro ao enviar convite. Tente novamente.');
+      showNotification('Erro ao enviar convite. Tente novamente.', 'error');
     } finally {
       setLoading(false);
     }
@@ -327,7 +342,7 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
       setSelectedPartner(null);
     } catch (error) {
       console.error('Error canceling invitation:', error);
-      alert('Erro ao cancelar convite.');
+      showNotification('Erro ao cancelar convite.', 'error');
     } finally {
       setLoading(false);
     }
@@ -393,10 +408,10 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
         },
       }).catch(err => console.error('Error calling find-match:', err));
 
-      alert('Convite aceito! Você e seu parceiro entraram na fila.');
+      showNotification('Convite aceito! Você e seu parceiro entraram na fila.', 'success');
     } catch (error) {
       console.error('Error accepting invitation:', error);
-      alert('Erro ao aceitar convite. Tente novamente.');
+      showNotification('Erro ao aceitar convite. Tente novamente.', 'error');
     } finally {
       setLoading(false);
     }
@@ -415,7 +430,7 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
       await loadInvitations();
     } catch (error) {
       console.error('Error rejecting invitation:', error);
-      alert('Erro ao rejeitar convite.');
+      showNotification('Erro ao rejeitar convite.', 'error');
     } finally {
       setLoading(false);
     }
@@ -461,7 +476,7 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
 
     } catch (error) {
       console.error('Error joining queue:', error);
-      alert('Erro ao entrar na fila. Tente novamente.');
+      showNotification('Erro ao entrar na fila. Tente novamente.', 'error');
     } finally {
       setLoading(false);
     }
@@ -486,7 +501,7 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
       await loadQueuePlayers();
     } catch (error) {
       console.error('Error leaving queue:', error);
-      alert('Erro ao sair da fila. Tente novamente.');
+      showNotification('Erro ao sair da fila. Tente novamente.', 'error');
     } finally {
       setLoading(false);
     }
@@ -509,15 +524,15 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
       const result = await response.json();
 
       if (result.found > 0) {
-        alert(`${result.found} partida(s) encontrada(s)! Verifique a aba Partidas.`);
+        showNotification(`${result.found} partida(s) encontrada(s)! Verifique a aba Partidas.`, 'success');
       } else {
-        alert('Nenhuma partida encontrada no momento. Aguarde mais jogadores ou ajuste seu perfil.');
+        showNotification('Nenhuma partida encontrada no momento. Aguarde mais jogadores.', 'info');
       }
 
       loadQueuePlayers();
     } catch (error) {
       console.error('Error finding match:', error);
-      alert('Erro ao buscar partida. Tente novamente.');
+      showNotification('Erro ao buscar partida. Tente novamente.', 'error');
     } finally {
       setSearchingMatch(false);
     }
@@ -527,6 +542,28 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50 py-8 px-4">
+      <div className="fixed top-4 right-4 z-50 space-y-2 max-w-md">
+        {notifications.map(notification => (
+          <div
+            key={notification.id}
+            className={`p-4 rounded-xl shadow-lg transform transition-all duration-300 animate-slide-in ${
+              notification.type === 'success'
+                ? 'bg-emerald-500 text-white'
+                : notification.type === 'error'
+                ? 'bg-red-500 text-white'
+                : 'bg-blue-500 text-white'
+            }`}
+          >
+            <div className="flex items-start">
+              {notification.type === 'success' && <CheckCircle className="w-5 h-5 mr-3 flex-shrink-0" />}
+              {notification.type === 'error' && <AlertCircle className="w-5 h-5 mr-3 flex-shrink-0" />}
+              {notification.type === 'info' && <AlertCircle className="w-5 h-5 mr-3 flex-shrink-0" />}
+              <p className="text-sm font-medium">{notification.message}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
       <div className="container mx-auto max-w-4xl">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 flex items-center">
