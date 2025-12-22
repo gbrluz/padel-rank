@@ -62,13 +62,18 @@ function calculatePointsChange(
   }
 
   // Provisional player multiplier: enhanced impact based on performance
+  // Games are 1 set to 9, so margins range from 1-9
   if (hasProvisionalPlayer) {
-    // If winning with a large margin, boost points more
-    if (scoreMargin >= 8) {
+    // Very dominant win (9-0, 9-1, 9-2): margin >= 7
+    if (scoreMargin >= 7) {
       winnerPoints = Math.round(winnerPoints * 1.8);
-    } else if (scoreMargin >= 6) {
+    }
+    // Good win (9-3, 9-4, 9-5): margin >= 4
+    else if (scoreMargin >= 4) {
       winnerPoints = Math.round(winnerPoints * 1.5);
-    } else {
+    }
+    // Normal win (9-6, 9-7, 9-8): margin < 4
+    else {
       winnerPoints = Math.round(winnerPoints * 1.3);
     }
   }
@@ -85,13 +90,18 @@ function calculatePointsChange(
   }
 
   // Provisional player multiplier: enhanced penalty for losing badly
+  // Games are 1 set to 9, so margins range from 1-9
   if (hasProvisionalPlayer) {
-    // If losing with a large margin, penalize more
-    if (scoreMargin >= 8) {
+    // Very bad loss (0-9, 1-9, 2-9): margin >= 7
+    if (scoreMargin >= 7) {
       loserPoints = Math.round(loserPoints * 1.8);
-    } else if (scoreMargin >= 6) {
+    }
+    // Bad loss (3-9, 4-9, 5-9): margin >= 4
+    else if (scoreMargin >= 4) {
       loserPoints = Math.round(loserPoints * 1.5);
-    } else {
+    }
+    // Normal loss (6-9, 7-9, 8-9): margin < 4
+    else {
       loserPoints = Math.round(loserPoints * 1.3);
     }
   }
