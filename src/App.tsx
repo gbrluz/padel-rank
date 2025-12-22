@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import WelcomePage from './pages/WelcomePage';
 import AuthPage from './pages/AuthPage';
@@ -16,6 +16,14 @@ function AppContent() {
   const { user, profile, loading } = useAuth();
   const [showAuth, setShowAuth] = useState(false);
   const [currentPage, setCurrentPage] = useState('dashboard');
+  const previousProfileRef = useRef<typeof profile>(null);
+
+  useEffect(() => {
+    if (profile && !previousProfileRef.current) {
+      setCurrentPage('dashboard');
+    }
+    previousProfileRef.current = profile;
+  }, [profile]);
 
   if (loading) {
     return (
