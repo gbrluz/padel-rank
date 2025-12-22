@@ -16,6 +16,14 @@ interface League {
   start_date: string;
   end_date: string | null;
   created_at: string;
+  duration_months: number | null;
+  club_name: string | null;
+  group_name: string | null;
+  max_members: number | null;
+  entry_criteria: string | null;
+  min_points: number | null;
+  max_points: number | null;
+  scoring_type: 'standard' | 'games_won' | 'games_balance';
 }
 
 interface LeagueMembership {
@@ -50,6 +58,8 @@ export default function LeaguesManagement() {
     type: 'friends',
     affects_regional_ranking: false,
     is_active: true,
+    scoring_type: 'standard',
+    min_points: 0,
   });
 
   useEffect(() => {
@@ -277,7 +287,7 @@ export default function LeaguesManagement() {
       </div>
 
       {showCreateLeague && (
-        <div className="bg-white p-6 rounded-xl shadow-lg border-2 border-emerald-200">
+        <div className="bg-white p-6 rounded-xl shadow-lg border-2 border-emerald-200 max-h-[80vh] overflow-y-auto">
           <h3 className="text-xl font-bold mb-4">Criar Nova Liga</h3>
           <div className="space-y-4">
             <div>
@@ -303,6 +313,32 @@ export default function LeaguesManagement() {
               </select>
             </div>
 
+            {leagueFormData.type === 'club' && (
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Nome do Clube</label>
+                <input
+                  type="text"
+                  value={leagueFormData.club_name || ''}
+                  onChange={(e) => setLeagueFormData({ ...leagueFormData, club_name: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  placeholder="Nome do clube"
+                />
+              </div>
+            )}
+
+            {leagueFormData.type === 'friends' && (
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Nome do Grupo</label>
+                <input
+                  type="text"
+                  value={leagueFormData.group_name || ''}
+                  onChange={(e) => setLeagueFormData({ ...leagueFormData, group_name: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  placeholder="Nome do grupo de amigos"
+                />
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">Descrição</label>
               <textarea
@@ -311,6 +347,79 @@ export default function LeaguesManagement() {
                 className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
                 rows={3}
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Duração (máximo 6 meses)</label>
+              <input
+                type="number"
+                min="1"
+                max="6"
+                value={leagueFormData.duration_months || ''}
+                onChange={(e) => setLeagueFormData({ ...leagueFormData, duration_months: e.target.value ? parseInt(e.target.value) : null })}
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                placeholder="Número de meses"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Número de Vagas</label>
+              <input
+                type="number"
+                min="2"
+                value={leagueFormData.max_members || ''}
+                onChange={(e) => setLeagueFormData({ ...leagueFormData, max_members: e.target.value ? parseInt(e.target.value) : null })}
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                placeholder="Máximo de participantes"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Critério para Solicitar Entrada</label>
+              <textarea
+                value={leagueFormData.entry_criteria || ''}
+                onChange={(e) => setLeagueFormData({ ...leagueFormData, entry_criteria: e.target.value })}
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                rows={2}
+                placeholder="Descreva os critérios para entrada (visível para jogadores)"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Pontuação Mínima</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={leagueFormData.min_points ?? 0}
+                  onChange={(e) => setLeagueFormData({ ...leagueFormData, min_points: parseInt(e.target.value) || 0 })}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Pontuação Máxima</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={leagueFormData.max_points || ''}
+                  onChange={(e) => setLeagueFormData({ ...leagueFormData, max_points: e.target.value ? parseInt(e.target.value) : null })}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  placeholder="Opcional"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Tipo de Pontuação</label>
+              <select
+                value={leagueFormData.scoring_type || 'standard'}
+                onChange={(e) => setLeagueFormData({ ...leagueFormData, scoring_type: e.target.value as any })}
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="standard">Pontuação Padrão (começa do zero, pode ficar negativa)</option>
+                <option value="games_won">Por games ganhos no total</option>
+                <option value="games_balance">Por saldo de games no geral</option>
+              </select>
             </div>
 
             <div className="flex items-center gap-2">
@@ -334,7 +443,7 @@ export default function LeaguesManagement() {
               <button
                 onClick={() => {
                   setShowCreateLeague(false);
-                  setLeagueFormData({ type: 'friends', affects_regional_ranking: false, is_active: true });
+                  setLeagueFormData({ type: 'friends', affects_regional_ranking: false, is_active: true, scoring_type: 'standard', min_points: 0 });
                 }}
                 className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400"
               >
@@ -365,17 +474,55 @@ export default function LeaguesManagement() {
                       <Medal className="w-5 h-5 text-emerald-600" />
                       <h4 className="font-bold text-gray-900">{league.name}</h4>
                     </div>
+                    {(league.club_name || league.group_name) && (
+                      <p className="text-xs text-emerald-600 font-medium mt-1">
+                        {league.club_name || league.group_name}
+                      </p>
+                    )}
                     <p className="text-sm text-gray-600 mt-1">{league.description || 'Sem descrição'}</p>
-                    <div className="flex items-center gap-3 mt-2 text-xs">
+
+                    {league.entry_criteria && (
+                      <p className="text-xs text-gray-500 mt-1 italic">
+                        Critério: {league.entry_criteria}
+                      </p>
+                    )}
+
+                    <div className="flex flex-wrap items-center gap-2 mt-2 text-xs">
                       <span className="px-2 py-1 bg-gray-100 rounded">{
                         league.type === 'friends' ? 'Amigos' :
                         league.type === 'club' ? 'Clube' : 'Oficial'
                       }</span>
+
+                      {league.max_members && (
+                        <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded">
+                          Max: {league.max_members} vagas
+                        </span>
+                      )}
+
+                      {league.duration_months && (
+                        <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded">
+                          {league.duration_months} {league.duration_months === 1 ? 'mês' : 'meses'}
+                        </span>
+                      )}
+
+                      {(league.min_points !== null && league.min_points !== undefined) && (
+                        <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded">
+                          {league.min_points}{league.max_points ? `-${league.max_points}` : '+'} pts
+                        </span>
+                      )}
+
+                      {league.scoring_type && league.scoring_type !== 'standard' && (
+                        <span className="px-2 py-1 bg-cyan-100 text-cyan-800 rounded">
+                          {league.scoring_type === 'games_won' ? 'Games ganhos' : 'Saldo de games'}
+                        </span>
+                      )}
+
                       {league.affects_regional_ranking && (
                         <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded">
                           Afeta Regional
                         </span>
                       )}
+
                       {!league.is_active && (
                         <span className="px-2 py-1 bg-red-100 text-red-800 rounded">
                           Inativa
@@ -503,6 +650,32 @@ export default function LeaguesManagement() {
                 />
               </div>
 
+              {leagueFormData.type === 'club' && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Nome do Clube</label>
+                  <input
+                    type="text"
+                    value={leagueFormData.club_name || ''}
+                    onChange={(e) => setLeagueFormData({ ...leagueFormData, club_name: e.target.value })}
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                    placeholder="Nome do clube"
+                  />
+                </div>
+              )}
+
+              {leagueFormData.type === 'friends' && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Nome do Grupo</label>
+                  <input
+                    type="text"
+                    value={leagueFormData.group_name || ''}
+                    onChange={(e) => setLeagueFormData({ ...leagueFormData, group_name: e.target.value })}
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                    placeholder="Nome do grupo de amigos"
+                  />
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Descrição</label>
                 <textarea
@@ -511,6 +684,79 @@ export default function LeaguesManagement() {
                   className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
                   rows={3}
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Duração (máximo 6 meses)</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="6"
+                  value={leagueFormData.duration_months || ''}
+                  onChange={(e) => setLeagueFormData({ ...leagueFormData, duration_months: e.target.value ? parseInt(e.target.value) : null })}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  placeholder="Número de meses"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Número de Vagas</label>
+                <input
+                  type="number"
+                  min="2"
+                  value={leagueFormData.max_members || ''}
+                  onChange={(e) => setLeagueFormData({ ...leagueFormData, max_members: e.target.value ? parseInt(e.target.value) : null })}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  placeholder="Máximo de participantes"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Critério para Solicitar Entrada</label>
+                <textarea
+                  value={leagueFormData.entry_criteria || ''}
+                  onChange={(e) => setLeagueFormData({ ...leagueFormData, entry_criteria: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  rows={2}
+                  placeholder="Descreva os critérios para entrada (visível para jogadores)"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Pontuação Mínima</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={leagueFormData.min_points ?? 0}
+                    onChange={(e) => setLeagueFormData({ ...leagueFormData, min_points: parseInt(e.target.value) || 0 })}
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Pontuação Máxima</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={leagueFormData.max_points || ''}
+                    onChange={(e) => setLeagueFormData({ ...leagueFormData, max_points: e.target.value ? parseInt(e.target.value) : null })}
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                    placeholder="Opcional"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Tipo de Pontuação</label>
+                <select
+                  value={leagueFormData.scoring_type || 'standard'}
+                  onChange={(e) => setLeagueFormData({ ...leagueFormData, scoring_type: e.target.value as any })}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                >
+                  <option value="standard">Pontuação Padrão (começa do zero, pode ficar negativa)</option>
+                  <option value="games_won">Por games ganhos no total</option>
+                  <option value="games_balance">Por saldo de games no geral</option>
+                </select>
               </div>
 
               <div className="flex items-center gap-2">
