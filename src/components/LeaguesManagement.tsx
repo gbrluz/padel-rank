@@ -287,7 +287,7 @@ export default function LeaguesManagement() {
       </div>
 
       {showCreateLeague && (
-        <div className="bg-white p-6 rounded-xl shadow-lg border-2 border-emerald-200 max-h-[80vh] overflow-y-auto">
+        <div className="bg-white p-6 rounded-xl shadow-lg border-2 border-emerald-200">
           <h3 className="text-xl font-bold mb-4">Criar Nova Liga</h3>
           <div className="space-y-4">
             <div>
