@@ -16,9 +16,9 @@ export default function WelcomePage({ onGetStarted }: WelcomePageProps) {
               className="h-24 w-auto"
             />
           </div>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto mb-8">
-            Plataforma completa de matchmaking e ranking para padel com sistema inteligente de pareamento e competições regionais
-          </p>
+          <h2 className="text-4xl md:text-5xl font-bold text-gray-800 max-w-2xl mx-auto mb-8 tracking-tight">
+            Jogue. Evolua. Conquiste.
+          </h2>
           <button
             onClick={onGetStarted}
             className="inline-flex items-center px-12 py-5 bg-emerald-600 text-white text-xl font-bold rounded-2xl hover:bg-emerald-700 transition-all transform hover:scale-105 shadow-lg hover:shadow-xl"
