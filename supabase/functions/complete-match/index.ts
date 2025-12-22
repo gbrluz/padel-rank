@@ -18,8 +18,8 @@ function getCategoryFromPoints(points: number): string {
 }
 
 interface SetScore {
-  teamA: number;
-  teamB: number;
+  team_a: number;
+  team_b: number;
 }
 
 function calculateScoreMargin(sets: SetScore[], winnerTeam: 'team_a' | 'team_b'): number {
@@ -28,11 +28,11 @@ function calculateScoreMargin(sets: SetScore[], winnerTeam: 'team_a' | 'team_b')
 
   for (const set of sets) {
     if (winnerTeam === 'team_a') {
-      winnerGames += set.teamA;
-      loserGames += set.teamB;
+      winnerGames += set.team_a;
+      loserGames += set.team_b;
     } else {
-      winnerGames += set.teamB;
-      loserGames += set.teamA;
+      winnerGames += set.team_b;
+      loserGames += set.team_a;
     }
   }
 
