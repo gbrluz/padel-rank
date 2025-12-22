@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { PlayCircle, Users, User, AlertCircle, CheckCircle, UserPlus, X, Check, Clock } from 'lucide-react';
+import { PlayCircle, Users, User, AlertCircle, CheckCircle, UserPlus, X, Check, Clock, Loader, Search } from 'lucide-react';
 import { supabase, Profile } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
