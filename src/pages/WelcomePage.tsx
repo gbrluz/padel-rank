@@ -11,7 +11,7 @@ export default function WelcomePage({ onGetStarted }: WelcomePageProps) {
         <header className="text-center mb-16 pt-8">
           <div className="inline-flex items-center justify-center mb-6">
             <img
-              src="/image.png"
+              src="/image copy.png"
               alt="CLIMB"
               className="h-24 w-auto"
             />

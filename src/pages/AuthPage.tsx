@@ -67,7 +67,7 @@ export default function AuthPage({ onBack, onRegistrationComplete }: AuthPagePro
           <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center mb-4">
               <img
-                src="/image.png"
+                src="/image copy.png"
                 alt="CLIMB"
                 className="h-16 w-auto"
               />

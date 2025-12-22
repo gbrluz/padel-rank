@@ -79,7 +79,7 @@ export default function Navigation({ currentPage, onNavigate }: NavigationProps)
         <div className="flex items-center justify-between h-20">
           <div className="flex items-center">
             <img
-              src="/image.png"
+              src="/image copy.png"
               alt="CLIMB"
               className="h-12 w-auto"
             />
