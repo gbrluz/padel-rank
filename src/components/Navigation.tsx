@@ -78,10 +78,11 @@ export default function Navigation({ currentPage, onNavigate }: NavigationProps)
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-20">
           <div className="flex items-center">
-            <div className="w-12 h-12 bg-emerald-600 rounded-xl flex items-center justify-center mr-3">
-              <Trophy className="w-7 h-7 text-white" />
-            </div>
-            <span className="text-xl font-bold text-gray-900">Padel Ranking</span>
+            <img
+              src="/image.png"
+              alt="CLIMB"
+              className="h-12 w-auto"
+            />
           </div>
 
           <div className="hidden md:flex items-center space-x-2">

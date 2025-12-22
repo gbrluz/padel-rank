@@ -9,12 +9,13 @@ export default function WelcomePage({ onGetStarted }: WelcomePageProps) {
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50">
       <div className="container mx-auto px-4 py-8">
         <header className="text-center mb-16 pt-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-emerald-600 rounded-2xl mb-6 shadow-lg">
-            <Trophy className="w-12 h-12 text-white" />
+          <div className="inline-flex items-center justify-center mb-6">
+            <img
+              src="/image.png"
+              alt="CLIMB"
+              className="h-24 w-auto"
+            />
           </div>
-          <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-4">
-            Padel <span className="text-emerald-600">Ranking</span>
-          </h1>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto mb-8">
             O sistema definitivo para gerenciar suas partidas de padel e acompanhar seu progresso no ranking
           </p>
