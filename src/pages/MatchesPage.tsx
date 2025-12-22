@@ -195,7 +195,8 @@ export default function MatchesPage() {
           team_a_player1:profiles!matches_team_a_player1_id_fkey(*),
           team_a_player2:profiles!matches_team_a_player2_id_fkey(*),
           team_b_player1:profiles!matches_team_b_player1_id_fkey(*),
-          team_b_player2:profiles!matches_team_b_player2_id_fkey(*)
+          team_b_player2:profiles!matches_team_b_player2_id_fkey(*),
+          league:leagues(name, affects_regional_ranking)
         `)
         .or(`team_a_player1_id.eq.${profile.id},team_a_player2_id.eq.${profile.id},team_b_player1_id.eq.${profile.id},team_b_player2_id.eq.${profile.id}`)
         .order('created_at', { ascending: false });
@@ -423,20 +424,29 @@ export default function MatchesPage() {
                   key={match.id}
                   className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-shadow"
                 >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-3">
+                  <div className="flex items-start justify-between mb-4 flex-wrap gap-3">
+                    <div className="flex items-center gap-3 flex-wrap">
                       {getStatusBadge(match.status)}
                       <span className="text-sm text-gray-500">
                         {formatDate(match.created_at)}
                       </span>
                     </div>
-                    {match.status === 'completed' && (
-                      <div className={`px-4 py-2 rounded-xl font-bold ${
-                        won ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                      }`}>
-                        {won ? 'Vitória' : 'Derrota'}
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {match.status === 'completed' && (
+                        <>
+                          <div className={`px-4 py-2 rounded-xl font-bold ${
+                            won ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                          }`}>
+                            {won ? 'Vitória' : 'Derrota'}
+                          </div>
+                          {(match as any).league_id && (match as any).league?.affects_regional_ranking === false && (
+                            <div className="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 text-xs font-semibold">
+                              Não contou para ranking
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </div>
 
                   <div className="grid md:grid-cols-3 gap-4 items-center">
@@ -576,6 +586,22 @@ export default function MatchesPage() {
                       )}
                     </div>
                   </div>
+
+                  {match.status === 'completed' && (match as any).league_id && (match as any).league?.affects_regional_ranking === false && (
+                    <div className="mt-4 bg-blue-50 border border-blue-200 rounded-xl p-4">
+                      <div className="flex items-start">
+                        <Trophy className="w-5 h-5 text-blue-600 mr-2 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <p className="text-sm font-semibold text-blue-800 mb-1">
+                            Partida de Liga - Não afeta ranking regional
+                          </p>
+                          <p className="text-xs text-blue-700">
+                            Esta partida faz parte da liga "{(match as any).league?.name}" que não afeta o ranking regional. Os pontos foram contabilizados apenas dentro da liga.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {(match.status === 'pending_approval' || match.status === 'scheduled') && (
                     <div className="mt-4">
