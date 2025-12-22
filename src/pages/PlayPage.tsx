@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { PlayCircle, Users, User, AlertCircle, Loader, CheckCircle, Search, UserPlus, X, Check, Clock } from 'lucide-react';
+import { PlayCircle, Users, User, AlertCircle, CheckCircle, UserPlus, X, Check, Clock } from 'lucide-react';
 import { supabase, Profile } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -43,7 +43,6 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
   const [queueEntry, setQueueEntry] = useState<any>(null);
   const [matchFound, setMatchFound] = useState(false);
   const [queuePlayers, setQueuePlayers] = useState<QueuePlayer[]>([]);
-  const [searchingMatch, setSearchingMatch] = useState(false);
   const [pendingInvitations, setPendingInvitations] = useState<DuoInvitation[]>([]);
   const [sentInvitation, setSentInvitation] = useState<DuoInvitation | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -541,36 +540,6 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
     }
   };
 
-  const findMatchNow = async () => {
-    setSearchingMatch(true);
-    try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-      const response = await fetch(`${supabaseUrl}/functions/v1/find-match`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${supabaseKey}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const result = await response.json();
-
-      if (result.found > 0) {
-        showNotification(`${result.found} partida(s) encontrada(s)! Verifique a aba Partidas.`, 'success');
-      } else {
-        showNotification('Nenhuma partida encontrada no momento. Aguarde mais jogadores.', 'info');
-      }
-
-      loadQueuePlayers();
-    } catch (error) {
-      console.error('Error finding match:', error);
-      showNotification('Erro ao buscar partida. Tente novamente.', 'error');
-    } finally {
-      setSearchingMatch(false);
-    }
-  };
 
   if (!profile) return null;
 
@@ -934,30 +903,15 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
         )}
 
         <div className="mt-8 bg-white rounded-2xl shadow-lg p-8">
-          <div className="flex items-center justify-between mb-6">
+          <div className="mb-6">
             <h2 className="text-2xl font-bold text-gray-900 flex items-center">
               <Users className="w-7 h-7 mr-3 text-emerald-600" />
               Jogadores na Fila
             </h2>
-
             {queuePlayers.length >= 4 && (
-              <button
-                onClick={findMatchNow}
-                disabled={searchingMatch}
-                className="px-6 py-3 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-              >
-                {searchingMatch ? (
-                  <>
-                    <Loader className="w-5 h-5 mr-2 animate-spin" />
-                    Buscando...
-                  </>
-                ) : (
-                  <>
-                    <Search className="w-5 h-5 mr-2" />
-                    Buscar Partida Agora
-                  </>
-                )}
-              </button>
+              <p className="text-sm text-emerald-600 mt-2">
+                O sistema está buscando automaticamente partidas equilibradas
+              </p>
             )}
           </div>
 

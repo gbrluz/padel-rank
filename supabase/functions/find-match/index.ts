@@ -6,6 +6,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
 };
 
+const MAX_POINT_DIFFERENCE = 200;
+const MAX_TEAM_BALANCE_DIFF = 200;
+
 function assignSides(player1: any, player2: any): { player1Side: string, player2Side: string } {
   const p1Pref = player1.preferred_side;
   const p2Pref = player2.preferred_side;
@@ -61,6 +64,46 @@ function calculateCommonAvailability(players: any[]): Record<string, string[]> {
   return commonAvailability;
 }
 
+async function checkMatchValidity(
+  supabase: any,
+  playerIds: string[],
+  gender: string
+): Promise<{ valid: boolean; reason?: string }> {
+  const sortedIds = [...playerIds].sort();
+
+  const { data: repetitionCheck, error: repError } = await supabase
+    .rpc('check_match_repetition', {
+      p_player_ids: sortedIds,
+      p_gender: gender
+    });
+
+  if (repError) {
+    console.error('Error checking repetition:', repError);
+    return { valid: false, reason: 'Error checking repetition' };
+  }
+
+  if (!repetitionCheck) {
+    return { valid: false, reason: 'Recent repetition found' };
+  }
+
+  const { data: consecutiveCheck, error: consError } = await supabase
+    .rpc('check_consecutive_match', {
+      p_player_ids: sortedIds,
+      p_gender: gender
+    });
+
+  if (consError) {
+    console.error('Error checking consecutive:', consError);
+    return { valid: false, reason: 'Error checking consecutive' };
+  }
+
+  if (!consecutiveCheck) {
+    return { valid: false, reason: 'Consecutive match detected' };
+  }
+
+  return { valid: true };
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, {
@@ -80,9 +123,9 @@ Deno.serve(async (req: Request) => {
       .eq('status', 'active')
       .order('created_at');
 
-    if (queueError || !activeQueue || activeQueue.length < 2) {
+    if (queueError || !activeQueue || activeQueue.length < 4) {
       return new Response(
-        JSON.stringify({ message: 'Not enough players in queue', found: 0 }),
+        JSON.stringify({ message: 'Not enough players in queue (need 4+)', found: 0 }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -125,7 +168,7 @@ Deno.serve(async (req: Request) => {
     }
 
     for (const [regionKey, regionQueue] of regionMap) {
-      if (regionQueue.length < 2) continue;
+      if (regionQueue.length < 4) continue;
 
       const gender = regionKey.split('-')[2];
 
@@ -152,21 +195,43 @@ Deno.serve(async (req: Request) => {
         const duo1 = duos.shift()!;
         const duo2 = duos.shift()!;
 
+        const allPlayers = [...duo1, ...duo2];
+        const allRankings = allPlayers.map(p => p.ranking_points);
+        const minRanking = Math.min(...allRankings);
+        const maxRanking = Math.max(...allRankings);
+        const rankingSpread = maxRanking - minRanking;
+
+        if (rankingSpread > MAX_POINT_DIFFERENCE) {
+          duos.unshift(duo2);
+          duos.unshift(duo1);
+          break;
+        }
+
         const avgRanking1 = duo1[0].average_ranking;
         const avgRanking2 = duo2[0].average_ranking;
         const rankingDiff = Math.abs(avgRanking1 - avgRanking2);
 
-        if (rankingDiff <= 300) {
-          matchesFound.push({
-            gender,
-            team_a: duo1,
-            team_b: duo2,
-            team_a_was_duo: true,
-            team_b_was_duo: true
-          });
+        if (rankingDiff <= MAX_TEAM_BALANCE_DIFF) {
+          const playerIds = allPlayers.map(p => p.player_id);
+          const validityCheck = await checkMatchValidity(supabase, playerIds, gender);
 
-          duo1.forEach((p: any) => processedPlayers.add(p.player_id));
-          duo2.forEach((p: any) => processedPlayers.add(p.player_id));
+          if (validityCheck.valid) {
+            matchesFound.push({
+              gender,
+              team_a: duo1,
+              team_b: duo2,
+              team_a_was_duo: true,
+              team_b_was_duo: true
+            });
+
+            duo1.forEach((p: any) => processedPlayers.add(p.player_id));
+            duo2.forEach((p: any) => processedPlayers.add(p.player_id));
+          } else {
+            console.log(`Skipping duo vs duo match: ${validityCheck.reason}`);
+            duos.unshift(duo2);
+            duos.unshift(duo1);
+            break;
+          }
         } else {
           duos.unshift(duo2);
           duos.unshift(duo1);
@@ -183,34 +248,41 @@ Deno.serve(async (req: Request) => {
         const maxRanking = Math.max(...rankings);
         const rankingSpread = maxRanking - minRanking;
 
-        if (rankingSpread <= 300) {
-          const leftOnlyPlayers = players.filter(p => p.preferred_side === 'left');
-          const rightOnlyPlayers = players.filter(p => p.preferred_side === 'right');
-          const bothPlayers = players.filter(p => p.preferred_side === 'both');
+        if (rankingSpread > MAX_POINT_DIFFERENCE) {
+          break;
+        }
 
-          let team1, team2;
+        const leftOnlyPlayers = players.filter(p => p.preferred_side === 'left');
+        const rightOnlyPlayers = players.filter(p => p.preferred_side === 'right');
+        const bothPlayers = players.filter(p => p.preferred_side === 'both');
 
-          if (leftOnlyPlayers.length >= 2 && rightOnlyPlayers.length >= 2) {
-            team1 = [leftOnlyPlayers[0], rightOnlyPlayers[0]];
-            team2 = [leftOnlyPlayers[1], rightOnlyPlayers[1]];
-          } else if (leftOnlyPlayers.length >= 1 && rightOnlyPlayers.length >= 1 && bothPlayers.length >= 2) {
-            team1 = [leftOnlyPlayers[0], rightOnlyPlayers[0]];
-            team2 = [bothPlayers[0], bothPlayers[1]];
-          } else if (leftOnlyPlayers.length >= 1 && bothPlayers.length >= 3) {
-            team1 = [leftOnlyPlayers[0], bothPlayers[0]];
-            team2 = [bothPlayers[1], bothPlayers[2]];
-          } else if (rightOnlyPlayers.length >= 1 && bothPlayers.length >= 3) {
-            team1 = [rightOnlyPlayers[0], bothPlayers[0]];
-            team2 = [bothPlayers[1], bothPlayers[2]];
-          } else {
-            team1 = [players[0], players[1]];
-            team2 = [players[2], players[3]];
-          }
+        let team1, team2;
 
-          const team1Avg = (team1[0].average_ranking + team1[1].average_ranking) / 2;
-          const team2Avg = (team2[0].average_ranking + team2[1].average_ranking) / 2;
+        if (leftOnlyPlayers.length >= 2 && rightOnlyPlayers.length >= 2) {
+          team1 = [leftOnlyPlayers[0], rightOnlyPlayers[0]];
+          team2 = [leftOnlyPlayers[1], rightOnlyPlayers[1]];
+        } else if (leftOnlyPlayers.length >= 1 && rightOnlyPlayers.length >= 1 && bothPlayers.length >= 2) {
+          team1 = [leftOnlyPlayers[0], rightOnlyPlayers[0]];
+          team2 = [bothPlayers[0], bothPlayers[1]];
+        } else if (leftOnlyPlayers.length >= 1 && bothPlayers.length >= 3) {
+          team1 = [leftOnlyPlayers[0], bothPlayers[0]];
+          team2 = [bothPlayers[1], bothPlayers[2]];
+        } else if (rightOnlyPlayers.length >= 1 && bothPlayers.length >= 3) {
+          team1 = [rightOnlyPlayers[0], bothPlayers[0]];
+          team2 = [bothPlayers[1], bothPlayers[2]];
+        } else {
+          team1 = [players[0], players[1]];
+          team2 = [players[2], players[3]];
+        }
 
-          if (Math.abs(team1Avg - team2Avg) <= 200) {
+        const team1Avg = (team1[0].average_ranking + team1[1].average_ranking) / 2;
+        const team2Avg = (team2[0].average_ranking + team2[1].average_ranking) / 2;
+
+        if (Math.abs(team1Avg - team2Avg) <= MAX_TEAM_BALANCE_DIFF) {
+          const playerIds = [...team1, ...team2].map(p => p.player_id);
+          const validityCheck = await checkMatchValidity(supabase, playerIds, gender);
+
+          if (validityCheck.valid) {
             matchesFound.push({
               gender,
               team_a: team1,
@@ -225,6 +297,7 @@ Deno.serve(async (req: Request) => {
               if (index !== -1) solos.splice(index, 1);
             });
           } else {
+            console.log(`Skipping solo match: ${validityCheck.reason}`);
             break;
           }
         } else {
@@ -244,10 +317,21 @@ Deno.serve(async (req: Request) => {
         for (let i = 0; i < solos.length - 1; i++) {
           const player1 = solos[i];
           const player2 = solos[i + 1];
+
+          const allPlayers = [...duo, player1, player2];
+          const allRankings = allPlayers.map(p => p.ranking_points);
+          const minRanking = Math.min(...allRankings);
+          const maxRanking = Math.max(...allRankings);
+          const rankingSpread = maxRanking - minRanking;
+
+          if (rankingSpread > MAX_POINT_DIFFERENCE) {
+            continue;
+          }
+
           const soloAvg = (player1.average_ranking + player2.average_ranking) / 2;
           const diff = Math.abs(dualAvg - soloAvg);
 
-          if (diff < bestDiff && diff <= 250) {
+          if (diff < bestDiff && diff <= MAX_TEAM_BALANCE_DIFF) {
             bestDiff = diff;
             bestMatch = [player1, player2];
             bestIndex = i;
@@ -255,17 +339,24 @@ Deno.serve(async (req: Request) => {
         }
 
         if (bestMatch) {
-          matchesFound.push({
-            gender,
-            team_a: duo,
-            team_b: bestMatch,
-            team_a_was_duo: true,
-            team_b_was_duo: false
-          });
+          const playerIds = [...duo, ...bestMatch].map(p => p.player_id);
+          const validityCheck = await checkMatchValidity(supabase, playerIds, gender);
 
-          duo.forEach((p: any) => processedPlayers.add(p.player_id));
-          bestMatch.forEach((p: any) => processedPlayers.add(p.player_id));
-          solos.splice(bestIndex, 2);
+          if (validityCheck.valid) {
+            matchesFound.push({
+              gender,
+              team_a: duo,
+              team_b: bestMatch,
+              team_a_was_duo: true,
+              team_b_was_duo: false
+            });
+
+            duo.forEach((p: any) => processedPlayers.add(p.player_id));
+            bestMatch.forEach((p: any) => processedPlayers.add(p.player_id));
+            solos.splice(bestIndex, 2);
+          } else {
+            console.log(`Skipping mixed match: ${validityCheck.reason}`);
+          }
         }
       }
     }
@@ -331,6 +422,12 @@ Deno.serve(async (req: Request) => {
           .update({ status: 'matched' })
           .in('player_id', allPlayers)
           .eq('status', 'active');
+
+        await supabase.rpc('add_match_to_history', {
+          p_match_id: newMatch.id,
+          p_player_ids: allPlayers,
+          p_gender: match.gender
+        });
       }
     }
 
