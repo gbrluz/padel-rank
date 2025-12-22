@@ -194,21 +194,22 @@ export default function BackofficePage({ onNavigate }: BackofficePageProps) {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 pb-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex flex-col gap-4 mb-8">
-          <div className="flex items-center justify-between gap-3">
-            <h1 className="text-xl sm:text-3xl font-bold text-gray-900 flex items-center min-w-0 flex-1">
-              <UserCog className="w-6 h-6 sm:w-8 sm:h-8 mr-2 text-red-600 flex-shrink-0" />
-              <span className="truncate">Backoffice</span>
-              <span className="hidden sm:inline truncate"> - Administração</span>
-            </h1>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-xl sm:text-3xl font-bold text-gray-900 flex items-center gap-2">
+                <UserCog className="w-6 h-6 sm:w-8 sm:h-8 text-red-600 flex-shrink-0" />
+                <span>Backoffice<span className="hidden sm:inline"> - Administração</span></span>
+              </h1>
+              <p className="text-gray-600 text-sm sm:text-base mt-2">Gerencie usuários e partidas do sistema</p>
+            </div>
             <button
               onClick={() => onNavigate('dashboard')}
-              className="px-3 py-2 sm:px-4 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors whitespace-nowrap text-sm sm:text-base flex-shrink-0"
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors whitespace-nowrap text-sm sm:text-base self-start sm:self-auto"
             >
               <span className="hidden sm:inline">Voltar ao Dashboard</span>
               <span className="sm:hidden">Voltar</span>
             </button>
           </div>
-          <p className="text-gray-600 text-sm sm:text-base">Gerencie usuários e partidas do sistema</p>
         </div>
 
         <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
