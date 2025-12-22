@@ -141,9 +141,6 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
             <Medal className="w-8 h-8 mr-3 text-emerald-600" />
             Ligas
           </h1>
-          <p className="text-gray-600 mt-2">
-            Participe de ligas e compete com outros jogadores
-          </p>
         </div>
 
         {leagues.length === 0 ? (
