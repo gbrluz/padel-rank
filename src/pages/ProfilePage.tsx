@@ -222,22 +222,22 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50 py-8 px-4">
       <div className="container mx-auto max-w-4xl">
-        <div className="mb-8 flex items-center justify-between">
-          <div>
+        <div className="mb-8">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <h1 className="text-3xl font-bold text-gray-900 flex items-center">
               <User className="w-8 h-8 mr-3 text-emerald-600" />
               Meu Perfil
             </h1>
+            {!isEditing && (
+              <button
+                onClick={() => setIsEditing(true)}
+                className="flex items-center justify-center px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors"
+              >
+                <Edit2 className="w-4 h-4 mr-2" />
+                Editar
+              </button>
+            )}
           </div>
-          {!isEditing && (
-            <button
-              onClick={() => setIsEditing(true)}
-              className="flex items-center px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors"
-            >
-              <Edit2 className="w-4 h-4 mr-2" />
-              Editar
-            </button>
-          )}
         </div>
 
         {error && (
