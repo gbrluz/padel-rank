@@ -293,15 +293,14 @@ export default function RegistrationFormPage() {
                 disabled={loading}
               >
                 <option value="">Selecione sua categoria</option>
-                <option value="iniciante">Iniciante (100 pontos)</option>
-                <option value="7a">7ª Categoria (300 pontos)</option>
-                <option value="6a">6ª Categoria (500 pontos)</option>
-                <option value="5a">5ª Categoria (700 pontos)</option>
-                <option value="4a">4ª Categoria (900 pontos)</option>
-                <option value="3a">3ª Categoria (1100 pontos)</option>
-                <option value="2a">2ª Categoria (1300 pontos)</option>
-                <option value="1a">1ª Categoria (1500 pontos)</option>
-                <option value="avancado">Avançado (1700 pontos)</option>
+                <option value="Iniciante">Iniciante (100 pontos)</option>
+                <option value="7ª">7ª Categoria (300 pontos)</option>
+                <option value="6ª">6ª Categoria (500 pontos)</option>
+                <option value="5ª">5ª Categoria (700 pontos)</option>
+                <option value="4ª">4ª Categoria (900 pontos)</option>
+                <option value="3ª">3ª Categoria (1100 pontos)</option>
+                <option value="2ª">2ª Categoria (1300 pontos)</option>
+                <option value="1ª">1ª Categoria (1500 pontos)</option>
               </select>
               <p className="mt-2 text-xs text-gray-500">
                 Você começará com pontos provisórios no meio da categoria selecionada. Seus primeiros 5 jogos terão impacto maior no ranking para ajustar sua posição real.
