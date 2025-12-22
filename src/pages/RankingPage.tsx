@@ -59,10 +59,10 @@ export default function RankingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50 py-8 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50 py-8 px-4 overflow-x-hidden">
       <div className="container mx-auto max-w-5xl">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center">
+        <div className="mb-8 text-center md:text-left">
+          <h1 className="text-3xl font-bold text-gray-900 flex items-center justify-center md:justify-start">
             <Trophy className="w-8 h-8 mr-3 text-emerald-600" />
             Ranking
           </h1>
@@ -71,7 +71,7 @@ export default function RankingPage() {
         {userPosition && (
           <div className={`bg-gradient-to-r ${
             rankingType === 'regional' ? 'from-emerald-600 to-teal-600' : 'from-blue-600 to-indigo-600'
-          } rounded-2xl p-6 mb-6 text-white shadow-lg`}>
+          } rounded-2xl p-6 mb-6 text-white shadow-lg max-w-3xl mx-auto`}>
             <div className="flex items-center justify-between">
               <div>
                 <p className={rankingType === 'regional' ? 'text-emerald-100' : 'text-blue-100'}>

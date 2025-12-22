@@ -361,10 +361,10 @@ export default function MatchesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50 py-8 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50 py-8 px-4 overflow-x-hidden">
       <div className="container mx-auto max-w-6xl">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center">
+        <div className="mb-8 text-center md:text-left">
+          <h1 className="text-3xl font-bold text-gray-900 flex items-center justify-center md:justify-start">
             <Calendar className="w-8 h-8 mr-3 text-emerald-600" />
             Minhas Partidas
           </h1>

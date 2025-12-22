@@ -86,9 +86,9 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
           </h1>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 mb-8">
-          <div className="bg-white rounded-2xl p-4 md:p-6 shadow-lg">
-            <div className="flex items-center justify-between mb-2 md:mb-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 mb-8 max-w-4xl mx-auto">
+          <div className="bg-white rounded-2xl p-4 md:p-6 shadow-lg text-center">
+            <div className="flex items-center justify-center mb-2 md:mb-4">
               <div className="w-10 h-10 md:w-12 md:h-12 bg-emerald-100 rounded-xl flex items-center justify-center">
                 <Trophy className="w-5 h-5 md:w-6 md:h-6 text-emerald-600" />
               </div>
@@ -97,8 +97,8 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
             <p className="text-2xl md:text-3xl font-bold text-gray-900">{profile.ranking_points}</p>
           </div>
 
-          <div className="bg-white rounded-2xl p-4 md:p-6 shadow-lg">
-            <div className="flex items-center justify-between mb-2 md:mb-4">
+          <div className="bg-white rounded-2xl p-4 md:p-6 shadow-lg text-center">
+            <div className="flex items-center justify-center mb-2 md:mb-4">
               <div className="w-10 h-10 md:w-12 md:h-12 bg-blue-100 rounded-xl flex items-center justify-center">
                 <Calendar className="w-5 h-5 md:w-6 md:h-6 text-blue-600" />
               </div>
@@ -107,8 +107,8 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
             <p className="text-2xl md:text-3xl font-bold text-gray-900">{profile.total_matches}</p>
           </div>
 
-          <div className="bg-white rounded-2xl p-4 md:p-6 shadow-lg">
-            <div className="flex items-center justify-between mb-2 md:mb-4">
+          <div className="bg-white rounded-2xl p-4 md:p-6 shadow-lg text-center">
+            <div className="flex items-center justify-center mb-2 md:mb-4">
               <div className="w-10 h-10 md:w-12 md:h-12 bg-green-100 rounded-xl flex items-center justify-center">
                 <Award className="w-5 h-5 md:w-6 md:h-6 text-green-600" />
               </div>
@@ -117,8 +117,8 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
             <p className="text-2xl md:text-3xl font-bold text-gray-900">{profile.total_wins}</p>
           </div>
 
-          <div className="bg-white rounded-2xl p-4 md:p-6 shadow-lg">
-            <div className="flex items-center justify-between mb-2 md:mb-4">
+          <div className="bg-white rounded-2xl p-4 md:p-6 shadow-lg text-center">
+            <div className="flex items-center justify-center mb-2 md:mb-4">
               <div className="w-10 h-10 md:w-12 md:h-12 bg-purple-100 rounded-xl flex items-center justify-center">
                 <TrendingUp className="w-5 h-5 md:w-6 md:h-6 text-purple-600" />
               </div>
@@ -128,7 +128,7 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-6 mb-8">
+        <div className="grid lg:grid-cols-2 gap-6 mb-8 max-w-6xl mx-auto">
           <div className="bg-white rounded-2xl p-6 shadow-lg">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-gray-900 flex items-center">
@@ -277,8 +277,8 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-8 shadow-lg">
-          <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
+        <div className="bg-white rounded-2xl p-6 md:p-8 shadow-lg max-w-6xl mx-auto">
+          <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center justify-center md:justify-start">
             <Users className="w-6 h-6 mr-2 text-emerald-600" />
             Sobre o Sistema
           </h3>

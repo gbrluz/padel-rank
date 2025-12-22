@@ -195,7 +195,7 @@ export default function RegistrationFormPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50 py-8 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50 py-8 px-4 overflow-x-hidden">
       <div className="max-w-3xl mx-auto">
         <div className="bg-white rounded-3xl shadow-2xl p-8 md:p-10">
           <div className="flex items-center justify-between mb-8">
