@@ -36,6 +36,20 @@ export default function ReportMatchResultModal({
   const [tiebreakScore, setTiebreakScore] = useState({ team_a: 0, team_b: 0 });
   const [error, setError] = useState('');
 
+  const updateTiebreak = (team: 'team_a' | 'team_b', value: string) => {
+    if (value === '') {
+      setTiebreakScore({ ...tiebreakScore, [team]: 0 });
+      return;
+    }
+
+    if (!/^\d+$/.test(value)) return;
+
+    const numValue = parseInt(value);
+    if (numValue < 0) return;
+
+    setTiebreakScore({ ...tiebreakScore, [team]: numValue });
+  };
+
   if (!isOpen) return null;
 
   const addSet = () => {
@@ -51,7 +65,16 @@ export default function ReportMatchResultModal({
   };
 
   const updateSet = (index: number, team: 'team_a' | 'team_b', value: string) => {
-    const numValue = parseInt(value) || 0;
+    if (value === '') {
+      const newSets = [...sets];
+      newSets[index][team] = 0;
+      setSets(newSets);
+      return;
+    }
+
+    if (!/^\d+$/.test(value)) return;
+
+    const numValue = parseInt(value);
     if (numValue < 0 || numValue > 9) return;
 
     const newSets = [...sets];
@@ -89,19 +112,21 @@ export default function ReportMatchResultModal({
         continue;
       }
 
-      if (set.team_a < 6 && set.team_b < 6) {
-        setError('Cada set deve ter pelo menos um time com 6 ou mais games');
+      const hasNine = set.team_a === 9 || set.team_b === 9;
+      const otherScore = set.team_a === 9 ? set.team_b : set.team_a;
+
+      if (!hasNine) {
+        setError('Um time deve ter exatamente 9 games para vencer o set');
         return false;
       }
 
-      const diff = Math.abs(set.team_a - set.team_b);
-      if (set.team_a < 7 && set.team_b < 7 && diff < 2) {
-        setError('O vencedor do set deve ter pelo menos 2 games de diferença');
+      if (otherScore > 8) {
+        setError('O time perdedor não pode ter mais de 8 games (exceto em caso de 8-8)');
         return false;
       }
 
-      if (set.team_a > 9 || set.team_b > 9) {
-        setError('Um set não pode ter mais de 9 games');
+      if (otherScore < 0) {
+        setError('Placar inválido');
         return false;
       }
 
@@ -253,11 +278,11 @@ export default function ReportMatchResultModal({
                         Time A ({teamANames[0]} e {teamANames[1]})
                       </label>
                       <input
-                        type="number"
-                        min="0"
-                        max="9"
-                        value={set.team_a}
+                        type="text"
+                        inputMode="numeric"
+                        value={set.team_a === 0 ? '' : set.team_a}
                         onChange={(e) => updateSet(index, 'team_a', e.target.value)}
+                        placeholder="0-9"
                         className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:outline-none text-center text-lg font-bold"
                       />
                     </div>
@@ -267,11 +292,11 @@ export default function ReportMatchResultModal({
                         Time B ({teamBNames[0]} e {teamBNames[1]})
                       </label>
                       <input
-                        type="number"
-                        min="0"
-                        max="9"
-                        value={set.team_b}
+                        type="text"
+                        inputMode="numeric"
+                        value={set.team_b === 0 ? '' : set.team_b}
                         onChange={(e) => updateSet(index, 'team_b', e.target.value)}
+                        placeholder="0-9"
                         className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:outline-none text-center text-lg font-bold"
                       />
                     </div>
@@ -289,10 +314,11 @@ export default function ReportMatchResultModal({
                       Time A
                     </label>
                     <input
-                      type="number"
-                      min="0"
-                      value={tiebreakScore.team_a}
-                      onChange={(e) => setTiebreakScore({ ...tiebreakScore, team_a: parseInt(e.target.value) || 0 })}
+                      type="text"
+                      inputMode="numeric"
+                      value={tiebreakScore.team_a === 0 ? '' : tiebreakScore.team_a}
+                      onChange={(e) => updateTiebreak('team_a', e.target.value)}
+                      placeholder="0+"
                       className="w-full px-4 py-2 border-2 border-blue-300 rounded-xl focus:border-blue-500 focus:outline-none text-center text-lg font-bold"
                     />
                   </div>
@@ -302,10 +328,11 @@ export default function ReportMatchResultModal({
                       Time B
                     </label>
                     <input
-                      type="number"
-                      min="0"
-                      value={tiebreakScore.team_b}
-                      onChange={(e) => setTiebreakScore({ ...tiebreakScore, team_b: parseInt(e.target.value) || 0 })}
+                      type="text"
+                      inputMode="numeric"
+                      value={tiebreakScore.team_b === 0 ? '' : tiebreakScore.team_b}
+                      onChange={(e) => updateTiebreak('team_b', e.target.value)}
+                      placeholder="0+"
                       className="w-full px-4 py-2 border-2 border-blue-300 rounded-xl focus:border-blue-500 focus:outline-none text-center text-lg font-bold"
                     />
                   </div>
