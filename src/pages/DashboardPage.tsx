@@ -128,8 +128,8 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-6 mb-8 max-w-6xl mx-auto">
-          <div className="bg-white rounded-2xl p-6 shadow-lg">
+        <div className="grid lg:grid-cols-2 gap-6 mb-8 max-w-6xl mx-auto px-2 md:px-0">
+          <div className="bg-white rounded-2xl p-4 md:p-6 shadow-lg">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-gray-900 flex items-center">
                 <Trophy className="w-5 h-5 mr-2 text-emerald-600" />
@@ -155,21 +155,21 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
                   return (
                     <div
                       key={player.id}
-                      className={`flex items-center p-3 rounded-xl ${
+                      className={`flex items-center p-2.5 md:p-3 rounded-xl ${
                         isCurrentUser ? 'bg-emerald-50 border-2 border-emerald-200' : 'bg-gray-50'
                       }`}
                     >
-                      <div className="flex items-center mr-3">
+                      <div className="flex items-center mr-2 md:mr-3 flex-shrink-0">
                         {position === 1 && <Medal className="w-5 h-5 text-yellow-500" />}
                         {position === 2 && <Medal className="w-5 h-5 text-gray-400" />}
                         {position === 3 && <Medal className="w-5 h-5 text-amber-700" />}
-                        <span className={`ml-1 text-lg font-bold ${
+                        <span className={`ml-1 text-base md:text-lg font-bold ${
                           position <= 3 ? 'text-emerald-600' : 'text-gray-900'
                         }`}>
                           {position}
                         </span>
                       </div>
-                      <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center mr-3">
+                      <div className="w-9 h-9 md:w-10 md:h-10 bg-emerald-100 rounded-full flex items-center justify-center mr-2 md:mr-3 flex-shrink-0">
                         {player.photo_url ? (
                           <img
                             src={player.photo_url}
@@ -177,27 +177,27 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
                             className="w-full h-full rounded-full object-cover"
                           />
                         ) : (
-                          <UserIcon className="w-5 h-5 text-emerald-600" />
+                          <UserIcon className="w-4 h-4 md:w-5 md:h-5 text-emerald-600" />
                         )}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className={`font-semibold truncate ${
+                      <div className="flex-1 min-w-0 mr-2">
+                        <div className="flex items-center gap-1.5 md:gap-2 mb-1">
+                          <span className={`font-semibold truncate text-sm md:text-base ${
                             isCurrentUser ? 'text-emerald-700' : 'text-gray-900'
                           }`}>
                             {player.full_name}
                           </span>
                           {isCurrentUser && (
-                            <span className="flex-shrink-0 text-xs bg-emerald-600 text-white px-2 py-1 rounded-full whitespace-nowrap">
+                            <span className="flex-shrink-0 text-xs bg-emerald-600 text-white px-1.5 md:px-2 py-0.5 md:py-1 rounded-full whitespace-nowrap">
                               Você
                             </span>
                           )}
                         </div>
                         <div className="text-xs text-gray-500">{player.category}</div>
                       </div>
-                      <div className="text-right">
-                        <div className="text-lg font-bold text-emerald-600">{player.ranking_points}</div>
-                        <div className="text-xs text-gray-500">{player.total_matches} partidas</div>
+                      <div className="text-right flex-shrink-0">
+                        <div className="text-base md:text-lg font-bold text-emerald-600">{player.ranking_points}</div>
+                        <div className="text-xs text-gray-500 whitespace-nowrap">{player.total_matches} partidas</div>
                       </div>
                     </div>
                   );
@@ -213,7 +213,7 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
             )}
           </div>
 
-          <div className="bg-white rounded-2xl p-6 shadow-lg">
+          <div className="bg-white rounded-2xl p-4 md:p-6 shadow-lg">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-gray-900 flex items-center">
                 <Calendar className="w-5 h-5 mr-2 text-blue-600" />
