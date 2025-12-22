@@ -193,17 +193,17 @@ export default function BackofficePage({ onNavigate }: BackofficePageProps) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 pb-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 flex items-center">
-              <UserCog className="w-8 h-8 mr-3 text-red-600" />
-              Backoffice - Administração
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center">
+              <UserCog className="w-7 h-7 sm:w-8 sm:h-8 mr-2 sm:mr-3 text-red-600 flex-shrink-0" />
+              <span className="truncate">Backoffice - Administração</span>
             </h1>
-            <p className="text-gray-600 mt-2">Gerencie usuários e partidas do sistema</p>
+            <p className="text-gray-600 mt-2 text-sm sm:text-base">Gerencie usuários e partidas do sistema</p>
           </div>
           <button
             onClick={() => onNavigate('dashboard')}
-            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors whitespace-nowrap self-start sm:self-auto"
           >
             Voltar ao Dashboard
           </button>
