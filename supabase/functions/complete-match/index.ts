@@ -403,7 +403,9 @@ Deno.serve(async (req: Request) => {
         sets: sets,
         has_tiebreak: hasTiebreak,
         tiebreak_score: tiebreakScore,
-        is_inter_regional: isInterRegional
+        is_inter_regional: isInterRegional,
+        team_a_points_change: shouldUpdateRegionalRanking ? teamAPointsChange : null,
+        team_b_points_change: shouldUpdateRegionalRanking ? teamBPointsChange : null
       })
       .eq('id', matchId);
 

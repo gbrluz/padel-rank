@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Users, CheckCircle, XCircle, Clock, Trophy, ThumbsUp, ThumbsDown, ArrowLeft, ArrowRight, FileText, CalendarCheck } from 'lucide-react';
+import { Calendar, Users, CheckCircle, XCircle, Clock, Trophy, ThumbsUp, ThumbsDown, ArrowLeft, ArrowRight, FileText, CalendarCheck, TrendingUp, TrendingDown } from 'lucide-react';
 import { supabase, Match, Profile } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import ReportMatchResultModal from '../components/ReportMatchResultModal';
@@ -478,6 +478,21 @@ export default function MatchesPage() {
                               {renderApprovalBadge(getPlayerApprovalStatus(match.id, match.team_a_player1_id))}
                             </div>
                           )}
+                          {match.status === 'completed' && (match as any).team_a_points_change !== null && (match as any).team_a_points_change !== undefined && (
+                            <div className="ml-6">
+                              {(match as any).team_a_points_change > 0 ? (
+                                <span className="inline-flex items-center text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-semibold">
+                                  <TrendingUp className="w-3 h-3 mr-1" />
+                                  +{(match as any).team_a_points_change} pts
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-semibold">
+                                  <TrendingDown className="w-3 h-3 mr-1" />
+                                  {(match as any).team_a_points_change} pts
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                         <div className="space-y-1">
                           <div className="flex items-center justify-between">
@@ -502,6 +517,21 @@ export default function MatchesPage() {
                           {match.status === 'pending_approval' && (
                             <div className="ml-6">
                               {renderApprovalBadge(getPlayerApprovalStatus(match.id, match.team_a_player2_id))}
+                            </div>
+                          )}
+                          {match.status === 'completed' && (match as any).team_a_points_change !== null && (match as any).team_a_points_change !== undefined && (
+                            <div className="ml-6">
+                              {(match as any).team_a_points_change > 0 ? (
+                                <span className="inline-flex items-center text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-semibold">
+                                  <TrendingUp className="w-3 h-3 mr-1" />
+                                  +{(match as any).team_a_points_change} pts
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-semibold">
+                                  <TrendingDown className="w-3 h-3 mr-1" />
+                                  {(match as any).team_a_points_change} pts
+                                </span>
+                              )}
                             </div>
                           )}
                         </div>
@@ -551,6 +581,21 @@ export default function MatchesPage() {
                               {renderApprovalBadge(getPlayerApprovalStatus(match.id, match.team_b_player1_id))}
                             </div>
                           )}
+                          {match.status === 'completed' && (match as any).team_b_points_change !== null && (match as any).team_b_points_change !== undefined && (
+                            <div className="ml-6">
+                              {(match as any).team_b_points_change > 0 ? (
+                                <span className="inline-flex items-center text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-semibold">
+                                  <TrendingUp className="w-3 h-3 mr-1" />
+                                  +{(match as any).team_b_points_change} pts
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-semibold">
+                                  <TrendingDown className="w-3 h-3 mr-1" />
+                                  {(match as any).team_b_points_change} pts
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                         <div className="space-y-1">
                           <div className="flex items-center justify-between">
@@ -575,6 +620,21 @@ export default function MatchesPage() {
                           {match.status === 'pending_approval' && (
                             <div className="ml-6">
                               {renderApprovalBadge(getPlayerApprovalStatus(match.id, match.team_b_player2_id))}
+                            </div>
+                          )}
+                          {match.status === 'completed' && (match as any).team_b_points_change !== null && (match as any).team_b_points_change !== undefined && (
+                            <div className="ml-6">
+                              {(match as any).team_b_points_change > 0 ? (
+                                <span className="inline-flex items-center text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-semibold">
+                                  <TrendingUp className="w-3 h-3 mr-1" />
+                                  +{(match as any).team_b_points_change} pts
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-semibold">
+                                  <TrendingDown className="w-3 h-3 mr-1" />
+                                  {(match as any).team_b_points_change} pts
+                                </span>
+                              )}
                             </div>
                           )}
                         </div>
