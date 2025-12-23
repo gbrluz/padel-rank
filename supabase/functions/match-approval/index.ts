@@ -6,6 +6,70 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
 };
 
+function generateTimeProposals(commonAvailability: any): string[] {
+  if (!commonAvailability || Object.keys(commonAvailability).length === 0) {
+    const now = new Date();
+    return [
+      new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+      new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+      new Date(now.getTime() + 4 * 24 * 60 * 60 * 1000).toISOString()
+    ];
+  }
+
+  const proposals: string[] = [];
+  const dayMapping: Record<string, number> = {
+    'domingo': 0,
+    'segunda': 1,
+    'terça': 2,
+    'quarta': 3,
+    'quinta': 4,
+    'sexta': 5,
+    'sábado': 6
+  };
+
+  const periodToHour: Record<string, number> = {
+    'morning': 9,
+    'afternoon': 14,
+    'evening': 19
+  };
+
+  const availableDays = Object.keys(commonAvailability);
+  const now = new Date();
+  const proposalDates: Date[] = [];
+
+  for (let daysAhead = 2; daysAhead <= 14 && proposals.length < 3; daysAhead++) {
+    const targetDate = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);
+    const targetDayOfWeek = targetDate.getDay();
+
+    for (const [dayName, dayNumber] of Object.entries(dayMapping)) {
+      if (dayNumber === targetDayOfWeek && availableDays.includes(dayName)) {
+        const periods = commonAvailability[dayName];
+        if (periods && periods.length > 0) {
+          const period = periods[0];
+          const hour = periodToHour[period] || 19;
+
+          const proposalDate = new Date(targetDate);
+          proposalDate.setHours(hour, 0, 0, 0);
+
+          if (proposalDate > now) {
+            proposals.push(proposalDate.toISOString());
+            if (proposals.length >= 3) break;
+          }
+        }
+      }
+    }
+  }
+
+  while (proposals.length < 3) {
+    const daysAhead = 2 + proposals.length;
+    const date = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);
+    date.setHours(19, 0, 0, 0);
+    proposals.push(date.toISOString());
+  }
+
+  return proposals;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, {
@@ -139,13 +203,42 @@ Deno.serve(async (req: Request) => {
     }
 
     if (allApproved) {
+      const { data: captainId } = await supabase
+        .rpc('get_least_captain_player', { player_ids: playerIds });
+
+      if (!captainId) {
+        return new Response(
+          JSON.stringify({ error: 'Failed to assign captain' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      await supabase.rpc('increment_captain_count', { player_id: captainId });
+
+      const timeProposals = generateTimeProposals(match.common_availability);
+
+      const negotiationDeadline = new Date(Date.now() + 72 * 60 * 60 * 1000);
+
       await supabase
         .from('matches')
-        .update({ 
-          status: 'scheduled',
-          scheduled_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+        .update({
+          status: 'scheduling',
+          captain_id: captainId,
+          negotiation_deadline: negotiationDeadline.toISOString()
         })
         .eq('id', matchId);
+
+      if (timeProposals.length > 0) {
+        const proposals = timeProposals.map((time, index) => ({
+          match_id: matchId,
+          proposed_time: time,
+          proposal_order: index + 1
+        }));
+
+        await supabase
+          .from('match_time_proposals')
+          .insert(proposals);
+      }
 
       await supabase
         .from('queue_entries')
@@ -154,7 +247,12 @@ Deno.serve(async (req: Request) => {
         .eq('status', 'matched');
 
       return new Response(
-        JSON.stringify({ message: 'Match scheduled', status: 'scheduled' }),
+        JSON.stringify({
+          message: 'Match approved - scheduling phase started',
+          status: 'scheduling',
+          captainId,
+          timeProposals
+        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

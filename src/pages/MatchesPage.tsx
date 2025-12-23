@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Users, CheckCircle, XCircle, Clock, Trophy, ThumbsUp, ThumbsDown, ArrowLeft, ArrowRight, FileText, CalendarCheck, TrendingUp, TrendingDown } from 'lucide-react';
+import { Calendar, Users, CheckCircle, XCircle, Clock, Trophy, ThumbsUp, ThumbsDown, ArrowLeft, ArrowRight, FileText, CalendarCheck, TrendingUp, TrendingDown, Crown, AlertTriangle } from 'lucide-react';
 import { supabase, Match, Profile } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import ReportMatchResultModal from '../components/ReportMatchResultModal';
+import { MatchSchedulingModal } from '../components/MatchSchedulingModal';
+import { ContestResultModal } from '../components/ContestResultModal';
 
 type MatchWithPlayers = Match & {
   team_a_player1: Profile;
@@ -16,7 +18,7 @@ type PlayerApprovalStatus = {
   approved: boolean | null;
 };
 
-type StatusFilter = 'all' | 'pending_approval' | 'scheduled' | 'cancelled' | 'completed';
+type StatusFilter = 'all' | 'pending_approval' | 'scheduling' | 'scheduled' | 'cancelled' | 'completed';
 
 export default function MatchesPage() {
   const { profile } = useAuth();
@@ -29,6 +31,8 @@ export default function MatchesPage() {
   const [approvingMatch, setApprovingMatch] = useState<string | null>(null);
   const [reportingMatch, setReportingMatch] = useState<MatchWithPlayers | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [schedulingMatch, setSchedulingMatch] = useState<MatchWithPlayers | null>(null);
+  const [contestingMatch, setContestingMatch] = useState<MatchWithPlayers | null>(null);
 
   useEffect(() => {
     loadMatches();
@@ -223,6 +227,11 @@ export default function MatchesPage() {
         icon: <Clock className="w-4 h-4" />,
         text: 'Aguardando Aprovação'
       },
+      scheduling: {
+        color: 'bg-purple-100 text-purple-800',
+        icon: <Calendar className="w-4 h-4" />,
+        text: 'Agendando Horário'
+      },
       scheduled: {
         color: 'bg-blue-100 text-blue-800',
         icon: <CheckCircle className="w-4 h-4" />,
@@ -382,6 +391,7 @@ export default function MatchesPage() {
               >
                 <option value="all">Todas</option>
                 <option value="pending_approval">Aguardando Aprovação</option>
+                <option value="scheduling">Agendando Horário</option>
                 <option value="scheduled">Agendadas</option>
                 <option value="completed">Finalizadas</option>
                 <option value="cancelled">Canceladas</option>
@@ -427,6 +437,12 @@ export default function MatchesPage() {
                   <div className="flex items-start justify-between mb-4 flex-wrap gap-3">
                     <div className="flex items-center gap-3 flex-wrap">
                       {getStatusBadge(match.status)}
+                      {(match as any).captain_id === profile?.id && (
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-amber-100 text-amber-800">
+                          <Crown className="w-4 h-4 mr-1" />
+                          Capitão
+                        </span>
+                      )}
                       <span className="text-sm text-gray-500">
                         {formatDate(match.created_at)}
                       </span>
@@ -728,7 +744,27 @@ export default function MatchesPage() {
                     </div>
                   )}
 
-                  {match.status === 'scheduled' && (
+                  {match.status === 'scheduling' && (
+                    <div className="mt-6 pt-6 border-t border-gray-200">
+                      <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 mb-4">
+                        <p className="text-sm text-purple-800 font-semibold mb-2">
+                          Fase de Agendamento
+                        </p>
+                        <p className="text-xs text-purple-700">
+                          Escolha um horário ou negocie com os outros jogadores para definir quando a partida acontecerá.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setSchedulingMatch(match)}
+                        className="w-full flex items-center justify-center px-6 py-3 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 transition-colors"
+                      >
+                        <Calendar className="w-5 h-5 mr-2" />
+                        Escolher Horário
+                      </button>
+                    </div>
+                  )}
+
+                  {match.status === 'scheduled' && (match as any).captain_id === profile?.id && (
                     <div className="mt-6 pt-6 border-t border-gray-200">
                       <button
                         onClick={() => {
@@ -738,7 +774,19 @@ export default function MatchesPage() {
                         className="w-full flex items-center justify-center px-6 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors"
                       >
                         <FileText className="w-5 h-5 mr-2" />
-                        Reportar Resultado
+                        Reportar Resultado (Capitão)
+                      </button>
+                    </div>
+                  )}
+
+                  {match.status === 'completed' && (
+                    <div className="mt-6 pt-6 border-t border-gray-200">
+                      <button
+                        onClick={() => setContestingMatch(match)}
+                        className="w-full flex items-center justify-center px-6 py-3 bg-amber-600 text-white font-bold rounded-xl hover:bg-amber-700 transition-colors"
+                      >
+                        <AlertTriangle className="w-5 h-5 mr-2" />
+                        Contestar Resultado
                       </button>
                     </div>
                   )}
@@ -764,6 +812,31 @@ export default function MatchesPage() {
               reportingMatch.team_b_player1.full_name,
               reportingMatch.team_b_player2.full_name
             ]}
+          />
+        )}
+
+        {schedulingMatch && profile && (
+          <MatchSchedulingModal
+            match={schedulingMatch}
+            currentUserId={profile.id}
+            onClose={() => setSchedulingMatch(null)}
+            onScheduled={() => {
+              setSchedulingMatch(null);
+              loadMatches();
+            }}
+          />
+        )}
+
+        {contestingMatch && profile && (
+          <ContestResultModal
+            match={contestingMatch}
+            currentUserId={profile.id}
+            onClose={() => setContestingMatch(null)}
+            onContested={() => {
+              setContestingMatch(null);
+              alert('Contestação enviada com sucesso! Um administrador irá revisar.');
+              loadMatches();
+            }}
           />
         )}
       </div>

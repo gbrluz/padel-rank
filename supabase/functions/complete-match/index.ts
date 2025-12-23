@@ -397,6 +397,7 @@ Deno.serve(async (req: Request) => {
         team_b_score: teamBScore,
         winner_team: winnerTeam,
         completed_at: new Date().toISOString(),
+        confirmed_by_captain: true,
         location: location,
         match_date: matchDate,
         match_time: matchTime,
