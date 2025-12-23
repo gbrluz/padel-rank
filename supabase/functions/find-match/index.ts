@@ -64,6 +64,69 @@ function calculateCommonAvailability(players: any[]): Record<string, string[]> {
   return commonAvailability;
 }
 
+function generateTimeProposals(commonAvailability: any): string[] {
+  if (!commonAvailability || Object.keys(commonAvailability).length === 0) {
+    const now = new Date();
+    return [
+      new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+      new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+      new Date(now.getTime() + 4 * 24 * 60 * 60 * 1000).toISOString()
+    ];
+  }
+
+  const proposals: string[] = [];
+  const dayMapping: Record<string, number> = {
+    'domingo': 0,
+    'segunda': 1,
+    'terça': 2,
+    'quarta': 3,
+    'quinta': 4,
+    'sexta': 5,
+    'sábado': 6
+  };
+
+  const periodToHour: Record<string, number> = {
+    'morning': 9,
+    'afternoon': 14,
+    'evening': 19
+  };
+
+  const availableDays = Object.keys(commonAvailability);
+  const now = new Date();
+
+  for (let daysAhead = 2; daysAhead <= 14 && proposals.length < 3; daysAhead++) {
+    const targetDate = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);
+    const targetDayOfWeek = targetDate.getDay();
+
+    for (const [dayName, dayNumber] of Object.entries(dayMapping)) {
+      if (dayNumber === targetDayOfWeek && availableDays.includes(dayName)) {
+        const periods = commonAvailability[dayName];
+        if (periods && periods.length > 0) {
+          const period = periods[0];
+          const hour = periodToHour[period] || 19;
+
+          const proposalDate = new Date(targetDate);
+          proposalDate.setHours(hour, 0, 0, 0);
+
+          if (proposalDate > now) {
+            proposals.push(proposalDate.toISOString());
+            if (proposals.length >= 3) break;
+          }
+        }
+      }
+    }
+  }
+
+  while (proposals.length < 3) {
+    const daysAhead = 2 + proposals.length;
+    const date = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);
+    date.setHours(19, 0, 0, 0);
+    proposals.push(date.toISOString());
+  }
+
+  return proposals;
+}
+
 async function checkMatchValidity(
   supabase: any,
   playerIds: string[],
@@ -378,6 +441,7 @@ Deno.serve(async (req: Request) => {
         .in('id', allPlayerIds);
 
       const commonAvailability = calculateCommonAvailability(matchPlayerProfiles || []);
+      const timeProposals = generateTimeProposals(commonAvailability);
 
       const { data: newMatch, error: insertError } = await supabase
         .from('matches')
@@ -394,7 +458,8 @@ Deno.serve(async (req: Request) => {
           team_b_player2_side: teamBSides.player2Side,
           team_a_was_duo: match.team_a_was_duo,
           team_b_was_duo: match.team_b_was_duo,
-          common_availability: commonAvailability
+          common_availability: commonAvailability,
+          negotiation_deadline: new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString()
         }])
         .select()
         .single();
@@ -416,6 +481,18 @@ Deno.serve(async (req: Request) => {
               approved: null
             }))
           );
+
+        if (timeProposals.length > 0) {
+          const proposals = timeProposals.map((time, index) => ({
+            match_id: newMatch.id,
+            proposed_time: time,
+            proposal_order: index + 1
+          }));
+
+          await supabase
+            .from('match_time_proposals')
+            .insert(proposals);
+        }
 
         await supabase
           .from('queue_entries')

@@ -6,70 +6,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
 };
 
-function generateTimeProposals(commonAvailability: any): string[] {
-  if (!commonAvailability || Object.keys(commonAvailability).length === 0) {
-    const now = new Date();
-    return [
-      new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString(),
-      new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-      new Date(now.getTime() + 4 * 24 * 60 * 60 * 1000).toISOString()
-    ];
-  }
-
-  const proposals: string[] = [];
-  const dayMapping: Record<string, number> = {
-    'domingo': 0,
-    'segunda': 1,
-    'terça': 2,
-    'quarta': 3,
-    'quinta': 4,
-    'sexta': 5,
-    'sábado': 6
-  };
-
-  const periodToHour: Record<string, number> = {
-    'morning': 9,
-    'afternoon': 14,
-    'evening': 19
-  };
-
-  const availableDays = Object.keys(commonAvailability);
-  const now = new Date();
-  const proposalDates: Date[] = [];
-
-  for (let daysAhead = 2; daysAhead <= 14 && proposals.length < 3; daysAhead++) {
-    const targetDate = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);
-    const targetDayOfWeek = targetDate.getDay();
-
-    for (const [dayName, dayNumber] of Object.entries(dayMapping)) {
-      if (dayNumber === targetDayOfWeek && availableDays.includes(dayName)) {
-        const periods = commonAvailability[dayName];
-        if (periods && periods.length > 0) {
-          const period = periods[0];
-          const hour = periodToHour[period] || 19;
-
-          const proposalDate = new Date(targetDate);
-          proposalDate.setHours(hour, 0, 0, 0);
-
-          if (proposalDate > now) {
-            proposals.push(proposalDate.toISOString());
-            if (proposals.length >= 3) break;
-          }
-        }
-      }
-    }
-  }
-
-  while (proposals.length < 3) {
-    const daysAhead = 2 + proposals.length;
-    const date = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);
-    date.setHours(19, 0, 0, 0);
-    proposals.push(date.toISOString());
-  }
-
-  return proposals;
-}
-
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, {
@@ -107,11 +43,18 @@ Deno.serve(async (req: Request) => {
     }
 
     const body = await req.json();
-    const { matchId, approved } = body;
+    const { matchId, approved, proposalId } = body;
 
     if (!matchId || typeof approved !== 'boolean') {
       return new Response(
         JSON.stringify({ error: 'Invalid request body' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (approved && !proposalId) {
+      return new Response(
+        JSON.stringify({ error: 'Time proposal selection required for approval' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -166,6 +109,30 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    if (approved && proposalId) {
+      const { data: existingVote } = await supabase
+        .from('match_time_votes')
+        .select('id')
+        .eq('match_id', matchId)
+        .eq('player_id', user.id)
+        .maybeSingle();
+
+      if (existingVote) {
+        await supabase
+          .from('match_time_votes')
+          .update({ proposal_id: proposalId })
+          .eq('id', existingVote.id);
+      } else {
+        await supabase
+          .from('match_time_votes')
+          .insert({
+            match_id: matchId,
+            player_id: user.id,
+            proposal_id: proposalId
+          });
+      }
+    }
+
     const { data: approvals } = await supabase
       .from('match_approvals')
       .select('*')
@@ -215,29 +182,28 @@ Deno.serve(async (req: Request) => {
 
       await supabase.rpc('increment_captain_count', { player_id: captainId });
 
-      const timeProposals = generateTimeProposals(match.common_availability);
+      const { data: votes } = await supabase
+        .from('match_time_votes')
+        .select('proposal_id')
+        .eq('match_id', matchId);
 
-      const negotiationDeadline = new Date(Date.now() + 72 * 60 * 60 * 1000);
+      const { data: proposals } = await supabase
+        .from('match_time_proposals')
+        .select('*')
+        .eq('match_id', matchId);
 
-      await supabase
-        .from('matches')
-        .update({
-          status: 'scheduling',
-          captain_id: captainId,
-          negotiation_deadline: negotiationDeadline.toISOString()
-        })
-        .eq('id', matchId);
+      let hasConsensus = false;
+      let consensusProposal = null;
 
-      if (timeProposals.length > 0) {
-        const proposals = timeProposals.map((time, index) => ({
-          match_id: matchId,
-          proposed_time: time,
-          proposal_order: index + 1
-        }));
-
-        await supabase
-          .from('match_time_proposals')
-          .insert(proposals);
+      if (votes && votes.length === 4 && proposals && proposals.length > 0) {
+        for (const proposal of proposals) {
+          const voteCount = votes.filter(v => v.proposal_id === proposal.id).length;
+          if (voteCount === 4) {
+            hasConsensus = true;
+            consensusProposal = proposal;
+            break;
+          }
+        }
       }
 
       await supabase
@@ -246,15 +212,46 @@ Deno.serve(async (req: Request) => {
         .in('player_id', playerIds)
         .eq('status', 'matched');
 
-      return new Response(
-        JSON.stringify({
-          message: 'Match approved - scheduling phase started',
-          status: 'scheduling',
-          captainId,
-          timeProposals
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      if (hasConsensus && consensusProposal) {
+        await supabase
+          .from('matches')
+          .update({
+            status: 'scheduled',
+            captain_id: captainId,
+            scheduled_time: consensusProposal.proposed_time
+          })
+          .eq('id', matchId);
+
+        return new Response(
+          JSON.stringify({
+            message: 'Match scheduled - everyone agreed on time',
+            status: 'scheduled',
+            captainId,
+            scheduledTime: consensusProposal.proposed_time
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } else {
+        const negotiationDeadline = new Date(Date.now() + 72 * 60 * 60 * 1000);
+
+        await supabase
+          .from('matches')
+          .update({
+            status: 'scheduling',
+            captain_id: captainId,
+            negotiation_deadline: negotiationDeadline.toISOString()
+          })
+          .eq('id', matchId);
+
+        return new Response(
+          JSON.stringify({
+            message: 'Match approved - time negotiation needed',
+            status: 'scheduling',
+            captainId
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     return new Response(
