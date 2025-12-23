@@ -443,6 +443,13 @@ Deno.serve(async (req: Request) => {
       const commonAvailability = calculateCommonAvailability(matchPlayerProfiles || []);
       const timeProposals = generateTimeProposals(commonAvailability);
 
+      const playerAvailabilities: Record<string, any> = {};
+      if (matchPlayerProfiles) {
+        for (const profile of matchPlayerProfiles) {
+          playerAvailabilities[profile.id] = profile.availability || {};
+        }
+      }
+
       const { data: newMatch, error: insertError } = await supabase
         .from('matches')
         .insert([{
@@ -459,6 +466,7 @@ Deno.serve(async (req: Request) => {
           team_a_was_duo: match.team_a_was_duo,
           team_b_was_duo: match.team_b_was_duo,
           common_availability: commonAvailability,
+          player_availabilities: playerAvailabilities,
           negotiation_deadline: new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString()
         }])
         .select()

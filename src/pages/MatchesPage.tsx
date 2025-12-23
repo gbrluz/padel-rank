@@ -328,6 +328,80 @@ export default function MatchesPage() {
     }
   };
 
+  const renderPlayerAvailabilities = (match: MatchWithPlayers) => {
+    const playerAvailabilities = (match as any).player_availabilities;
+    if (!playerAvailabilities || Object.keys(playerAvailabilities).length === 0) {
+      return null;
+    }
+
+    const dayNames: Record<string, string> = {
+      segunda: 'Seg',
+      terça: 'Ter',
+      quarta: 'Qua',
+      quinta: 'Qui',
+      sexta: 'Sex',
+      sábado: 'Sab',
+      domingo: 'Dom'
+    };
+
+    const periodNames: Record<string, string> = {
+      morning: 'Manhã',
+      afternoon: 'Tarde',
+      evening: 'Noite'
+    };
+
+    const players = [
+      { id: match.team_a_player1_id, name: match.team_a_player1.full_name },
+      { id: match.team_a_player2_id, name: match.team_a_player2.full_name },
+      { id: match.team_b_player1_id, name: match.team_b_player1.full_name },
+      { id: match.team_b_player2_id, name: match.team_b_player2.full_name }
+    ];
+
+    return (
+      <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mt-4">
+        <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center">
+          <Clock className="w-4 h-4 mr-2" />
+          Disponibilidade de Cada Jogador
+        </h4>
+        <div className="grid md:grid-cols-2 gap-4">
+          {players.map(player => {
+            const availability = playerAvailabilities[player.id] || {};
+            const hasAvailability = Object.keys(availability).length > 0;
+
+            return (
+              <div key={player.id} className="bg-white rounded-lg p-3 border border-gray-200">
+                <p className="font-medium text-gray-900 text-sm mb-2">{player.name}</p>
+                {!hasAvailability ? (
+                  <p className="text-xs text-gray-500 italic">Nenhuma disponibilidade cadastrada</p>
+                ) : (
+                  <div className="space-y-1">
+                    {Object.entries(availability).map(([day, periods]) => (
+                      <div key={day} className="flex items-start text-xs">
+                        <span className="text-gray-600 font-medium min-w-[40px]">
+                          {dayNames[day] || day}:
+                        </span>
+                        <div className="flex flex-wrap gap-1 ml-2">
+                          {(periods as string[]).map(period => (
+                            <span
+                              key={period}
+                              className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded text-xs"
+                            >
+                              {periodNames[period] || period}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   const renderCommonAvailability = (commonAvailability: Record<string, string[]>) => {
     if (!commonAvailability || Object.keys(commonAvailability).length === 0) {
       return (
@@ -708,9 +782,10 @@ export default function MatchesPage() {
                     </div>
                   )}
 
-                  {(match.status === 'pending_approval' || match.status === 'scheduled') && (
-                    <div className="mt-4">
+                  {(match.status === 'pending_approval' || match.status === 'scheduling' || match.status === 'scheduled') && (
+                    <div className="mt-4 space-y-3">
                       {renderCommonAvailability((match as any).common_availability || {})}
+                      {renderPlayerAvailabilities(match)}
                     </div>
                   )}
 
