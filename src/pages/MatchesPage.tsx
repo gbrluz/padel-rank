@@ -544,9 +544,9 @@ export default function MatchesPage() {
                     </div>
 
                     <div className="text-center">
-                      {match.status === 'completed' && match.team_a_score !== null && match.team_b_score !== null ? (
+                      {match.status === 'completed' && (match as any).sets && (match as any).sets.length > 0 ? (
                         <div className="text-3xl font-bold text-gray-900">
-                          {match.team_a_score} - {match.team_b_score}
+                          {(match as any).sets[0].team_a} - {(match as any).sets[0].team_b}
                         </div>
                       ) : (
                         <div className="text-2xl font-bold text-gray-400">VS</div>
