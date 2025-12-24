@@ -143,8 +143,8 @@ export default function ReportMatchResultModal({
         return false;
       }
 
-      if (diff < 2) {
-        setError('O vencedor do tiebreak deve ter pelo menos 2 pontos de diferença');
+      if (diff !== 2) {
+        setError('O vencedor do tiebreak deve ter exatamente 2 pontos de diferença');
         return false;
       }
 
