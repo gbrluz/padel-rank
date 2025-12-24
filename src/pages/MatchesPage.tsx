@@ -892,7 +892,7 @@ export default function MatchesPage() {
                     </div>
                   )}
 
-                  {(match.status === 'pending_approval' || match.status === 'scheduling' || match.status === 'scheduled') && (
+                  {(match.status === 'pending_approval' || match.status === 'scheduling') && (
                     <div className="mt-4 space-y-3">
                       {renderCommonAvailability((match as any).common_availability || {})}
                       {renderPlayerAvailabilities(match)}
