@@ -46,7 +46,7 @@ function calculatePointsChange(
   isDuo: boolean,
   hasProvisionalPlayer: boolean
 ): { winnerPoints: number; loserPoints: number } {
-  const BASE_POINTS = 25;
+  const BASE_POINTS = 20;
 
   const scoreMultiplier = 1 + (scoreMargin - 4) * 0.05;
   const clampedScoreMultiplier = Math.max(0.7, Math.min(1.5, scoreMultiplier));
