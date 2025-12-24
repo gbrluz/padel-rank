@@ -43,18 +43,11 @@ Deno.serve(async (req: Request) => {
     }
 
     const body = await req.json();
-    const { matchId, approved, proposalId } = body;
+    const { matchId, approved } = body;
 
     if (!matchId || typeof approved !== 'boolean') {
       return new Response(
         JSON.stringify({ error: 'Invalid request body' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    if (approved && !proposalId) {
-      return new Response(
-        JSON.stringify({ error: 'Time proposal selection required for approval' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -109,30 +102,6 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    if (approved && proposalId) {
-      const { data: existingVote } = await supabase
-        .from('match_time_votes')
-        .select('id')
-        .eq('match_id', matchId)
-        .eq('player_id', user.id)
-        .maybeSingle();
-
-      if (existingVote) {
-        await supabase
-          .from('match_time_votes')
-          .update({ proposal_id: proposalId })
-          .eq('id', existingVote.id);
-      } else {
-        await supabase
-          .from('match_time_votes')
-          .insert({
-            match_id: matchId,
-            player_id: user.id,
-            proposal_id: proposalId
-          });
-      }
-    }
-
     const { data: approvals } = await supabase
       .from('match_approvals')
       .select('*')
@@ -182,76 +151,28 @@ Deno.serve(async (req: Request) => {
 
       await supabase.rpc('increment_captain_count', { player_id: captainId });
 
-      const { data: votes } = await supabase
-        .from('match_time_votes')
-        .select('proposal_id')
-        .eq('match_id', matchId);
-
-      const { data: proposals } = await supabase
-        .from('match_time_proposals')
-        .select('*')
-        .eq('match_id', matchId);
-
-      let hasConsensus = false;
-      let consensusProposal = null;
-
-      if (votes && votes.length === 4 && proposals && proposals.length > 0) {
-        for (const proposal of proposals) {
-          const voteCount = votes.filter(v => v.proposal_id === proposal.id).length;
-          if (voteCount === 4) {
-            hasConsensus = true;
-            consensusProposal = proposal;
-            break;
-          }
-        }
-      }
-
       await supabase
         .from('queue_entries')
         .update({ status: 'matched' })
         .in('player_id', playerIds)
         .eq('status', 'matched');
 
-      if (hasConsensus && consensusProposal) {
-        await supabase
-          .from('matches')
-          .update({
-            status: 'scheduled',
-            captain_id: captainId,
-            scheduled_time: consensusProposal.proposed_time
-          })
-          .eq('id', matchId);
+      await supabase
+        .from('matches')
+        .update({
+          status: 'scheduling',
+          captain_id: captainId
+        })
+        .eq('id', matchId);
 
-        return new Response(
-          JSON.stringify({
-            message: 'Match scheduled - everyone agreed on time',
-            status: 'scheduled',
-            captainId,
-            scheduledTime: consensusProposal.proposed_time
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      } else {
-        const negotiationDeadline = new Date(Date.now() + 72 * 60 * 60 * 1000);
-
-        await supabase
-          .from('matches')
-          .update({
-            status: 'scheduling',
-            captain_id: captainId,
-            negotiation_deadline: negotiationDeadline.toISOString()
-          })
-          .eq('id', matchId);
-
-        return new Response(
-          JSON.stringify({
-            message: 'Match approved - time negotiation needed',
-            status: 'scheduling',
-            captainId
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
+      return new Response(
+        JSON.stringify({
+          message: 'Match approved - captain assigned for scheduling',
+          status: 'scheduling',
+          captainId
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     return new Response(

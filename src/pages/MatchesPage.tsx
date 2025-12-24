@@ -36,15 +36,12 @@ export default function MatchesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [schedulingMatch, setSchedulingMatch] = useState<MatchWithPlayers | null>(null);
   const [contestingMatch, setContestingMatch] = useState<MatchWithPlayers | null>(null);
-  const [timeProposals, setTimeProposals] = useState<Record<string, any[]>>({});
-  const [selectedTimes, setSelectedTimes] = useState<Record<string, string>>({});
 
   useEffect(() => {
     loadMatches();
     loadAllMatches();
     loadApprovalStatus();
     loadAllApprovals();
-    loadTimeProposals();
   }, [profile]);
 
   const loadApprovalStatus = async () => {
@@ -86,33 +83,8 @@ export default function MatchesPage() {
     }
   };
 
-  const loadTimeProposals = async () => {
+  const handleApproval = async (matchId: string, approved: boolean) => {
     if (!profile) return;
-
-    const { data } = await supabase
-      .from('match_time_proposals')
-      .select('*')
-      .order('proposal_order');
-
-    if (data) {
-      const proposalsMap: Record<string, any[]> = {};
-      data.forEach(proposal => {
-        if (!proposalsMap[proposal.match_id]) {
-          proposalsMap[proposal.match_id] = [];
-        }
-        proposalsMap[proposal.match_id].push(proposal);
-      });
-      setTimeProposals(proposalsMap);
-    }
-  };
-
-  const handleApproval = async (matchId: string, approved: boolean, selectedProposalId?: string) => {
-    if (!profile) return;
-
-    if (approved && !selectedProposalId) {
-      alert('Por favor, escolha um horário antes de aprovar');
-      return;
-    }
 
     setApprovingMatch(matchId);
     try {
@@ -130,7 +102,7 @@ export default function MatchesPage() {
             'Authorization': `Bearer ${session.access_token}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ matchId, approved, proposalId: selectedProposalId })
+          body: JSON.stringify({ matchId, approved })
         }
       );
 
@@ -140,7 +112,6 @@ export default function MatchesPage() {
       }
 
       setApprovalStatus(prev => ({ ...prev, [matchId]: approved }));
-      setSelectedTimes(prev => ({ ...prev, [matchId]: '' }));
       await loadMatches();
       await loadApprovalStatus();
       await loadAllApprovals();
@@ -854,53 +825,13 @@ export default function MatchesPage() {
                           Esta partida precisa da sua aprovação!
                         </p>
                         <p className="text-xs text-yellow-700">
-                          Escolha um horário e aprove a partida. Quando todos aprovarem, o capitão será designado.
+                          Quando todos os jogadores aprovarem, um capitão será designado para agendar o horário.
                         </p>
                       </div>
 
-                      {timeProposals[match.id] && timeProposals[match.id].length > 0 && (
-                        <div className="mb-4 space-y-3">
-                          <h4 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-                            <Clock className="w-4 h-4" />
-                            Escolha seu horário preferido:
-                          </h4>
-                          {timeProposals[match.id].map((proposal) => (
-                            <div
-                              key={proposal.id}
-                              onClick={() => setSelectedTimes(prev => ({ ...prev, [match.id]: proposal.id }))}
-                              className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                                selectedTimes[match.id] === proposal.id
-                                  ? 'border-emerald-500 bg-emerald-50'
-                                  : 'border-gray-200 hover:border-emerald-300'
-                              }`}
-                            >
-                              <div className="flex justify-between items-center">
-                                <div>
-                                  <p className="text-sm font-semibold text-gray-900">
-                                    Opção {proposal.proposal_order}
-                                  </p>
-                                  <p className="text-sm text-gray-600">
-                                    {new Date(proposal.proposed_time).toLocaleString('pt-BR', {
-                                      weekday: 'long',
-                                      day: 'numeric',
-                                      month: 'long',
-                                      hour: '2-digit',
-                                      minute: '2-digit'
-                                    })}
-                                  </p>
-                                </div>
-                                {selectedTimes[match.id] === proposal.id && (
-                                  <CheckCircle className="w-6 h-6 text-emerald-500" />
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
                       <div className="flex gap-3">
                         <button
-                          onClick={() => handleApproval(match.id, true, selectedTimes[match.id])}
+                          onClick={() => handleApproval(match.id, true)}
                           disabled={approvingMatch === match.id}
                           className="flex-1 flex items-center justify-center px-6 py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
@@ -1015,6 +946,7 @@ export default function MatchesPage() {
               reportingMatch.team_b_player1.full_name,
               reportingMatch.team_b_player2.full_name
             ]}
+            scheduledTime={reportingMatch.scheduled_time}
           />
         )}
 

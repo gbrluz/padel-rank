@@ -19,6 +19,7 @@ type ReportMatchResultModalProps = {
   }) => void;
   teamANames: string[];
   teamBNames: string[];
+  scheduledTime?: string;
 };
 
 export default function ReportMatchResultModal({
@@ -26,7 +27,8 @@ export default function ReportMatchResultModal({
   onClose,
   onSubmit,
   teamANames,
-  teamBNames
+  teamBNames,
+  scheduledTime
 }: ReportMatchResultModalProps) {
   const [location, setLocation] = useState('');
   const [matchDate, setMatchDate] = useState('');
@@ -102,6 +104,22 @@ export default function ReportMatchResultModal({
     if (!matchTime) {
       setError('Hora é obrigatória');
       return false;
+    }
+
+    if (scheduledTime) {
+      const scheduledDateTime = new Date(scheduledTime);
+      const reportedDateTime = new Date(`${matchDate}T${matchTime}`);
+      const now = new Date();
+
+      if (reportedDateTime > now) {
+        setError('Não é possível reportar resultado de uma partida que ainda não aconteceu');
+        return false;
+      }
+
+      if (reportedDateTime < scheduledDateTime) {
+        setError('A data/hora reportada não pode ser anterior à data agendada da partida');
+        return false;
+      }
     }
 
     let teamAWins = 0;
