@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
 };
 
-const MAX_POINT_DIFFERENCE = 200;
+const MAX_POINT_DIFFERENCE = 350;
 const MAX_TEAM_BALANCE_DIFF = 200;
 
 function assignSides(player1: any, player2: any): { player1Side: string, player2Side: string } {
