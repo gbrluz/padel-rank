@@ -74,20 +74,40 @@ export function MatchSchedulingModal({ match, currentUserId, onClose, onSchedule
   const hasAvailability = Object.keys(commonAvailability).length > 0;
 
   const dayNames: Record<string, string> = {
-    monday: 'Segunda',
-    tuesday: 'Terça',
-    wednesday: 'Quarta',
-    thursday: 'Quinta',
-    friday: 'Sexta',
-    saturday: 'Sábado',
-    sunday: 'Domingo'
+    segunda: 'Segunda',
+    terça: 'Terça',
+    quarta: 'Quarta',
+    quinta: 'Quinta',
+    sexta: 'Sexta',
+    sábado: 'Sábado',
+    domingo: 'Domingo'
   };
+
+  const dayOrder = ['segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado', 'domingo'];
 
   const periodNames: Record<string, string> = {
     morning: 'Manhã',
     afternoon: 'Tarde',
+    evening: 'Noite',
     night: 'Noite'
   };
+
+  const getCurrentDayIndex = () => {
+    const today = new Date().getDay();
+    const dayMap = [6, 0, 1, 2, 3, 4, 5];
+    return dayMap[today];
+  };
+
+  const sortDaysFromToday = (days: string[]) => {
+    const currentDayIndex = getCurrentDayIndex();
+    const sortedDays = [...dayOrder];
+    return sortedDays
+      .slice(currentDayIndex)
+      .concat(sortedDays.slice(0, currentDayIndex))
+      .filter(day => days.includes(day));
+  };
+
+  const sortedAvailabilityDays = sortDaysFromToday(Object.keys(commonAvailability));
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -138,23 +158,26 @@ export function MatchSchedulingModal({ match, currentUserId, onClose, onSchedule
                 </div>
               </div>
               <div className="space-y-2">
-                {Object.entries(commonAvailability).map(([day, periods]) => (
-                  <div key={day} className="flex items-start">
-                    <span className="text-sm font-medium text-emerald-900 min-w-[80px]">
-                      {dayNames[day] || day}:
-                    </span>
-                    <div className="flex flex-wrap gap-2">
-                      {(periods as string[]).map(period => (
-                        <span
-                          key={period}
-                          className="px-2 py-1 bg-emerald-100 text-emerald-800 rounded-lg text-xs font-medium"
-                        >
-                          {periodNames[period] || period}
-                        </span>
-                      ))}
+                {sortedAvailabilityDays.map(day => {
+                  const periods = commonAvailability[day] as string[];
+                  return (
+                    <div key={day} className="flex items-start">
+                      <span className="text-sm font-medium text-emerald-900 min-w-[80px]">
+                        {dayNames[day] || day}:
+                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        {periods.map(period => (
+                          <span
+                            key={period}
+                            className="px-2 py-1 bg-emerald-100 text-emerald-800 rounded-lg text-xs font-medium"
+                          >
+                            {periodNames[period] || period}
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

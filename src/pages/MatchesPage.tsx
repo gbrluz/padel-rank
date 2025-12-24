@@ -350,7 +350,24 @@ export default function MatchesPage() {
     const periodNames: Record<string, string> = {
       morning: 'Manhã',
       afternoon: 'Tarde',
-      evening: 'Noite'
+      evening: 'Noite',
+      night: 'Noite'
+    };
+
+    const dayOrder = ['segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado', 'domingo'];
+    const getCurrentDayIndex = () => {
+      const today = new Date().getDay();
+      const dayMap = [6, 0, 1, 2, 3, 4, 5];
+      return dayMap[today];
+    };
+
+    const sortDaysFromToday = (days: string[]) => {
+      const currentDayIndex = getCurrentDayIndex();
+      const sortedDays = [...dayOrder];
+      return sortedDays
+        .slice(currentDayIndex)
+        .concat(sortedDays.slice(0, currentDayIndex))
+        .filter(day => days.includes(day));
     };
 
     const players = [
@@ -370,6 +387,7 @@ export default function MatchesPage() {
           {players.map(player => {
             const availability = playerAvailabilities[player.id] || {};
             const hasAvailability = Object.keys(availability).length > 0;
+            const sortedDays = sortDaysFromToday(Object.keys(availability));
 
             return (
               <div key={player.id} className="bg-white rounded-lg p-3 border border-gray-200">
@@ -378,23 +396,26 @@ export default function MatchesPage() {
                   <p className="text-xs text-gray-500 italic">Nenhuma disponibilidade cadastrada</p>
                 ) : (
                   <div className="space-y-1">
-                    {Object.entries(availability).map(([day, periods]) => (
-                      <div key={day} className="flex items-start text-xs">
-                        <span className="text-gray-600 font-medium min-w-[40px]">
-                          {dayNames[day] || day}:
-                        </span>
-                        <div className="flex flex-wrap gap-1 ml-2">
-                          {(periods as string[]).map(period => (
-                            <span
-                              key={period}
-                              className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded text-xs"
-                            >
-                              {periodNames[period] || period}
-                            </span>
-                          ))}
+                    {sortedDays.map(day => {
+                      const periods = availability[day] as string[];
+                      return (
+                        <div key={day} className="flex items-start text-xs">
+                          <span className="text-gray-600 font-medium min-w-[40px]">
+                            {dayNames[day] || day}:
+                          </span>
+                          <div className="flex flex-wrap gap-1 ml-2">
+                            {periods.map(period => (
+                              <span
+                                key={period}
+                                className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded text-xs"
+                              >
+                                {periodNames[period] || period}
+                              </span>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -437,8 +458,27 @@ export default function MatchesPage() {
     const periodNames: Record<string, string> = {
       morning: 'Manha',
       afternoon: 'Tarde',
-      evening: 'Noite'
+      evening: 'Noite',
+      night: 'Noite'
     };
+
+    const dayOrder = ['segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado', 'domingo'];
+    const getCurrentDayIndex = () => {
+      const today = new Date().getDay();
+      const dayMap = [6, 0, 1, 2, 3, 4, 5];
+      return dayMap[today];
+    };
+
+    const sortDaysFromToday = (days: string[]) => {
+      const currentDayIndex = getCurrentDayIndex();
+      const sortedDays = [...dayOrder];
+      return sortedDays
+        .slice(currentDayIndex)
+        .concat(sortedDays.slice(0, currentDayIndex))
+        .filter(day => days.includes(day));
+    };
+
+    const sortedDays = sortDaysFromToday(Object.keys(commonAvailability));
 
     return (
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
@@ -454,23 +494,26 @@ export default function MatchesPage() {
           </div>
         </div>
         <div className="space-y-2">
-          {Object.entries(commonAvailability).map(([day, periods]) => (
-            <div key={day} className="flex items-start">
-              <span className="text-sm font-medium text-blue-900 min-w-[80px]">
-                {dayNames[day] || day}:
-              </span>
-              <div className="flex flex-wrap gap-2">
-                {(periods as string[]).map(period => (
-                  <span
-                    key={period}
-                    className="px-2 py-1 bg-blue-100 text-blue-800 rounded-lg text-xs font-medium"
-                  >
-                    {periodNames[period] || period}
-                  </span>
-                ))}
+          {sortedDays.map(day => {
+            const periods = commonAvailability[day];
+            return (
+              <div key={day} className="flex items-start">
+                <span className="text-sm font-medium text-blue-900 min-w-[80px]">
+                  {dayNames[day] || day}:
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {(periods as string[]).map(period => (
+                    <span
+                      key={period}
+                      className="px-2 py-1 bg-blue-100 text-blue-800 rounded-lg text-xs font-medium"
+                    >
+                      {periodNames[period] || period}
+                    </span>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     );
