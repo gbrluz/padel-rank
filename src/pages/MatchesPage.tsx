@@ -19,11 +19,14 @@ type PlayerApprovalStatus = {
 };
 
 type StatusFilter = 'all' | 'pending_approval' | 'scheduling' | 'scheduled' | 'cancelled' | 'completed';
+type ViewMode = 'my-matches' | 'all-matches';
 
 export default function MatchesPage() {
   const { profile } = useAuth();
   const [matches, setMatches] = useState<MatchWithPlayers[]>([]);
+  const [allMatches, setAllMatches] = useState<MatchWithPlayers[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<ViewMode>('my-matches');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [genderFilter, setGenderFilter] = useState<'all' | 'male' | 'female'>('all');
   const [approvalStatus, setApprovalStatus] = useState<Record<string, boolean | null>>({});
@@ -38,6 +41,7 @@ export default function MatchesPage() {
 
   useEffect(() => {
     loadMatches();
+    loadAllMatches();
     loadApprovalStatus();
     loadAllApprovals();
     loadTimeProposals();
@@ -243,7 +247,32 @@ export default function MatchesPage() {
     }
   };
 
-  const filteredMatches = matches.filter(match => {
+  const loadAllMatches = async () => {
+    if (!profile) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('matches')
+        .select(`
+          *,
+          team_a_player1:profiles!matches_team_a_player1_id_fkey(*),
+          team_a_player2:profiles!matches_team_a_player2_id_fkey(*),
+          team_b_player1:profiles!matches_team_b_player1_id_fkey(*),
+          team_b_player2:profiles!matches_team_b_player2_id_fkey(*),
+          league:leagues(name, affects_regional_ranking)
+        `)
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (error) throw error;
+      setAllMatches(data as any || []);
+    } catch (error) {
+      console.error('Error loading all matches:', error);
+    }
+  };
+
+  const currentMatches = viewMode === 'my-matches' ? matches : allMatches;
+  const filteredMatches = currentMatches.filter(match => {
     if (statusFilter !== 'all' && match.status !== statusFilter) return false;
     if (genderFilter !== 'all' && match.gender !== genderFilter) return false;
     return true;
@@ -477,10 +506,39 @@ export default function MatchesPage() {
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50 py-8 px-4 overflow-x-hidden">
       <div className="container mx-auto max-w-6xl">
         <div className="mb-8 text-center md:text-left">
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center justify-center md:justify-start">
+          <h1 className="text-3xl font-bold text-gray-900 flex items-center justify-center md:justify-start mb-6">
             <Calendar className="w-8 h-8 mr-3 text-emerald-600" />
-            Minhas Partidas
+            Partidas
           </h1>
+
+          <div className="flex gap-3 justify-center md:justify-start">
+            <button
+              onClick={() => setViewMode('my-matches')}
+              className={`px-6 py-3 rounded-xl font-semibold transition-all ${
+                viewMode === 'my-matches'
+                  ? 'bg-emerald-600 text-white shadow-lg'
+                  : 'bg-white text-gray-700 border-2 border-gray-200 hover:border-emerald-300'
+              }`}
+            >
+              <div className="flex items-center">
+                <Users className="w-5 h-5 mr-2" />
+                Minhas Partidas
+              </div>
+            </button>
+            <button
+              onClick={() => setViewMode('all-matches')}
+              className={`px-6 py-3 rounded-xl font-semibold transition-all ${
+                viewMode === 'all-matches'
+                  ? 'bg-emerald-600 text-white shadow-lg'
+                  : 'bg-white text-gray-700 border-2 border-gray-200 hover:border-emerald-300'
+              }`}
+            >
+              <div className="flex items-center">
+                <Calendar className="w-5 h-5 mr-2" />
+                Todas as Partidas
+              </div>
+            </button>
+          </div>
         </div>
 
         <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
@@ -789,7 +847,7 @@ export default function MatchesPage() {
                     </div>
                   )}
 
-                  {match.status === 'pending_approval' && approvalStatus[match.id] === null && (
+                  {viewMode === 'my-matches' && match.status === 'pending_approval' && approvalStatus[match.id] === null && (
                     <div className="mt-6 pt-6 border-t border-gray-200">
                       <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-4">
                         <p className="text-sm text-yellow-800 font-semibold mb-2">
@@ -861,7 +919,7 @@ export default function MatchesPage() {
                     </div>
                   )}
 
-                  {match.status === 'pending_approval' && approvalStatus[match.id] === true && (
+                  {viewMode === 'my-matches' && match.status === 'pending_approval' && approvalStatus[match.id] === true && (
                     <div className="mt-6 pt-6 border-t border-gray-200">
                       <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
                         <CheckCircle className="w-8 h-8 text-green-600 mx-auto mb-2" />
@@ -875,7 +933,7 @@ export default function MatchesPage() {
                     </div>
                   )}
 
-                  {match.status === 'pending_approval' && approvalStatus[match.id] === false && (
+                  {viewMode === 'my-matches' && match.status === 'pending_approval' && approvalStatus[match.id] === false && (
                     <div className="mt-6 pt-6 border-t border-gray-200">
                       <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
                         <XCircle className="w-8 h-8 text-red-600 mx-auto mb-2" />
@@ -889,7 +947,7 @@ export default function MatchesPage() {
                     </div>
                   )}
 
-                  {match.status === 'scheduling' && (
+                  {viewMode === 'my-matches' && match.status === 'scheduling' && (
                     <div className="mt-6 pt-6 border-t border-gray-200">
                       <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 mb-4">
                         <p className="text-sm text-purple-800 font-semibold mb-2">
@@ -909,7 +967,7 @@ export default function MatchesPage() {
                     </div>
                   )}
 
-                  {match.status === 'scheduled' && (match as any).captain_id === profile?.id && (
+                  {viewMode === 'my-matches' && match.status === 'scheduled' && (match as any).captain_id === profile?.id && (
                     <div className="mt-6 pt-6 border-t border-gray-200">
                       <button
                         onClick={() => {
@@ -924,7 +982,7 @@ export default function MatchesPage() {
                     </div>
                   )}
 
-                  {match.status === 'completed' && (
+                  {viewMode === 'my-matches' && match.status === 'completed' && (
                     <div className="mt-6 pt-6 border-t border-gray-200">
                       <button
                         onClick={() => setContestingMatch(match)}
