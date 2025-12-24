@@ -10,16 +10,15 @@ type ReportMatchResultModalProps = {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (data: {
-    location: string;
-    match_date: string;
-    match_time: string;
     sets: Set[];
     has_tiebreak: boolean;
     tiebreak_score: { team_a: number; team_b: number } | null;
   }) => void;
   teamANames: string[];
   teamBNames: string[];
-  scheduledTime?: string;
+  location: string;
+  matchDate: string;
+  matchTime: string;
 };
 
 export default function ReportMatchResultModal({
@@ -28,11 +27,10 @@ export default function ReportMatchResultModal({
   onSubmit,
   teamANames,
   teamBNames,
-  scheduledTime
+  location,
+  matchDate,
+  matchTime
 }: ReportMatchResultModalProps) {
-  const [location, setLocation] = useState('');
-  const [matchDate, setMatchDate] = useState('');
-  const [matchTime, setMatchTime] = useState('');
   const [sets, setSets] = useState<Set[]>([{ team_a: 0, team_b: 0 }]);
   const [hasTiebreak, setHasTiebreak] = useState(false);
   const [tiebreakScore, setTiebreakScore] = useState({ team_a: 0, team_b: 0 });
@@ -93,33 +91,12 @@ export default function ReportMatchResultModal({
   };
 
   const validateSets = () => {
-    if (!location.trim()) {
-      setError('Local é obrigatório');
-      return false;
-    }
-    if (!matchDate) {
-      setError('Data é obrigatória');
-      return false;
-    }
-    if (!matchTime) {
-      setError('Hora é obrigatória');
-      return false;
-    }
+    const reportedDateTime = new Date(`${matchDate}T${matchTime}`);
+    const now = new Date();
 
-    if (scheduledTime) {
-      const scheduledDateTime = new Date(scheduledTime);
-      const reportedDateTime = new Date(`${matchDate}T${matchTime}`);
-      const now = new Date();
-
-      if (reportedDateTime > now) {
-        setError('Não é possível reportar resultado de uma partida que ainda não aconteceu');
-        return false;
-      }
-
-      if (reportedDateTime < scheduledDateTime) {
-        setError('A data/hora reportada não pode ser anterior à data agendada da partida');
-        return false;
-      }
+    if (reportedDateTime > now) {
+      setError('Não é possível reportar resultado de uma partida que ainda não aconteceu');
+      return false;
     }
 
     let teamAWins = 0;
@@ -181,9 +158,6 @@ export default function ReportMatchResultModal({
     e.preventDefault();
     if (validateSets()) {
       onSubmit({
-        location,
-        match_date: matchDate,
-        match_time: matchTime,
         sets,
         has_tiebreak: hasTiebreak,
         tiebreak_score: hasTiebreak ? tiebreakScore : null
@@ -193,9 +167,6 @@ export default function ReportMatchResultModal({
   };
 
   const handleClose = () => {
-    setLocation('');
-    setMatchDate('');
-    setMatchTime('');
     setSets([{ team_a: 0, team_b: 0 }]);
     setHasTiebreak(false);
     setTiebreakScore({ team_a: 0, team_b: 0 });
@@ -217,49 +188,7 @@ export default function ReportMatchResultModal({
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          <div className="grid md:grid-cols-3 gap-4">
-            <div className="md:col-span-3">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Local *
-              </label>
-              <input
-                type="text"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                placeholder="Nome da quadra ou local"
-                className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:outline-none"
-                required
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Data *
-              </label>
-              <input
-                type="date"
-                value={matchDate}
-                onChange={(e) => setMatchDate(e.target.value)}
-                className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:outline-none"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Hora *
-              </label>
-              <input
-                type="time"
-                value={matchTime}
-                onChange={(e) => setMatchTime(e.target.value)}
-                className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:outline-none"
-                required
-              />
-            </div>
-          </div>
-
-          <div className="border-t border-gray-200 pt-6">
+          <div>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-gray-900">Placar dos Sets</h3>
               {sets.length < 3 && (
