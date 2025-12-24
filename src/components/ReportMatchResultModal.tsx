@@ -134,13 +134,16 @@ export default function ReportMatchResultModal({
         return false;
       }
 
-      if (tiebreakScore.team_a < 7 && tiebreakScore.team_b < 7) {
-        setError('O tiebreak deve ter pelo menos um time com 7 pontos');
+      const maxScore = Math.max(tiebreakScore.team_a, tiebreakScore.team_b);
+      const minScore = Math.min(tiebreakScore.team_a, tiebreakScore.team_b);
+      const diff = maxScore - minScore;
+
+      if (maxScore < 7) {
+        setError('O vencedor do tiebreak deve ter pelo menos 7 pontos');
         return false;
       }
 
-      const tiebreakDiff = Math.abs(tiebreakScore.team_a - tiebreakScore.team_b);
-      if (tiebreakDiff < 2) {
+      if (diff < 2) {
         setError('O vencedor do tiebreak deve ter pelo menos 2 pontos de diferença');
         return false;
       }
