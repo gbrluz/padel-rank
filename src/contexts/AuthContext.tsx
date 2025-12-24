@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User } from '@supabase/supabase-js';
 import { supabase, Profile } from '../lib/supabase';
-import { api } from '../lib/api';
+import { profileService } from '../services';
 
 type AuthContextType = {
   user: User | null;
@@ -24,11 +24,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchProfile = async (userId: string) => {
     try {
       console.log('Buscando perfil para usuário:', userId);
-      const { profile: data } = await api.profiles.get(userId);
+      const data = await profileService.getProfileById(userId);
 
       if (data) {
         console.log('Perfil encontrado:', data);
-        setProfile(data as Profile);
+        setProfile(data);
         setLoading(false);
       } else {
         console.log('Nenhum perfil encontrado para o usuário:', userId);
