@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User } from '@supabase/supabase-js';
 import { supabase, Profile } from '../lib/supabase';
+import { api } from '../lib/api';
 
 type AuthContextType = {
   user: User | null;
@@ -23,18 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchProfile = async (userId: string) => {
     try {
       console.log('Buscando perfil para usuário:', userId);
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
-
-      if (error) {
-        console.error('Erro ao buscar perfil:', error);
-        setProfile(null);
-        setLoading(false);
-        return;
-      }
+      const { profile: data } = await api.profiles.get(userId);
 
       if (data) {
         console.log('Perfil encontrado:', data);
