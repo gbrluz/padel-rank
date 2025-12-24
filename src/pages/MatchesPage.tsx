@@ -931,16 +931,21 @@ export default function MatchesPage() {
                           Fase de Agendamento
                         </p>
                         <p className="text-xs text-purple-700">
-                          Escolha um horário ou negocie com os outros jogadores para definir quando a partida acontecerá.
+                          {(match as any).captain_id === profile?.id
+                            ? 'Escolha um horário para a partida baseado na disponibilidade dos jogadores.'
+                            : 'O capitão está responsável por buscar uma quadra e agendar o horário da partida.'
+                          }
                         </p>
                       </div>
-                      <button
-                        onClick={() => setSchedulingMatch(match)}
-                        className="w-full flex items-center justify-center px-6 py-3 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 transition-colors"
-                      >
-                        <Calendar className="w-5 h-5 mr-2" />
-                        Escolher Horário
-                      </button>
+                      {(match as any).captain_id === profile?.id && (
+                        <button
+                          onClick={() => setSchedulingMatch(match)}
+                          className="w-full flex items-center justify-center px-6 py-3 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 transition-colors"
+                        >
+                          <Calendar className="w-5 h-5 mr-2" />
+                          Escolher Horário
+                        </button>
+                      )}
                     </div>
                   )}
 
