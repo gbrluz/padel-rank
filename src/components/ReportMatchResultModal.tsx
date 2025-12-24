@@ -82,7 +82,10 @@ export default function ReportMatchResultModal({
     setSets(newSets);
 
     const lastSet = newSets[newSets.length - 1];
-    if (lastSet.team_a === 8 && lastSet.team_b === 8) {
+    const isTiebreakScore = (lastSet.team_a === 9 && lastSet.team_b === 8) ||
+                            (lastSet.team_a === 8 && lastSet.team_b === 9);
+
+    if (isTiebreakScore) {
       setHasTiebreak(true);
     } else {
       setHasTiebreak(false);
@@ -103,10 +106,6 @@ export default function ReportMatchResultModal({
     let teamBWins = 0;
 
     for (const set of sets) {
-      if (set.team_a === 8 && set.team_b === 8) {
-        continue;
-      }
-
       const hasNine = set.team_a === 9 || set.team_b === 9;
       const otherScore = set.team_a === 9 ? set.team_b : set.team_a;
 
@@ -116,7 +115,7 @@ export default function ReportMatchResultModal({
       }
 
       if (otherScore > 8) {
-        setError('O time perdedor não pode ter mais de 8 games (exceto em caso de 8-8)');
+        setError('O time perdedor não pode ter mais de 8 games');
         return false;
       }
 
@@ -130,6 +129,11 @@ export default function ReportMatchResultModal({
     }
 
     if (hasTiebreak) {
+      if (tiebreakScore.team_a === 0 && tiebreakScore.team_b === 0) {
+        setError('Você precisa informar o placar do tiebreak');
+        return false;
+      }
+
       if (tiebreakScore.team_a < 7 && tiebreakScore.team_b < 7) {
         setError('O tiebreak deve ter pelo menos um time com 7 pontos');
         return false;
@@ -254,7 +258,7 @@ export default function ReportMatchResultModal({
 
             {hasTiebreak && (
               <div className="mt-4 bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
-                <h4 className="text-sm font-bold text-blue-900 mb-3">Tiebreak (8-8)</h4>
+                <h4 className="text-sm font-bold text-blue-900 mb-3">Tiebreak (9-8)</h4>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-blue-700 mb-2">
