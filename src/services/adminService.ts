@@ -1,30 +1,31 @@
 import { api } from '../lib/api';
-import { Profile } from '../lib/supabase';
+import { Player, SystemStats } from '../types';
+import { mapProfileToPlayer, mapPlayerToProfile } from '../types/mappers';
 
-export interface AdminProfile extends Profile {
+export interface AdminPlayer extends Player {
   email: string;
 }
 
-export interface SystemStats {
-  totalProfiles: number;
-  totalMatches: number;
-  totalLeagues: number;
-  activeQueueEntries: number;
-}
-
 export const adminService = {
-  async getAllProfiles(search?: string): Promise<AdminProfile[]> {
+  async getAllPlayers(search?: string): Promise<AdminPlayer[]> {
     const { profiles } = await api.admin.getProfiles(search);
-    return profiles || [];
+    return (profiles || []).map((p: any) => ({
+      ...mapProfileToPlayer(p),
+      email: p.email,
+    }));
   },
 
-  async searchProfiles(query: string): Promise<AdminProfile[]> {
-    return this.getAllProfiles(query);
+  async searchPlayers(query: string): Promise<AdminPlayer[]> {
+    return this.getAllPlayers(query);
   },
 
-  async updateProfile(profileId: string, updates: Partial<Profile>): Promise<AdminProfile> {
-    const { profile } = await api.admin.updateProfile(profileId, updates);
-    return profile;
+  async updatePlayer(playerId: string, updates: Partial<Player>): Promise<AdminPlayer> {
+    const dbUpdates = mapPlayerToProfile(updates);
+    const { profile } = await api.admin.updateProfile(playerId, dbUpdates);
+    return {
+      ...mapProfileToPlayer(profile),
+      email: (profile as any).email,
+    };
   },
 
   async getSystemStats(): Promise<SystemStats> {
@@ -32,53 +33,53 @@ export const adminService = {
     return stats;
   },
 
-  async makeAdmin(profileId: string): Promise<AdminProfile> {
-    return this.updateProfile(profileId, { is_admin: true });
+  async makeAdmin(playerId: string): Promise<AdminPlayer> {
+    return this.updatePlayer(playerId, { isAdmin: true });
   },
 
-  async removeAdmin(profileId: string): Promise<AdminProfile> {
-    return this.updateProfile(profileId, { is_admin: false });
+  async removeAdmin(playerId: string): Promise<AdminPlayer> {
+    return this.updatePlayer(playerId, { isAdmin: false });
   },
 
-  async updatePlayerPoints(profileId: string, points: number): Promise<AdminProfile> {
-    return this.updateProfile(profileId, { ranking_points: points });
+  async updatePlayerPoints(playerId: string, points: number): Promise<AdminPlayer> {
+    return this.updatePlayer(playerId, { rankingPoints: points });
   },
 
-  async resetPlayerStats(profileId: string): Promise<AdminProfile> {
-    return this.updateProfile(profileId, {
-      ranking_points: 1000,
-      total_matches: 0,
-      total_wins: 0,
-      win_rate: 0,
+  async resetPlayerStats(playerId: string): Promise<AdminPlayer> {
+    return this.updatePlayer(playerId, {
+      rankingPoints: 1000,
+      totalMatches: 0,
+      totalWins: 0,
+      winRate: 0,
     });
   },
 
-  validateProfileUpdate(updates: Partial<Profile>): string | null {
-    if (updates.ranking_points !== undefined && updates.ranking_points < 0) {
+  validatePlayerUpdate(updates: Partial<Player>): string | null {
+    if (updates.rankingPoints !== undefined && updates.rankingPoints < 0) {
       return 'Pontos de ranking não podem ser negativos';
     }
 
-    if (updates.total_matches !== undefined && updates.total_matches < 0) {
+    if (updates.totalMatches !== undefined && updates.totalMatches < 0) {
       return 'Total de partidas não pode ser negativo';
     }
 
-    if (updates.total_wins !== undefined && updates.total_wins < 0) {
+    if (updates.totalWins !== undefined && updates.totalWins < 0) {
       return 'Total de vitórias não pode ser negativo';
     }
 
     if (
-      updates.total_wins !== undefined &&
-      updates.total_matches !== undefined &&
-      updates.total_wins > updates.total_matches
+      updates.totalWins !== undefined &&
+      updates.totalMatches !== undefined &&
+      updates.totalWins > updates.totalMatches
     ) {
       return 'Total de vitórias não pode ser maior que total de partidas';
     }
 
-    if (updates.full_name && updates.full_name.trim().length === 0) {
+    if (updates.fullName && updates.fullName.trim().length === 0) {
       return 'Nome não pode ser vazio';
     }
 
-    if (updates.full_name && updates.full_name.length > 100) {
+    if (updates.fullName && updates.fullName.length > 100) {
       return 'Nome muito longo (máximo 100 caracteres)';
     }
 
@@ -87,16 +88,16 @@ export const adminService = {
 
   formatStats(stats: SystemStats): string[] {
     return [
-      `${stats.totalProfiles} jogadores cadastrados`,
+      `${stats.totalPlayers} jogadores cadastrados`,
       `${stats.totalMatches} partidas realizadas`,
       `${stats.totalLeagues} ligas criadas`,
       `${stats.activeQueueEntries} jogadores na fila`,
     ];
   },
 
-  getPlayerStatus(profile: Profile): 'active' | 'inactive' | 'provisional' {
-    if (profile.total_matches < 5) return 'provisional';
-    if (profile.total_matches === 0) return 'inactive';
+  getPlayerStatus(player: Player): 'active' | 'inactive' | 'provisional' {
+    if (player.isProvisional) return 'provisional';
+    if (player.totalMatches === 0) return 'inactive';
     return 'active';
   },
 

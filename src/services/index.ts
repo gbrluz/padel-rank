@@ -5,8 +5,10 @@ export { rankingService } from './rankingService';
 export { queueService } from './queueService';
 export { adminService } from './adminService';
 
-export type { MatchStatus, SchedulingStatus, ScheduleMatchData, CompleteMatchData } from './matchService';
-export type { League, LeagueStatus, LeagueParticipant, LeagueRanking, CreateLeagueData } from './leagueService';
-export type { RankingFilters, GlobalRankingEntry, RankingHistory } from './rankingService';
+export type { ScheduleMatchData, CompleteMatchData } from './matchService';
+export type { CreateLeagueData } from './leagueService';
+export type { RankingFilters } from './rankingService';
 export type { JoinQueueData, FindMatchData } from './queueService';
-export type { AdminProfile, SystemStats } from './adminService';
+export type { AdminPlayer } from './adminService';
+
+export * from '../types/domain';

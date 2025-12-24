@@ -1,55 +1,36 @@
 import { api } from '../lib/api';
-
-export type LeagueStatus = 'open' | 'in_progress' | 'completed';
-
-export interface League {
-  id: string;
-  name: string;
-  description: string | null;
-  gender: 'male' | 'female';
-  category: string | null;
-  status: LeagueStatus;
-  start_date: string;
-  end_date: string | null;
-  max_participants: number | null;
-  min_matches: number;
-  created_by: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface LeagueParticipant {
-  id: string;
-  league_id: string;
-  player_id: string;
-  joined_at: string;
-}
-
-export interface LeagueRanking {
-  id: string;
-  league_id: string;
-  player_id: string;
-  points: number;
-  matches_played: number;
-  matches_won: number;
-  position: number;
-}
+import {
+  League,
+  LeagueStatus,
+  LeagueParticipant,
+  LeagueRanking,
+  Gender,
+  Category,
+} from '../types';
+import {
+  mapDBLeagueToLeague,
+  mapDBLeagueParticipantToParticipant,
+  mapDBLeagueRankingToRanking,
+} from '../types/mappers';
 
 export interface CreateLeagueData {
   name: string;
   description?: string;
-  gender: 'male' | 'female';
-  category?: string;
+  gender: Gender;
+  category?: Category;
   start_date: string;
   end_date?: string;
   max_participants?: number;
   min_matches?: number;
+  allow_provisional_players?: boolean;
+  require_captains?: boolean;
+  require_scheduling?: boolean;
 }
 
 export const leagueService = {
   async listLeagues(filters?: { status?: LeagueStatus; gender?: string }): Promise<League[]> {
     const { leagues } = await api.leagues.list(filters);
-    return leagues || [];
+    return (leagues || []).map(mapDBLeagueToLeague);
   },
 
   async getOpenLeagues(): Promise<League[]> {
@@ -65,32 +46,32 @@ export const leagueService = {
     if (!league) {
       throw new Error('Liga não encontrada');
     }
-    return league;
+    return mapDBLeagueToLeague(league);
   },
 
   async getLeagueParticipants(leagueId: string): Promise<LeagueParticipant[]> {
     const { participants } = await api.leagues.getParticipants(leagueId);
-    return participants || [];
+    return (participants || []).map(mapDBLeagueParticipantToParticipant);
   },
 
   async getLeagueRanking(leagueId: string): Promise<LeagueRanking[]> {
     const { ranking } = await api.leagues.getRanking(leagueId);
-    return ranking || [];
+    return (ranking || []).map(mapDBLeagueRankingToRanking);
   },
 
   async createLeague(data: CreateLeagueData): Promise<League> {
     const { league } = await api.leagues.create(data);
-    return league;
+    return mapDBLeagueToLeague(league);
   },
 
   async updateLeague(id: string, updates: Partial<League>): Promise<League> {
     const { league } = await api.leagues.update(id, updates);
-    return league;
+    return mapDBLeagueToLeague(league);
   },
 
   async joinLeague(leagueId: string): Promise<LeagueParticipant> {
     const { participant } = await api.leagues.join(leagueId);
-    return participant;
+    return mapDBLeagueParticipantToParticipant(participant);
   },
 
   async leaveLeague(leagueId: string): Promise<void> {
@@ -100,7 +81,7 @@ export const leagueService = {
   async isParticipant(leagueId: string, playerId: string): Promise<boolean> {
     try {
       const participants = await this.getLeagueParticipants(leagueId);
-      return participants.some(p => p.player_id === playerId);
+      return participants.some(p => p.playerId === playerId);
     } catch {
       return false;
     }
@@ -108,7 +89,7 @@ export const leagueService = {
 
   canJoin(league: League, participants: LeagueParticipant[]): boolean {
     if (league.status !== 'open') return false;
-    if (league.max_participants && participants.length >= league.max_participants) {
+    if (league.maxParticipants && participants.length >= league.maxParticipants) {
       return false;
     }
     return true;

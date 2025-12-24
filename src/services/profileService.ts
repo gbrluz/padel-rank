@@ -1,51 +1,52 @@
 import { api } from '../lib/api';
-import { Profile } from '../lib/supabase';
+import { Player, Category } from '../types';
+import { mapProfileToPlayer, mapPlayerToProfile } from '../types/mappers';
 
 export const profileService = {
-  async getCurrentProfile(): Promise<Profile> {
+  async getCurrentPlayer(): Promise<Player> {
     const { profile } = await api.profiles.get();
     if (!profile) {
-      throw new Error('Perfil não encontrado');
+      throw new Error('Jogador não encontrado');
     }
-    return profile;
+    return mapProfileToPlayer(profile);
   },
 
-  async getProfileById(id: string): Promise<Profile> {
+  async getPlayer(id: string): Promise<Player> {
     const { profile } = await api.profiles.get(id);
     if (!profile) {
-      throw new Error('Perfil não encontrado');
+      throw new Error('Jogador não encontrado');
     }
-    return profile;
+    return mapProfileToPlayer(profile);
   },
 
-  async updateProfile(id: string, updates: Partial<Profile>): Promise<Profile> {
-    const { profile } = await api.profiles.update(id, updates);
-    return profile;
+  async updatePlayer(id: string, updates: Partial<Player>): Promise<Player> {
+    const dbUpdates = mapPlayerToProfile(updates);
+    const { profile } = await api.profiles.update(id, dbUpdates);
+    return mapProfileToPlayer(profile);
   },
 
-  async updateCurrentProfile(updates: Partial<Profile>): Promise<Profile> {
-    const current = await this.getCurrentProfile();
-    return this.updateProfile(current.id, updates);
+  async updateCurrentPlayer(updates: Partial<Player>): Promise<Player> {
+    const current = await this.getCurrentPlayer();
+    return this.updatePlayer(current.id, updates);
   },
 
-  async updateAvailability(id: string, availability: Record<string, string[]>): Promise<Profile> {
-    return this.updateProfile(id, { availability });
+  async updateAvailability(id: string, availability: Record<string, string[]>): Promise<Player> {
+    return this.updatePlayer(id, { availability });
   },
 
-  isProvisional(profile: Profile): boolean {
-    return profile.total_matches < 5;
+  isProvisional(player: Player): boolean {
+    return player.isProvisional;
   },
 
-  canJoinLeagues(profile: Profile): boolean {
-    return !this.isProvisional(profile);
+  canJoinLeagues(player: Player): boolean {
+    return !this.isProvisional(player);
   },
 
-  getWinRate(profile: Profile): number {
-    if (profile.total_matches === 0) return 0;
-    return (profile.total_wins / profile.total_matches) * 100;
+  getWinRate(player: Player): number {
+    return player.winRate;
   },
 
-  getCategoryFromPoints(points: number): string {
+  getCategoryFromPoints(points: number): Category {
     if (points < 200) return 'Iniciante';
     if (points < 400) return '7ª';
     if (points < 600) return '6ª';

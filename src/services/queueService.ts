@@ -1,24 +1,25 @@
 import { api } from '../lib/api';
-import { QueueEntry } from '../lib/supabase';
+import { QueueEntry, Gender, PreferredSide } from '../types';
+import { mapDBQueueToQueue } from '../types/mappers';
 
 export interface JoinQueueData {
   partnerId?: string;
-  gender: 'male' | 'female';
-  preferredSide?: 'left' | 'right' | 'both';
+  gender: Gender;
+  preferredSide?: PreferredSide;
 }
 
 export interface FindMatchData {
-  gender: 'male' | 'female';
+  gender: Gender;
   partnerId?: string;
   leagueId?: string;
-  preferredSide?: 'left' | 'right' | 'both';
+  preferredSide?: PreferredSide;
 }
 
 export const queueService = {
   async getQueueStatus(): Promise<QueueEntry | null> {
     try {
       const { queueEntry } = await api.queue.getStatus();
-      return queueEntry;
+      return queueEntry ? mapDBQueueToQueue(queueEntry) : null;
     } catch {
       return null;
     }
@@ -26,17 +27,17 @@ export const queueService = {
 
   async joinQueue(data: JoinQueueData): Promise<QueueEntry> {
     const { queueEntry } = await api.queue.join(data);
-    return queueEntry;
+    return mapDBQueueToQueue(queueEntry);
   },
 
-  async joinSolo(gender: 'male' | 'female', preferredSide?: 'left' | 'right' | 'both'): Promise<QueueEntry> {
+  async joinSolo(gender: Gender, preferredSide?: PreferredSide): Promise<QueueEntry> {
     return this.joinQueue({ gender, preferredSide });
   },
 
   async joinWithPartner(
     partnerId: string,
-    gender: 'male' | 'female',
-    preferredSide?: 'left' | 'right' | 'both'
+    gender: Gender,
+    preferredSide?: PreferredSide
   ): Promise<QueueEntry> {
     return this.joinQueue({ partnerId, gender, preferredSide });
   },
@@ -55,7 +56,7 @@ export const queueService = {
   },
 
   isDuo(queueEntry: QueueEntry): boolean {
-    return queueEntry.partner_id !== null;
+    return queueEntry.partnerId !== null;
   },
 
   getQueueType(queueEntry: QueueEntry): 'solo' | 'duo' {
@@ -63,7 +64,7 @@ export const queueService = {
   },
 
   getEstimatedWaitTime(queueEntry: QueueEntry): string {
-    const createdAt = new Date(queueEntry.created_at);
+    const createdAt = new Date(queueEntry.createdAt);
     const now = new Date();
     const minutesWaiting = Math.floor((now.getTime() - createdAt.getTime()) / 60000);
 
@@ -104,8 +105,8 @@ export const queueService = {
     return { min, max };
   },
 
-  formatQueueTime(createdAt: string): string {
-    const created = new Date(createdAt);
+  formatQueueTime(queueEntry: QueueEntry): string {
+    const created = new Date(queueEntry.createdAt);
     const now = new Date();
     const seconds = Math.floor((now.getTime() - created.getTime()) / 1000);
 

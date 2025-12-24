@@ -1,8 +1,6 @@
 import { api } from '../lib/api';
-import { Match } from '../lib/supabase';
-
-export type MatchStatus = 'pending_approval' | 'scheduled' | 'cancelled' | 'completed';
-export type SchedulingStatus = 'pending' | 'captain_assigned' | 'awaiting_availability' | 'scheduled';
+import { Match, MatchStatus, SchedulingStatus, Team, MatchSet } from '../types';
+import { mapDBMatchToMatch } from '../types/mappers';
 
 export interface ScheduleMatchData {
   scheduled_date: string;
@@ -13,7 +11,7 @@ export interface ScheduleMatchData {
 export interface CompleteMatchData {
   team_a_score: number;
   team_b_score: number;
-  winner_team: 'team_a' | 'team_b';
+  winner_team: Team;
   sets: Array<{
     set_number: number;
     team_a_score: number;
@@ -24,7 +22,7 @@ export interface CompleteMatchData {
 export const matchService = {
   async listMatches(filters?: { status?: MatchStatus; league_id?: string }): Promise<Match[]> {
     const { matches } = await api.matches.list(filters);
-    return matches || [];
+    return (matches || []).map(mapDBMatchToMatch);
   },
 
   async getPendingApprovalMatches(): Promise<Match[]> {
@@ -45,12 +43,12 @@ export const matchService = {
 
   async scheduleMatch(matchId: string, data: ScheduleMatchData): Promise<Match> {
     const { match } = await api.matches.schedule(matchId, data);
-    return match;
+    return mapDBMatchToMatch(match);
   },
 
   async updateAvailability(matchId: string, availability: Record<string, string[]>): Promise<Match> {
     const { match } = await api.matches.updateAvailability(matchId, availability);
-    return match;
+    return mapDBMatchToMatch(match);
   },
 
   async completeMatch(matchId: string, data: CompleteMatchData): Promise<void> {
@@ -67,18 +65,18 @@ export const matchService = {
 
   isPlayerInMatch(match: Match, playerId: string): boolean {
     return [
-      match.team_a_player1_id,
-      match.team_a_player2_id,
-      match.team_b_player1_id,
-      match.team_b_player2_id,
+      match.teamAPlayer1Id,
+      match.teamAPlayer2Id,
+      match.teamBPlayer1Id,
+      match.teamBPlayer2Id,
     ].includes(playerId);
   },
 
-  getPlayerTeam(match: Match, playerId: string): 'team_a' | 'team_b' | null {
-    if (match.team_a_player1_id === playerId || match.team_a_player2_id === playerId) {
+  getPlayerTeam(match: Match, playerId: string): Team | null {
+    if (match.teamAPlayer1Id === playerId || match.teamAPlayer2Id === playerId) {
       return 'team_a';
     }
-    if (match.team_b_player1_id === playerId || match.team_b_player2_id === playerId) {
+    if (match.teamBPlayer1Id === playerId || match.teamBPlayer2Id === playerId) {
       return 'team_b';
     }
     return null;
@@ -86,7 +84,7 @@ export const matchService = {
 
   didPlayerWin(match: Match, playerId: string): boolean {
     const team = this.getPlayerTeam(match, playerId);
-    return team === match.winner_team;
+    return team === match.winnerTeam;
   },
 
   calculatePointsForMatch(

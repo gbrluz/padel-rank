@@ -1,16 +1,16 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User } from '@supabase/supabase-js';
-import { supabase, Profile } from '../lib/supabase';
-import { profileService } from '../services';
+import { supabase } from '../lib/supabase';
+import { profileService, Player } from '../services';
 
 type AuthContextType = {
   user: User | null;
-  profile: Profile | null;
+  player: Player | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<{ user: User | null }>;
   signOut: () => Promise<void>;
-  refreshProfile: () => Promise<void>;
+  refreshPlayer: () => Promise<void>;
   isAdmin: boolean;
 };
 
@@ -18,26 +18,26 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [player, setPlayer] = useState<Player | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchProfile = async (userId: string) => {
+  const fetchPlayer = async (userId: string) => {
     try {
-      console.log('Buscando perfil para usuário:', userId);
-      const data = await profileService.getProfileById(userId);
+      console.log('Buscando jogador para usuário:', userId);
+      const data = await profileService.getPlayer(userId);
 
       if (data) {
-        console.log('Perfil encontrado:', data);
-        setProfile(data);
+        console.log('Jogador encontrado:', data);
+        setPlayer(data);
         setLoading(false);
       } else {
-        console.log('Nenhum perfil encontrado para o usuário:', userId);
-        setProfile(null);
+        console.log('Nenhum jogador encontrado para o usuário:', userId);
+        setPlayer(null);
         setLoading(false);
       }
     } catch (err) {
-      console.error('Erro inesperado ao buscar perfil:', err);
-      setProfile(null);
+      console.error('Erro inesperado ao buscar jogador:', err);
+      setPlayer(null);
       setLoading(false);
     }
   };
@@ -47,7 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log('Sessão inicial:', session?.user?.id);
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchProfile(session.user.id);
+        fetchPlayer(session.user.id);
       } else {
         setLoading(false);
       }
@@ -58,9 +58,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log('Auth state changed:', event, session?.user?.id);
         setUser(session?.user ?? null);
         if (session?.user) {
-          await fetchProfile(session.user.id);
+          await fetchPlayer(session.user.id);
         } else {
-          setProfile(null);
+          setPlayer(null);
         }
         setLoading(false);
       })();
@@ -89,19 +89,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
-    setProfile(null);
+    setPlayer(null);
   };
 
-  const refreshProfile = async () => {
+  const refreshPlayer = async () => {
     if (user) {
-      await fetchProfile(user.id);
+      await fetchPlayer(user.id);
     }
   };
 
-  const isAdmin = profile?.is_admin ?? false;
+  const isAdmin = player?.isAdmin ?? false;
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signIn, signUp, signOut, refreshProfile, isAdmin }}>
+    <AuthContext.Provider value={{ user, player, loading, signIn, signUp, signOut, refreshPlayer, isAdmin }}>
       {children}
     </AuthContext.Provider>
   );
