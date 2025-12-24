@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Trophy, Calendar, PlayCircle, TrendingUp, Users, Award, Medal, User as UserIcon, ChevronRight } from 'lucide-react';
+import { Trophy, Calendar, PlayCircle, TrendingUp, Users, Award, Medal, User as UserIcon, ChevronRight, MapPin, Clock } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase, Profile, Match } from '../lib/supabase';
 
@@ -264,7 +264,7 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
                           {new Date(match.created_at).toLocaleDateString('pt-BR')}
                         </span>
                       </div>
-                      <div className="grid grid-cols-3 gap-2 items-center text-xs">
+                      <div className="grid grid-cols-3 gap-2 items-center text-xs mb-2">
                         <div className={`${isTeamA ? 'font-semibold text-emerald-700' : 'text-gray-700'}`}>
                           <div className="truncate">{match.team_a_player1.full_name.split(' ')[0]}</div>
                           <div className="truncate">{match.team_a_player2.full_name.split(' ')[0]}</div>
@@ -275,6 +275,29 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
                           <div className="truncate">{match.team_b_player2.full_name.split(' ')[0]}</div>
                         </div>
                       </div>
+                      {match.status === 'scheduled' && match.scheduled_time && (
+                        <div className="pt-2 border-t border-gray-200 space-y-1">
+                          <div className="flex items-center text-xs text-gray-600">
+                            <Clock className="w-3 h-3 mr-1.5 text-blue-600" />
+                            <span>
+                              {new Date(match.scheduled_time).toLocaleDateString('pt-BR', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric'
+                              })} às {new Date(match.scheduled_time).toLocaleTimeString('pt-BR', {
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </span>
+                          </div>
+                          {match.location && (
+                            <div className="flex items-center text-xs text-gray-600">
+                              <MapPin className="w-3 h-3 mr-1.5 text-blue-600" />
+                              <span className="truncate">{match.location}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}

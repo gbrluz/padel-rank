@@ -23,10 +23,16 @@ export function MatchSchedulingModal({ match, currentUserId, onClose, onSchedule
       return;
     }
 
+    const scheduledDateTime = new Date(`${scheduledDate}T${scheduledTime}`);
+    const now = new Date();
+
+    if (scheduledDateTime <= now) {
+      alert('A data e horário da partida devem ser no futuro');
+      return;
+    }
+
     setLoading(true);
     try {
-      const scheduledDateTime = new Date(`${scheduledDate}T${scheduledTime}`);
-
       const { error } = await supabase
         .from('matches')
         .update({
@@ -225,6 +231,7 @@ export function MatchSchedulingModal({ match, currentUserId, onClose, onSchedule
                     type="date"
                     value={scheduledDate}
                     onChange={(e) => setScheduledDate(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
                     className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:outline-none"
                   />
                 </div>

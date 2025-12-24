@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Users, CheckCircle, XCircle, Clock, Trophy, ThumbsUp, ThumbsDown, ArrowLeft, ArrowRight, FileText, CalendarCheck, TrendingUp, TrendingDown, Crown, AlertTriangle } from 'lucide-react';
+import { Calendar, Users, CheckCircle, XCircle, Clock, Trophy, ThumbsUp, ThumbsDown, ArrowLeft, ArrowRight, FileText, CalendarCheck, TrendingUp, TrendingDown, Crown, AlertTriangle, MapPin } from 'lucide-react';
 import { supabase, Match, Profile } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import ReportMatchResultModal from '../components/ReportMatchResultModal';
@@ -840,6 +840,41 @@ export default function MatchesPage() {
                       )}
                     </div>
                   </div>
+
+                  {match.status === 'scheduled' && match.scheduled_time && (
+                    <div className="mt-4 bg-blue-50 border border-blue-200 rounded-xl p-4">
+                      <div className="flex items-start">
+                        <Calendar className="w-5 h-5 text-blue-600 mr-2 mt-0.5 flex-shrink-0" />
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-blue-800 mb-2">
+                            Horário Agendado
+                          </p>
+                          <div className="space-y-1.5">
+                            <div className="flex items-center text-sm text-blue-700">
+                              <Clock className="w-4 h-4 mr-2" />
+                              <span className="font-medium">
+                                {new Date(match.scheduled_time).toLocaleDateString('pt-BR', {
+                                  weekday: 'long',
+                                  day: '2-digit',
+                                  month: 'long',
+                                  year: 'numeric'
+                                })} às {new Date(match.scheduled_time).toLocaleTimeString('pt-BR', {
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </span>
+                            </div>
+                            {match.location && (
+                              <div className="flex items-center text-sm text-blue-700">
+                                <MapPin className="w-4 h-4 mr-2" />
+                                <span className="font-medium">{match.location}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {match.status === 'completed' && (match as any).league_id && (match as any).league?.affects_regional_ranking === false && (
                     <div className="mt-4 bg-blue-50 border border-blue-200 rounded-xl p-4">
