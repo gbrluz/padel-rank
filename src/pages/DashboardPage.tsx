@@ -63,7 +63,7 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
           team_b_player2:profiles!matches_team_b_player2_id_fkey(*)
         `)
         .or(`team_a_player1_id.eq.${profile.id},team_a_player2_id.eq.${profile.id},team_b_player1_id.eq.${profile.id},team_b_player2_id.eq.${profile.id}`)
-        .in('status', ['pending_approval', 'scheduled'])
+        .in('status', ['pending_approval', 'scheduling', 'scheduled'])
         .order('created_at', { ascending: false })
         .limit(3);
 
@@ -250,9 +250,15 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
                         <span className={`text-xs px-2 py-1 rounded-full font-medium ${
                           match.status === 'pending_approval'
                             ? 'bg-yellow-100 text-yellow-800'
+                            : match.status === 'scheduling'
+                            ? 'bg-purple-100 text-purple-800'
                             : 'bg-blue-100 text-blue-800'
                         }`}>
-                          {match.status === 'pending_approval' ? 'Aguardando Aprovação' : 'Agendada'}
+                          {match.status === 'pending_approval'
+                            ? 'Aguardando Aprovação'
+                            : match.status === 'scheduling'
+                            ? 'Agendando Horário'
+                            : 'Agendada'}
                         </span>
                         <span className="text-xs text-gray-500">
                           {new Date(match.created_at).toLocaleDateString('pt-BR')}
