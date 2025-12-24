@@ -11,6 +11,7 @@ type MatchWithPlayers = Match & {
   team_a_player2: Profile;
   team_b_player1: Profile;
   team_b_player2: Profile;
+  captain?: Profile;
 };
 
 type PlayerApprovalStatus = {
@@ -204,6 +205,7 @@ export default function MatchesPage() {
           team_a_player2:profiles!matches_team_a_player2_id_fkey(*),
           team_b_player1:profiles!matches_team_b_player1_id_fkey(*),
           team_b_player2:profiles!matches_team_b_player2_id_fkey(*),
+          captain:profiles!matches_captain_id_fkey(*),
           league:leagues(name, affects_regional_ranking)
         `)
         .or(`team_a_player1_id.eq.${profile.id},team_a_player2_id.eq.${profile.id},team_b_player1_id.eq.${profile.id},team_b_player2_id.eq.${profile.id}`)
@@ -230,6 +232,7 @@ export default function MatchesPage() {
           team_a_player2:profiles!matches_team_a_player2_id_fkey(*),
           team_b_player1:profiles!matches_team_b_player1_id_fkey(*),
           team_b_player2:profiles!matches_team_b_player2_id_fkey(*),
+          captain:profiles!matches_captain_id_fkey(*),
           league:leagues(name, affects_regional_ranking)
         `)
         .order('created_at', { ascending: false })
@@ -569,10 +572,10 @@ export default function MatchesPage() {
                   <div className="flex items-start justify-between mb-4 flex-wrap gap-3">
                     <div className="flex items-center gap-3 flex-wrap">
                       {getStatusBadge(match.status)}
-                      {(match as any).captain_id === profile?.id && (
+                      {match.captain && (
                         <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-amber-100 text-amber-800">
                           <Crown className="w-4 h-4 mr-1" />
-                          Capitão
+                          Capitão: {match.captain.full_name}
                         </span>
                       )}
                       <span className="text-sm text-gray-500">
