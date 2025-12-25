@@ -23,7 +23,7 @@ type StatusFilter = 'all' | 'pending_approval' | 'scheduling' | 'scheduled' | 'c
 type ViewMode = 'my-matches' | 'all-matches';
 
 export default function MatchesPage() {
-  const { profile } = useAuth();
+  const { player: profile } = useAuth();
   const [matches, setMatches] = useState<MatchWithPlayers[]>([]);
   const [allMatches, setAllMatches] = useState<MatchWithPlayers[]>([]);
   const [loading, setLoading] = useState(true);

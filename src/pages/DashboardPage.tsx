@@ -15,7 +15,7 @@ type MatchWithPlayers = Match & {
 };
 
 export default function DashboardPage({ onNavigate }: DashboardPageProps) {
-  const { profile } = useAuth();
+  const { player: profile } = useAuth();
   const [topPlayers, setTopPlayers] = useState<Profile[]>([]);
   const [upcomingMatches, setUpcomingMatches] = useState<MatchWithPlayers[]>([]);
   const [userPosition, setUserPosition] = useState<number | null>(null);

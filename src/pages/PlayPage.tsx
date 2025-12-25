@@ -35,7 +35,7 @@ type Notification = {
 };
 
 export default function PlayPage({ onNavigate }: PlayPageProps) {
-  const { profile } = useAuth();
+  const { player: profile } = useAuth();
   const [inQueue, setInQueue] = useState(false);
   const [selectedPartner, setSelectedPartner] = useState<string | null>(null);
   const [availablePlayers, setAvailablePlayers] = useState<Profile[]>([]);
