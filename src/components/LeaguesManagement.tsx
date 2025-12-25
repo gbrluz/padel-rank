@@ -7,6 +7,7 @@ interface League {
   id: string;
   name: string;
   type: 'club' | 'friends' | 'official';
+  format: 'free' | 'weekly' | 'monthly';
   description: string;
   created_by: string;
   affects_regional_ranking: boolean;
@@ -24,6 +25,10 @@ interface League {
   min_points: number | null;
   max_points: number | null;
   scoring_type: 'standard' | 'games_won' | 'games_balance';
+  weekly_day: number | null;
+  weekly_time: string | null;
+  attendance_deadline_hours: number | null;
+  monthly_min_matches: number | null;
 }
 
 interface LeagueMembership {
@@ -56,10 +61,12 @@ export default function LeaguesManagement() {
   const [showCreateLeague, setShowCreateLeague] = useState(false);
   const [leagueFormData, setLeagueFormData] = useState<Partial<League>>({
     type: 'friends',
+    format: 'free',
     affects_regional_ranking: false,
     is_active: true,
     scoring_type: 'standard',
     min_points: 0,
+    attendance_deadline_hours: 3,
   });
 
   useEffect(() => {
@@ -313,6 +320,86 @@ export default function LeaguesManagement() {
               </select>
             </div>
 
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Formato da Liga</label>
+              <select
+                value={leagueFormData.format || 'free'}
+                onChange={(e) => setLeagueFormData({ ...leagueFormData, format: e.target.value as any })}
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="free">Livre - Pareamento automático via fila</option>
+                <option value="weekly">Semanal - Dia e horário fixo com confirmação de presença</option>
+                <option value="monthly">Mensal - Número mínimo de partidas por mês</option>
+              </select>
+            </div>
+
+            {leagueFormData.format === 'weekly' && (
+              <div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <h4 className="font-semibold text-blue-900">Configurações Semanais</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Dia da Semana</label>
+                    <select
+                      value={leagueFormData.weekly_day ?? ''}
+                      onChange={(e) => setLeagueFormData({ ...leagueFormData, weekly_day: e.target.value ? parseInt(e.target.value) : null })}
+                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                    >
+                      <option value="">Selecione...</option>
+                      <option value="0">Domingo</option>
+                      <option value="1">Segunda</option>
+                      <option value="2">Terça</option>
+                      <option value="3">Quarta</option>
+                      <option value="4">Quinta</option>
+                      <option value="5">Sexta</option>
+                      <option value="6">Sábado</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Horário</label>
+                    <input
+                      type="time"
+                      value={leagueFormData.weekly_time || ''}
+                      onChange={(e) => setLeagueFormData({ ...leagueFormData, weekly_time: e.target.value })}
+                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Prazo para confirmar presença (horas antes)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="72"
+                    value={leagueFormData.attendance_deadline_hours ?? 3}
+                    onChange={(e) => setLeagueFormData({ ...leagueFormData, attendance_deadline_hours: parseInt(e.target.value) || 3 })}
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+              </div>
+            )}
+
+            {leagueFormData.format === 'monthly' && (
+              <div className="space-y-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
+                <h4 className="font-semibold text-purple-900">Configurações Mensais</h4>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Número mínimo de partidas por mês
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="20"
+                    value={leagueFormData.monthly_min_matches || ''}
+                    onChange={(e) => setLeagueFormData({ ...leagueFormData, monthly_min_matches: e.target.value ? parseInt(e.target.value) : null })}
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                    placeholder="Ex: 4 partidas por mês"
+                  />
+                </div>
+              </div>
+            )}
+
             {leagueFormData.type === 'club' && (
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Nome do Clube</label>
@@ -493,6 +580,11 @@ export default function LeaguesManagement() {
                         league.type === 'club' ? 'Clube' : 'Oficial'
                       }</span>
 
+                      <span className="px-2 py-1 bg-emerald-100 text-emerald-800 rounded font-medium">{
+                        league.format === 'free' ? 'Livre' :
+                        league.format === 'weekly' ? 'Semanal' : 'Mensal'
+                      }</span>
+
                       {league.max_members && (
                         <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded">
                           Max: {league.max_members} vagas
@@ -649,6 +741,86 @@ export default function LeaguesManagement() {
                   className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Formato da Liga</label>
+                <select
+                  value={leagueFormData.format || 'free'}
+                  onChange={(e) => setLeagueFormData({ ...leagueFormData, format: e.target.value as any })}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                >
+                  <option value="free">Livre - Pareamento automático via fila</option>
+                  <option value="weekly">Semanal - Dia e horário fixo com confirmação de presença</option>
+                  <option value="monthly">Mensal - Número mínimo de partidas por mês</option>
+                </select>
+              </div>
+
+              {leagueFormData.format === 'weekly' && (
+                <div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <h4 className="font-semibold text-blue-900">Configurações Semanais</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Dia da Semana</label>
+                      <select
+                        value={leagueFormData.weekly_day ?? ''}
+                        onChange={(e) => setLeagueFormData({ ...leagueFormData, weekly_day: e.target.value ? parseInt(e.target.value) : null })}
+                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                      >
+                        <option value="">Selecione...</option>
+                        <option value="0">Domingo</option>
+                        <option value="1">Segunda</option>
+                        <option value="2">Terça</option>
+                        <option value="3">Quarta</option>
+                        <option value="4">Quinta</option>
+                        <option value="5">Sexta</option>
+                        <option value="6">Sábado</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Horário</label>
+                      <input
+                        type="time"
+                        value={leagueFormData.weekly_time || ''}
+                        onChange={(e) => setLeagueFormData({ ...leagueFormData, weekly_time: e.target.value })}
+                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Prazo para confirmar presença (horas antes)
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="72"
+                      value={leagueFormData.attendance_deadline_hours ?? 3}
+                      onChange={(e) => setLeagueFormData({ ...leagueFormData, attendance_deadline_hours: parseInt(e.target.value) || 3 })}
+                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {leagueFormData.format === 'monthly' && (
+                <div className="space-y-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
+                  <h4 className="font-semibold text-purple-900">Configurações Mensais</h4>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Número mínimo de partidas por mês
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="20"
+                      value={leagueFormData.monthly_min_matches || ''}
+                      onChange={(e) => setLeagueFormData({ ...leagueFormData, monthly_min_matches: e.target.value ? parseInt(e.target.value) : null })}
+                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                      placeholder="Ex: 4 partidas por mês"
+                    />
+                  </div>
+                </div>
+              )}
 
               {leagueFormData.type === 'club' && (
                 <div>

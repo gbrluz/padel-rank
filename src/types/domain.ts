@@ -69,6 +69,7 @@ export interface Match {
 }
 
 export type LeagueStatus = 'open' | 'in_progress' | 'completed';
+export type LeagueFormat = 'free' | 'weekly' | 'monthly';
 
 export interface League {
   id: string;
@@ -77,6 +78,7 @@ export interface League {
   gender: Gender;
   category: Category | null;
   status: LeagueStatus;
+  format: LeagueFormat;
   startDate: string;
   endDate: string | null;
   maxParticipants: number | null;
@@ -84,7 +86,23 @@ export interface League {
   allowProvisionalPlayers: boolean;
   requireCaptains: boolean;
   requireScheduling: boolean;
+  weeklyDay: number | null;
+  weeklyTime: string | null;
+  attendanceDeadlineHours: number | null;
+  monthlyMinMatches: number | null;
   createdBy: string;
+  createdAt: string;
+}
+
+export type AttendanceStatus = 'confirmed' | 'declined' | 'no_response';
+
+export interface LeagueAttendance {
+  id: string;
+  leagueId: string;
+  playerId: string;
+  weekDate: string;
+  status: AttendanceStatus;
+  confirmedAt: string | null;
   createdAt: string;
 }
 

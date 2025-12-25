@@ -101,6 +101,7 @@ export const mapDBLeagueToLeague = (dbLeague: any): any => ({
   gender: dbLeague.gender,
   category: dbLeague.category,
   status: dbLeague.status,
+  format: dbLeague.format || 'free',
   startDate: dbLeague.start_date,
   endDate: dbLeague.end_date,
   maxParticipants: dbLeague.max_participants,
@@ -108,6 +109,10 @@ export const mapDBLeagueToLeague = (dbLeague: any): any => ({
   allowProvisionalPlayers: dbLeague.allow_provisional_players || false,
   requireCaptains: dbLeague.require_captains || false,
   requireScheduling: dbLeague.require_scheduling || false,
+  weeklyDay: dbLeague.weekly_day,
+  weeklyTime: dbLeague.weekly_time,
+  attendanceDeadlineHours: dbLeague.attendance_deadline_hours,
+  monthlyMinMatches: dbLeague.monthly_min_matches,
   createdBy: dbLeague.created_by,
   createdAt: dbLeague.created_at,
 });
