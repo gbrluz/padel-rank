@@ -12,7 +12,10 @@ import BackofficePage from './pages/BackofficePage';
 import LeaguesPage from './pages/LeaguesPage';
 import Navigation from './components/Navigation';
 
+console.log('App.tsx carregado');
+
 function AppContent() {
+  console.log('AppContent renderizando');
   const { user, player, loading } = useAuth();
   const [showAuth, setShowAuth] = useState(false);
   const [currentPage, setCurrentPage] = useState('dashboard');
@@ -92,6 +95,7 @@ function AppContent() {
 }
 
 function App() {
+  console.log('App component renderizando');
   return (
     <AuthProvider>
       <AppContent />
