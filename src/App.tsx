@@ -13,17 +13,17 @@ import LeaguesPage from './pages/LeaguesPage';
 import Navigation from './components/Navigation';
 
 function AppContent() {
-  const { user, profile, loading } = useAuth();
+  const { user, player, loading } = useAuth();
   const [showAuth, setShowAuth] = useState(false);
   const [currentPage, setCurrentPage] = useState('dashboard');
-  const previousProfileRef = useRef<typeof profile>(null);
+  const previousPlayerRef = useRef<typeof player>(null);
 
   useEffect(() => {
-    if (profile && !previousProfileRef.current) {
+    if (player && !previousPlayerRef.current) {
       setCurrentPage('dashboard');
     }
-    previousProfileRef.current = profile;
-  }, [profile]);
+    previousPlayerRef.current = player;
+  }, [player]);
 
   if (loading) {
     return (
@@ -48,7 +48,7 @@ function AppContent() {
     return <WelcomePage onGetStarted={() => setShowAuth(true)} />;
   }
 
-  if (!profile) {
+  if (!player) {
     return <RegistrationFormPage />;
   }
 

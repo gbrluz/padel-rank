@@ -23,7 +23,7 @@ const PERIOD_LABELS: Record<string, string> = {
 };
 
 export default function RegistrationFormPage() {
-  const { user, refreshProfile, signOut } = useAuth();
+  const { user, refreshPlayer, signOut } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [states, setStates] = useState<State[]>([]);
@@ -178,7 +178,7 @@ export default function RegistrationFormPage() {
         if (insertError) throw insertError;
       }
 
-      await refreshProfile();
+      await refreshPlayer();
     } catch (err: any) {
       setError(err.message || 'Erro ao salvar perfil');
     } finally {
