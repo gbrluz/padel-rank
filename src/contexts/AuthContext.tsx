@@ -75,11 +75,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     timeoutId = setTimeout(() => {
-      if (mounted && loading) {
-        console.warn('Timeout na inicialização, forçando loading = false');
+      if (mounted) {
+        console.warn('Timeout na inicialização (2s), forçando loading = false');
         setLoading(false);
       }
-    }, 5000);
+    }, 2000);
 
     initAuth();
 
