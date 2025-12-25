@@ -50,7 +50,7 @@ interface LeagueRanking {
 }
 
 export default function LeaguesManagement() {
-  const { player: profile } = useAuth();
+  const { profile } = useAuth();
   const [leagues, setLeagues] = useState<League[]>([]);
   const [selectedLeague, setSelectedLeague] = useState<League | null>(null);
   const [leagueMembers, setLeagueMembers] = useState<LeagueMembership[]>([]);

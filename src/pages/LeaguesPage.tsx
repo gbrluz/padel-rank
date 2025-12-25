@@ -27,7 +27,7 @@ interface LeagueRanking {
 }
 
 export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
-  const { player: profile } = useAuth();
+  const { profile } = useAuth();
   const [leagues, setLeagues] = useState<League[]>([]);
   const [selectedLeague, setSelectedLeague] = useState<League | null>(null);
   const [leagueRankings, setLeagueRankings] = useState<LeagueRanking[]>([]);

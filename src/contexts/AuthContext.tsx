@@ -1,11 +1,32 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
+import { supabase, Profile } from '../lib/supabase';
 import { profileService, Player } from '../services';
+
+const playerToProfile = (player: Player): Profile => ({
+  id: player.id,
+  full_name: player.fullName,
+  gender: player.gender,
+  birth_date: '',
+  preferred_side: player.preferredSide || 'both',
+  category: player.category,
+  state: player.state,
+  city: player.city,
+  availability: player.availability,
+  photo_url: player.avatarUrl,
+  ranking_points: player.rankingPoints,
+  total_matches: player.totalMatches,
+  total_wins: player.totalWins,
+  win_rate: player.winRate,
+  is_admin: player.isAdmin,
+  created_at: player.createdAt,
+  updated_at: player.createdAt,
+});
 
 type AuthContextType = {
   user: User | null;
   player: Player | null;
+  profile: Profile | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<{ user: User | null }>;
@@ -142,9 +163,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const isAdmin = player?.isAdmin ?? false;
+  const profile = player ? playerToProfile(player) : null;
 
   return (
-    <AuthContext.Provider value={{ user, player, loading, signIn, signUp, signOut, refreshPlayer, isAdmin }}>
+    <AuthContext.Provider value={{ user, player, profile, loading, signIn, signUp, signOut, refreshPlayer, isAdmin }}>
       {children}
     </AuthContext.Provider>
   );

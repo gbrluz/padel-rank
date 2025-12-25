@@ -4,7 +4,7 @@ import { supabase, Profile, getCategoryFromPoints } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function RankingPage() {
-  const { player: profile } = useAuth();
+  const { profile } = useAuth();
   const [rankingType, setRankingType] = useState<'regional' | 'global'>('regional');
   const [gender, setGender] = useState<'male' | 'female'>(profile?.gender || 'male');
   const [rankings, setRankings] = useState<Profile[]>([]);
