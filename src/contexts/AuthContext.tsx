@@ -43,30 +43,73 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('Sessão inicial:', session?.user?.id);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchPlayer(session.user.id);
-      } else {
-        setLoading(false);
-      }
-    });
+    let mounted = true;
+    let timeoutId: NodeJS.Timeout;
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      (async () => {
-        console.log('Auth state changed:', event, session?.user?.id);
+    const initAuth = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+
+        if (!mounted) return;
+
+        if (error) {
+          console.error('Erro ao obter sessão:', error);
+          setLoading(false);
+          return;
+        }
+
+        console.log('Sessão inicial:', session?.user?.id);
         setUser(session?.user ?? null);
+
         if (session?.user) {
           await fetchPlayer(session.user.id);
         } else {
-          setPlayer(null);
+          setLoading(false);
         }
+      } catch (err) {
+        console.error('Erro na inicialização:', err);
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    timeoutId = setTimeout(() => {
+      if (mounted && loading) {
+        console.warn('Timeout na inicialização, forçando loading = false');
         setLoading(false);
+      }
+    }, 5000);
+
+    initAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      (async () => {
+        if (!mounted) return;
+
+        try {
+          console.log('Auth state changed:', event, session?.user?.id);
+          setUser(session?.user ?? null);
+          if (session?.user) {
+            await fetchPlayer(session.user.id);
+          } else {
+            setPlayer(null);
+            setLoading(false);
+          }
+        } catch (err) {
+          console.error('Erro no onAuthStateChange:', err);
+          if (mounted) {
+            setLoading(false);
+          }
+        }
       })();
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      clearTimeout(timeoutId);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
