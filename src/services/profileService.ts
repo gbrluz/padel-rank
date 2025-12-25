@@ -11,10 +11,10 @@ export const profileService = {
     return mapProfileToPlayer(profile);
   },
 
-  async getPlayer(id: string): Promise<Player> {
+  async getPlayer(id: string): Promise<Player | null> {
     const { profile } = await api.profiles.get(id);
     if (!profile) {
-      throw new Error('Jogador não encontrado');
+      return null;
     }
     return mapProfileToPlayer(profile);
   },
