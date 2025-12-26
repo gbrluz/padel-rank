@@ -594,26 +594,27 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
     return lastEvent;
   };
 
-  const shouldShowScoringCard = (league: League): boolean => {
-    if (league.format !== 'weekly') return false;
-    if (!myAttendance || myAttendance.status !== 'confirmed') return false;
-    if (!weeklyScore) return false;
+const shouldShowScoringCard = (league: League): boolean => {
+  if (league.format !== 'weekly') return false;
+  if (!myAttendance || myAttendance.status !== 'confirmed') return false;
+  if (weeklyScore == null) return false;
 
-    const now = new Date();
-    const lastEvent = getLastEventDate(league);
-    const nextEvent = getNextWeeklyEventDate(league);
+  const now = Date.now();
+  const lastEvent = getLastEventDate(league);
+  const nextEvent = getNextWeeklyEventDate(league);
 
-    if (!lastEvent || !nextEvent) return false;
+  if (!lastEvent || !nextEvent) return false;
 
-    const scoringStart = new Date(lastEvent.getTime() + 60 * 60 * 1000);
-    const hoursBeforeNextEvent = 5 * 24;
-    const scoringEnd = new Date(nextEvent.getTime() - (hoursBeforeNextEvent * 60 * 60 * 1000));
-console.log({
-  nextEvent,
-  scoringEnd,
-});
-    return now >= scoringStart && now < scoringEnd;
-  };
+  const scoringStart = new Date(lastEvent);
+  scoringStart.setHours(0, 0, 0, 0);
+
+  const scoringEnd = new Date(nextEvent.getTime() - (24 * 60 * 60 * 1000));
+
+  return (
+    now >= scoringStart.getTime() &&
+    now < scoringEnd.getTime()
+  );
+};
 
   const loadWeeklyScore = async () => {
     if (!profile || !selectedLeague) return;
