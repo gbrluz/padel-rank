@@ -674,7 +674,7 @@ const shouldShowScoringCard = (league: League): boolean => {
   };
 
   const handleSubmitScore = async () => {
-    if (weeklyScore) return;
+    //if (!weeklyScore) return;
 
     setSubmittingScore(true);
     try {
