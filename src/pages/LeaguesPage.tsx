@@ -595,74 +595,25 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
   };
 
 const shouldShowScoringCard = (league: League): boolean => {
-  console.log('[ScoringCard] START', { leagueId: league.id });
+  if (league.format !== 'weekly') return false;
+  if (!myAttendance || myAttendance.status !== 'confirmed') return false;
+  //if (weeklyScore == null) return false;
 
-  if (league.format !== 'weekly') {
-    console.log('[ScoringCard] FAIL: league is not weekly', league.format);
-    return false;
-  }
-
-  if (!myAttendance) {
-    console.log('[ScoringCard] FAIL: no attendance');
-    return false;
-  }
-
-  if (myAttendance.status !== 'confirmed') {
-    console.log('[ScoringCard] FAIL: attendance not confirmed', myAttendance.status);
-    return false;
-  }
-
-  if (weeklyScore == null) {
-    console.log('[ScoringCard] FAIL: weeklyScore is null/undefined', weeklyScore);
-    return false;
-  }
-
-  const now = new Date();
+  const now = Date.now();
   const lastEvent = getLastEventDate(league);
   const nextEvent = getNextWeeklyEventDate(league);
 
-  console.log('[ScoringCard] Dates (raw)', {
-    now: now.toString(),
-    lastEvent: lastEvent?.toString(),
-    nextEvent: nextEvent?.toString(),
-  });
-
-  if (!lastEvent || !nextEvent) {
-    console.log('[ScoringCard] FAIL: missing event dates');
-    return false;
-  }
+  if (!lastEvent || !nextEvent) return false;
 
   const scoringStart = new Date(lastEvent);
   scoringStart.setHours(0, 0, 0, 0);
 
-  const scoringEnd = new Date(
-    nextEvent.getTime() - (24 * 60 * 60 * 1000)
+  const scoringEnd = new Date(nextEvent.getTime() - (24 * 60 * 60 * 1000));
+
+  return (
+    now >= scoringStart.getTime() &&
+    now < scoringEnd.getTime()
   );
-
-  console.log('[ScoringCard] Scoring window', {
-    scoringStart: scoringStart.toString(),
-    scoringEnd: scoringEnd.toString(),
-  });
-
-  const nowTime = now.getTime();
-  const startTime = scoringStart.getTime();
-  const endTime = scoringEnd.getTime();
-
-  console.log('[ScoringCard] Time comparison', {
-    now: nowTime,
-    start: startTime,
-    end: endTime,
-    isAfterStart: nowTime >= startTime,
-    isBeforeEnd: nowTime < endTime,
-  });
-
-  const shouldShow =
-    nowTime >= startTime &&
-    nowTime < endTime;
-
-  console.log('[ScoringCard] RESULT', shouldShow);
-
-  return shouldShow;
 };
 
   const loadWeeklyScore = async () => {
