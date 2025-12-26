@@ -605,7 +605,7 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
 
     if (!lastEvent || !nextEvent) return false;
 
-    const scoringStart = lastEvent;
+    const scoringStart = new Date(lastEvent.getTime() + 60 * 60 * 1000);
     const hoursBeforeNextEvent = 5 * 24;
     const scoringEnd = new Date(nextEvent.getTime() - (hoursBeforeNextEvent * 60 * 60 * 1000));
 
