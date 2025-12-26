@@ -83,6 +83,7 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
   const [scoringBbq, setScoringBbq] = useState(false);
   const [submittingScore, setSubmittingScore] = useState(false);
   const [weeklyScore, setWeeklyScore] = useState<any>(null);
+  const [allAttendances, setAllAttendances] = useState<Record<string, WeeklyAttendance>>({});
 
   useEffect(() => {
     loadLeagues();
@@ -101,8 +102,11 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
         loadJoinRequests(selectedLeague.id);
         loadLeagueMembers(selectedLeague.id);
       }
-      if (selectedLeague.format === 'weekly' && myLeagues.includes(selectedLeague.id)) {
-        loadMyAttendance(selectedLeague.id);
+      if (selectedLeague.format === 'weekly') {
+        loadAllAttendances(selectedLeague.id);
+        if (myLeagues.includes(selectedLeague.id)) {
+          loadMyAttendance(selectedLeague.id);
+        }
       }
     }
   }, [selectedLeague, organizerLeagues, myLeagues]);
@@ -457,6 +461,35 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
     }
   };
 
+  const loadAllAttendances = async (leagueId: string) => {
+    if (!selectedLeague) return;
+
+    const nextEvent = getNextWeeklyEventDate(selectedLeague);
+    if (!nextEvent) return;
+
+    const weekDate = nextEvent.toISOString().split('T')[0];
+
+    try {
+      const { data, error } = await supabase
+        .from('league_attendance')
+        .select('*')
+        .eq('league_id', leagueId)
+        .eq('week_date', weekDate);
+
+      if (error) throw error;
+
+      const attendanceMap: Record<string, WeeklyAttendance> = {};
+      if (data) {
+        data.forEach((attendance) => {
+          attendanceMap[attendance.player_id] = attendance;
+        });
+      }
+      setAllAttendances(attendanceMap);
+    } catch (error) {
+      console.error('Error loading all attendances:', error);
+    }
+  };
+
   const handleUpdateAttendance = async (status: 'confirmed' | 'declined') => {
     if (!profile || !selectedLeague) return;
 
@@ -492,6 +525,7 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
       }
 
       await loadMyAttendance(selectedLeague.id);
+      await loadAllAttendances(selectedLeague.id);
     } catch (error) {
       console.error('Error updating attendance:', error);
       alert('Erro ao atualizar presenca');
@@ -503,6 +537,28 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
   const getDayName = (day: number): string => {
     const days = ['Domingo', 'Segunda', 'Terca', 'Quarta', 'Quinta', 'Sexta', 'Sabado'];
     return days[day] || '';
+  };
+
+  const getAttendanceDeadline = (league: League): Date | null => {
+    if (league.format !== 'weekly' || !league.attendance_deadline_hours) return null;
+
+    const nextEvent = getNextWeeklyEventDate(league);
+    if (!nextEvent) return null;
+
+    const hoursBeforeEvent = league.attendance_deadline_hours;
+    const deadline = new Date(nextEvent.getTime() - (hoursBeforeEvent * 60 * 60 * 1000));
+
+    return deadline;
+  };
+
+  const formatDeadlineTime = (deadline: Date): string => {
+    const options: Intl.DateTimeFormatOptions = {
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    };
+    return deadline.toLocaleString('pt-BR', options);
   };
 
   const getLastEventDate = (league: League): Date | null => {
@@ -976,6 +1032,14 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
                             {getDayName(selectedLeague.weekly_day || 0)}, {getNextWeeklyEventDate(selectedLeague)?.toLocaleDateString('pt-BR')}
                             {selectedLeague.weekly_time && ` as ${selectedLeague.weekly_time.slice(0, 5)}`}
                           </p>
+                          {getAttendanceDeadline(selectedLeague) && (
+                            <div className="mt-2 flex items-center gap-1.5 text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded-md w-fit">
+                              <Clock className="w-3.5 h-3.5" />
+                              <span>
+                                Confirmação disponível até {formatDeadlineTime(getAttendanceDeadline(selectedLeague)!)}
+                              </span>
+                            </div>
+                          )}
 
                           {myAttendance?.status === 'confirmed' ? (
                             <div className="mt-3 flex items-center gap-2 text-emerald-700 bg-emerald-100 px-3 py-2 rounded-lg">
@@ -1203,6 +1267,8 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
                       <div className="space-y-2">
                         {leagueRankings.map((ranking, index) => {
                           const isMe = ranking.player_id === profile?.id;
+                          const hasConfirmed = selectedLeague?.format === 'weekly' &&
+                            allAttendances[ranking.player_id]?.status === 'confirmed';
                           return (
                             <div
                               key={ranking.player_id}
@@ -1225,10 +1291,18 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
                                     {index + 1}
                                   </div>
                                   <div>
-                                    <p className={`font-bold ${isMe ? 'text-emerald-900' : 'text-gray-900'}`}>
-                                      {ranking.player.full_name}
-                                      {isMe && ' (Você)'}
-                                    </p>
+                                    <div className="flex items-center gap-2">
+                                      <p className={`font-bold ${isMe ? 'text-emerald-900' : 'text-gray-900'}`}>
+                                        {ranking.player.full_name}
+                                        {isMe && ' (Você)'}
+                                      </p>
+                                      {hasConfirmed && (
+                                        <div className="flex items-center gap-1 px-2 py-0.5 bg-emerald-100 rounded-full" title="Presença confirmada">
+                                          <CheckCircle className="w-4 h-4 text-emerald-600" />
+                                          <span className="text-xs font-medium text-emerald-700">Confirmado</span>
+                                        </div>
+                                      )}
+                                    </div>
                                     <p className="text-sm text-gray-600">
                                       {ranking.matches_played} partidas • {ranking.wins}V / {ranking.losses}D
                                       {ranking.win_rate > 0 && ` • ${ranking.win_rate.toFixed(0)}% vitórias`}
