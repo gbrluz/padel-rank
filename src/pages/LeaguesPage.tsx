@@ -401,7 +401,9 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
     const now = new Date();
     const daysUntilEvent = Math.ceil((nextEvent.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
-    return daysUntilEvent <= 5 && daysUntilEvent > 0;
+    // MODO TESTE: Altere 5 para 365 para testar attendance em qualquer dia
+    const maxDaysToShow = 365; // Trocar para 5 em producao
+    return daysUntilEvent <= maxDaysToShow && daysUntilEvent > 0;
   };
 
   const loadMyAttendance = async (leagueId: string) => {
