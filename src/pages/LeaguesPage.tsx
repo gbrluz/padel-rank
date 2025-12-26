@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Medal, Users, Trophy, TrendingUp } from 'lucide-react';
+import { Medal, Users, Trophy, TrendingUp, UserPlus, Clock, Check, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Player as Profile } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import { leagueService } from '../services/leagueService';
 
 interface LeaguesPageProps {
   onNavigate: (page: string) => void;
@@ -15,6 +16,8 @@ interface League {
   description: string;
   affects_regional_ranking: boolean;
   is_active: boolean;
+  requires_approval?: boolean;
+  status?: string;
 }
 
 interface LeagueRanking {
@@ -33,12 +36,16 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
   const [selectedLeague, setSelectedLeague] = useState<League | null>(null);
   const [leagueRankings, setLeagueRankings] = useState<LeagueRanking[]>([]);
   const [myLeagues, setMyLeagues] = useState<string[]>([]);
+  const [pendingRequests, setPendingRequests] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [joiningLeague, setJoiningLeague] = useState<string | null>(null);
+  const [joinMessage, setJoinMessage] = useState('');
 
   useEffect(() => {
     loadLeagues();
     if (profile) {
       loadMyLeagues();
+      loadPendingRequests();
     }
   }, [profile]);
 
@@ -84,6 +91,46 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
       setMyLeagues(data?.map(m => m.league_id) || []);
     } catch (error) {
       console.error('Error loading my leagues:', error);
+    }
+  };
+
+  const loadPendingRequests = async () => {
+    if (!profile) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('league_join_requests')
+        .select('league_id')
+        .eq('player_id', profile.id)
+        .eq('status', 'pending');
+
+      if (error) throw error;
+      setPendingRequests(data?.map(r => r.league_id) || []);
+    } catch (error) {
+      console.error('Error loading pending requests:', error);
+    }
+  };
+
+  const handleJoinLeague = async (leagueId: string) => {
+    if (!profile) return;
+
+    setJoiningLeague(leagueId);
+    try {
+      const result = await leagueService.joinLeague(leagueId, joinMessage || undefined);
+
+      if (result.pendingApproval) {
+        setPendingRequests(prev => [...prev, leagueId]);
+      } else {
+        setMyLeagues(prev => [...prev, leagueId]);
+        if (selectedLeague?.id === leagueId) {
+          loadLeagueRankings(leagueId);
+        }
+      }
+      setJoinMessage('');
+    } catch (error: any) {
+      alert(error.message || 'Erro ao solicitar entrada na liga');
+    } finally {
+      setJoiningLeague(null);
     }
   };
 
@@ -170,7 +217,10 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
                     >
                       <div className="flex items-start gap-3">
                         {myLeagues.includes(league.id) && (
-                          <Trophy className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                          <Check className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                        )}
+                        {pendingRequests.includes(league.id) && (
+                          <Clock className="w-5 h-5 text-amber-500 flex-shrink-0" />
                         )}
                         <div className="flex-1">
                           <h3 className="font-bold text-gray-900">{league.name}</h3>
@@ -211,14 +261,67 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
                         <TrendingUp className="w-6 h-6 text-emerald-600" />
                         <div>
                           <p className="font-semibold text-emerald-900">
-                            Você está participando desta liga!
+                            Voce esta participando desta liga!
                           </p>
                           {getMyPosition() && (
                             <p className="text-sm text-emerald-700 mt-1">
-                              Posição atual: #{getMyPosition()}
+                              Posicao atual: #{getMyPosition()}
                             </p>
                           )}
                         </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {pendingRequests.includes(selectedLeague.id) && (
+                    <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-4 mb-6">
+                      <div className="flex items-center gap-3">
+                        <Clock className="w-6 h-6 text-amber-600" />
+                        <div>
+                          <p className="font-semibold text-amber-900">
+                            Solicitacao pendente
+                          </p>
+                          <p className="text-sm text-amber-700 mt-1">
+                            Aguardando aprovacao do organizador da liga
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {!myLeagues.includes(selectedLeague.id) && !pendingRequests.includes(selectedLeague.id) && (
+                    <div className="bg-gray-50 border-2 border-gray-200 rounded-xl p-4 mb-6">
+                      <div className="flex flex-col gap-3">
+                        <div className="flex items-center gap-3">
+                          <UserPlus className="w-6 h-6 text-gray-600" />
+                          <div>
+                            <p className="font-semibold text-gray-900">
+                              Deseja participar desta liga?
+                            </p>
+                            <p className="text-sm text-gray-600 mt-1">
+                              {selectedLeague.requires_approval
+                                ? 'Esta liga requer aprovacao do organizador'
+                                : 'Entre para competir com outros jogadores'}
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleJoinLeague(selectedLeague.id)}
+                          disabled={joiningLeague === selectedLeague.id}
+                          className="flex items-center justify-center gap-2 w-full py-2.5 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {joiningLeague === selectedLeague.id ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Processando...
+                            </>
+                          ) : (
+                            <>
+                              <UserPlus className="w-4 h-4" />
+                              {selectedLeague.requires_approval ? 'Solicitar Entrada' : 'Entrar na Liga'}
+                            </>
+                          )}
+                        </button>
                       </div>
                     </div>
                   )}
