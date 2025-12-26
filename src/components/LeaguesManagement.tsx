@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Medal, Plus, Edit, Save, X, Users, Trash2, UserPlus } from 'lucide-react';
+import { Medal, Plus, CreditCard as Edit, Save, X, Users, Trash2, UserPlus } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Player as Profile } from '../types';
 import { useAuth } from '../contexts/AuthContext';
