@@ -202,11 +202,11 @@ export default function MatchesPage() {
         .from('matches')
         .select(`
           *,
-          team_a_player1:profiles!matches_team_a_player1_id_fkey(*),
-          team_a_player2:profiles!matches_team_a_player2_id_fkey(*),
-          team_b_player1:profiles!matches_team_b_player1_id_fkey(*),
-          team_b_player2:profiles!matches_team_b_player2_id_fkey(*),
-          captain:profiles!matches_captain_id_fkey(*),
+          team_a_player1:players!matches_team_a_player1_id_fkey(*),
+          team_a_player2:players!matches_team_a_player2_id_fkey(*),
+          team_b_player1:players!matches_team_b_player1_id_fkey(*),
+          team_b_player2:players!matches_team_b_player2_id_fkey(*),
+          captain:players!matches_captain_id_fkey(*),
           league:leagues(name, affects_regional_ranking)
         `)
         .or(`team_a_player1_id.eq.${profile.id},team_a_player2_id.eq.${profile.id},team_b_player1_id.eq.${profile.id},team_b_player2_id.eq.${profile.id}`)
@@ -229,11 +229,11 @@ export default function MatchesPage() {
         .from('matches')
         .select(`
           *,
-          team_a_player1:profiles!matches_team_a_player1_id_fkey(*),
-          team_a_player2:profiles!matches_team_a_player2_id_fkey(*),
-          team_b_player1:profiles!matches_team_b_player1_id_fkey(*),
-          team_b_player2:profiles!matches_team_b_player2_id_fkey(*),
-          captain:profiles!matches_captain_id_fkey(*),
+          team_a_player1:players!matches_team_a_player1_id_fkey(*),
+          team_a_player2:players!matches_team_a_player2_id_fkey(*),
+          team_b_player1:players!matches_team_b_player1_id_fkey(*),
+          team_b_player2:players!matches_team_b_player2_id_fkey(*),
+          captain:players!matches_captain_id_fkey(*),
           league:leagues(name, affects_regional_ranking)
         `)
         .order('created_at', { ascending: false })

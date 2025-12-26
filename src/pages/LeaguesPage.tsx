@@ -24,7 +24,7 @@ interface LeagueRanking {
   wins: number;
   losses: number;
   win_rate: number;
-  profile: Profile;
+  player: Profile;
 }
 
 export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
@@ -93,7 +93,7 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
         .from('league_rankings')
         .select(`
           *,
-          profile:profiles(*)
+          player:players(*)
         `)
         .eq('league_id', leagueId)
         .order('points', { ascending: false })
@@ -262,7 +262,7 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
                                   </div>
                                   <div>
                                     <p className={`font-bold ${isMe ? 'text-emerald-900' : 'text-gray-900'}`}>
-                                      {ranking.profile.full_name}
+                                      {ranking.player.full_name}
                                       {isMe && ' (Você)'}
                                     </p>
                                     <p className="text-sm text-gray-600">

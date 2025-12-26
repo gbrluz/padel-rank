@@ -63,7 +63,7 @@ export default function BackofficePage({ onNavigate }: BackofficePageProps) {
   };
 
   const loadProfiles = async () => {
-    const { data, error } = await supabase.rpc('get_profiles_with_email');
+    const { data, error } = await supabase.rpc('get_players_with_email');
 
     if (!error && data) {
       setProfiles(data);
@@ -77,10 +77,10 @@ export default function BackofficePage({ onNavigate }: BackofficePageProps) {
       .from('matches')
       .select(`
         *,
-        team_a_player1:profiles!matches_team_a_player1_id_fkey(*),
-        team_a_player2:profiles!matches_team_a_player2_id_fkey(*),
-        team_b_player1:profiles!matches_team_b_player1_id_fkey(*),
-        team_b_player2:profiles!matches_team_b_player2_id_fkey(*)
+        team_a_player1:players!matches_team_a_player1_id_fkey(*),
+        team_a_player2:players!matches_team_a_player2_id_fkey(*),
+        team_b_player1:players!matches_team_b_player1_id_fkey(*),
+        team_b_player2:players!matches_team_b_player2_id_fkey(*)
       `)
       .order('created_at', { ascending: false });
 

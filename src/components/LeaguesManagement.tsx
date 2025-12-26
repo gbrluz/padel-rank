@@ -37,7 +37,7 @@ interface LeagueMembership {
   league_id: string;
   player_id: string;
   status: string;
-  profile: Profile;
+  player: Profile;
 }
 
 interface LeagueRanking {
@@ -47,7 +47,7 @@ interface LeagueRanking {
   wins: number;
   losses: number;
   win_rate: number;
-  profile: Profile;
+  player: Profile;
 }
 
 export default function LeaguesManagement() {
@@ -105,7 +105,7 @@ export default function LeaguesManagement() {
         .from('league_memberships')
         .select(`
           *,
-          profile:profiles(*)
+          player:players(*)
         `)
         .eq('league_id', leagueId)
         .eq('status', 'active');
@@ -123,7 +123,7 @@ export default function LeaguesManagement() {
         .from('league_rankings')
         .select(`
           *,
-          profile:profiles(*)
+          player:players(*)
         `)
         .eq('league_id', leagueId)
         .order('points', { ascending: false });
@@ -144,11 +144,16 @@ export default function LeaguesManagement() {
 
       const memberIds = members?.map(m => m.player_id) || [];
 
-      const { data, error } = await supabase
+      let query = supabase
         .from('players')
         .select('*')
-        .not('id', 'in', `(${memberIds.join(',') || 'null'})`)
         .order('full_name');
+
+      if (memberIds.length > 0) {
+        query = query.not('id', 'in', `(${memberIds.join(',')})`);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setAvailablePlayers(data || []);
@@ -681,9 +686,9 @@ export default function LeaguesManagement() {
                   className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
                 >
                   <div>
-                    <p className="font-semibold text-gray-900">{member.profile.full_name}</p>
+                    <p className="font-semibold text-gray-900">{member.player.full_name}</p>
                     <p className="text-sm text-gray-600">
-                      {member.profile.ranking_points} pts regional
+                      {member.player.ranking_points} pts regional
                     </p>
                   </div>
                   <button
@@ -708,7 +713,7 @@ export default function LeaguesManagement() {
                       <div className="flex items-center gap-3">
                         <span className="font-bold text-emerald-600">#{index + 1}</span>
                         <div>
-                          <p className="font-semibold text-gray-900">{ranking.profile.full_name}</p>
+                          <p className="font-semibold text-gray-900">{ranking.player.full_name}</p>
                           <p className="text-sm text-gray-600">
                             {ranking.matches_played} partidas • {ranking.wins}V / {ranking.losses}D
                           </p>
