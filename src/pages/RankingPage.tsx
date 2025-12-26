@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Trophy, Medal, TrendingUp, User, Globe, MapPin } from 'lucide-react';
-import { supabase, Profile, getCategoryFromPoints } from '../lib/supabase';
+import { supabase, getCategoryFromPoints } from '../lib/supabase';
+import { Player as Profile } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function RankingPage() {
-  const { profile } = useAuth();
+  const { player: profile } = useAuth();
   const [rankingType, setRankingType] = useState<'regional' | 'global'>('regional');
   const [gender, setGender] = useState<'male' | 'female'>(profile?.gender || 'male');
   const [rankings, setRankings] = useState<Profile[]>([]);

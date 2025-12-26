@@ -1,22 +1,23 @@
 import { useState, useEffect } from 'react';
 import { Trophy, Calendar, PlayCircle, TrendingUp, Users, Award, Medal, User as UserIcon, ChevronRight, MapPin, Clock } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase, Profile, Match } from '../lib/supabase';
+import { supabase, Match } from '../lib/supabase';
+import { Player } from '../types';
 
 type DashboardPageProps = {
   onNavigate: (page: string) => void;
 };
 
 type MatchWithPlayers = Match & {
-  team_a_player1: Profile;
-  team_a_player2: Profile;
-  team_b_player1: Profile;
-  team_b_player2: Profile;
+  team_a_player1: Player;
+  team_a_player2: Player;
+  team_b_player1: Player;
+  team_b_player2: Player;
 };
 
 export default function DashboardPage({ onNavigate }: DashboardPageProps) {
-  const { profile } = useAuth();
-  const [topPlayers, setTopPlayers] = useState<Profile[]>([]);
+  const { player: profile } = useAuth();
+  const [topPlayers, setTopPlayers] = useState<Player[]>([]);
   const [upcomingMatches, setUpcomingMatches] = useState<MatchWithPlayers[]>([]);
   const [userPosition, setUserPosition] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -57,10 +58,10 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
         .from('matches')
         .select(`
           *,
-          team_a_player1:profiles!matches_team_a_player1_id_fkey(*),
-          team_a_player2:profiles!matches_team_a_player2_id_fkey(*),
-          team_b_player1:profiles!matches_team_b_player1_id_fkey(*),
-          team_b_player2:profiles!matches_team_b_player2_id_fkey(*)
+          team_a_player1:players!matches_team_a_player1_id_fkey(*),
+          team_a_player2:players!matches_team_a_player2_id_fkey(*),
+          team_b_player1:players!matches_team_b_player1_id_fkey(*),
+          team_b_player2:players!matches_team_b_player2_id_fkey(*)
         `)
         .or(`team_a_player1_id.eq.${profile.id},team_a_player2_id.eq.${profile.id},team_b_player1_id.eq.${profile.id},team_b_player2_id.eq.${profile.id}`)
         .in('status', ['pending_approval', 'scheduling', 'scheduled'])

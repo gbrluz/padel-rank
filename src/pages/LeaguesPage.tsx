@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Medal, Users, Trophy, TrendingUp } from 'lucide-react';
-import { supabase, Profile } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
+import { Player as Profile } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 
 interface LeaguesPageProps {
@@ -27,7 +28,7 @@ interface LeagueRanking {
 }
 
 export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
-  const { profile } = useAuth();
+  const { player: profile } = useAuth();
   const [leagues, setLeagues] = useState<League[]>([]);
   const [selectedLeague, setSelectedLeague] = useState<League | null>(null);
   const [leagueRankings, setLeagueRankings] = useState<LeagueRanking[]>([]);

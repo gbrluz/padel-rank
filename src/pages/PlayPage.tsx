@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { PlayCircle, Users, User, AlertCircle, CheckCircle, UserPlus, X, Check, Clock, Loader, Search } from 'lucide-react';
-import { supabase, Profile } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
+import { Player as Profile } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 
 type PlayPageProps = {
@@ -35,7 +36,7 @@ type Notification = {
 };
 
 export default function PlayPage({ onNavigate }: PlayPageProps) {
-  const { profile } = useAuth();
+  const { player: profile } = useAuth();
   const [inQueue, setInQueue] = useState(false);
   const [selectedPartner, setSelectedPartner] = useState<string | null>(null);
   const [availablePlayers, setAvailablePlayers] = useState<Profile[]>([]);

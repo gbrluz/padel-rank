@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Medal, Plus, Edit, Save, X, Users, Trash2, UserPlus } from 'lucide-react';
-import { supabase, Profile } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
+import { Player as Profile } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 
 interface League {
@@ -50,7 +51,7 @@ interface LeagueRanking {
 }
 
 export default function LeaguesManagement() {
-  const { profile } = useAuth();
+  const { player: profile } = useAuth();
   const [leagues, setLeagues] = useState<League[]>([]);
   const [selectedLeague, setSelectedLeague] = useState<League | null>(null);
   const [leagueMembers, setLeagueMembers] = useState<LeagueMembership[]>([]);
