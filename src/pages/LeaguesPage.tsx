@@ -381,7 +381,18 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
     const targetDay = league.weekly_day;
 
     let daysUntilEvent = targetDay - currentDay;
-    if (daysUntilEvent <= 0) {
+
+    if (daysUntilEvent === 0) {
+      if (league.weekly_time) {
+        const [hours, minutes] = league.weekly_time.split(':').map(Number);
+        const eventTime = new Date(now);
+        eventTime.setHours(hours, minutes, 0, 0);
+
+        if (now >= eventTime) {
+          daysUntilEvent = 7;
+        }
+      }
+    } else if (daysUntilEvent < 0) {
       daysUntilEvent += 7;
     }
 

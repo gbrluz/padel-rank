@@ -460,10 +460,11 @@ export default function LeaguesManagement() {
                   </label>
                   <input
                     type="number"
-                    min="1"
+                    min="0.01"
                     max="72"
+                    step="0.01"
                     value={leagueFormData.attendance_deadline_hours ?? 3}
-                    onChange={(e) => setLeagueFormData({ ...leagueFormData, attendance_deadline_hours: parseInt(e.target.value) || 3 })}
+                    onChange={(e) => setLeagueFormData({ ...leagueFormData, attendance_deadline_hours: parseFloat(e.target.value) || 3 })}
                     className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
@@ -930,10 +931,11 @@ export default function LeaguesManagement() {
                     </label>
                     <input
                       type="number"
-                      min="1"
+                      min="0.01"
                       max="72"
+                      step="0.01"
                       value={leagueFormData.attendance_deadline_hours ?? 3}
-                      onChange={(e) => setLeagueFormData({ ...leagueFormData, attendance_deadline_hours: parseInt(e.target.value) || 3 })}
+                      onChange={(e) => setLeagueFormData({ ...leagueFormData, attendance_deadline_hours: parseFloat(e.target.value) || 3 })}
                       className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
                     />
                   </div>
