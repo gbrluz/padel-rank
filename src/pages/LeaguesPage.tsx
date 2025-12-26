@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Medal, Users, Trophy, TrendingUp, UserPlus, Clock, Check, Loader2, Shield, CheckCircle, XCircle, Trash2, PlusCircle } from 'lucide-react';
+import { Medal, Users, Trophy, TrendingUp, UserPlus, Clock, Check, Loader2, Shield, CheckCircle, XCircle, Trash2, Calendar, CalendarCheck } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Player as Profile } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -13,11 +13,23 @@ interface League {
   id: string;
   name: string;
   type: 'club' | 'friends' | 'official';
+  format: 'free' | 'weekly' | 'monthly';
   description: string;
   affects_regional_ranking: boolean;
   is_active: boolean;
   requires_approval?: boolean;
   status?: string;
+  weekly_day?: number | null;
+  weekly_time?: string | null;
+  attendance_deadline_hours?: number | null;
+}
+
+interface WeeklyAttendance {
+  id: string;
+  league_id: string;
+  player_id: string;
+  week_date: string;
+  status: 'confirmed' | 'declined' | 'no_response';
 }
 
 interface LeagueRanking {
@@ -63,6 +75,9 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
   const [joinMessage, setJoinMessage] = useState('');
   const [processingRequest, setProcessingRequest] = useState<string | null>(null);
   const [showOrganizerPanel, setShowOrganizerPanel] = useState(false);
+  const [cancellingRequest, setCancellingRequest] = useState(false);
+  const [myAttendance, setMyAttendance] = useState<WeeklyAttendance | null>(null);
+  const [updatingAttendance, setUpdatingAttendance] = useState(false);
 
   useEffect(() => {
     loadLeagues();
@@ -81,8 +96,11 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
         loadJoinRequests(selectedLeague.id);
         loadLeagueMembers(selectedLeague.id);
       }
+      if (selectedLeague.format === 'weekly' && myLeagues.includes(selectedLeague.id)) {
+        loadMyAttendance(selectedLeague.id);
+      }
     }
-  }, [selectedLeague, organizerLeagues]);
+  }, [selectedLeague, organizerLeagues, myLeagues]);
 
   const loadLeagues = async () => {
     setLoading(true);
@@ -310,6 +328,135 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
       console.error('Error removing member:', error);
       alert('Erro ao remover membro');
     }
+  };
+
+  const handleCancelRequest = async (leagueId: string) => {
+    if (!profile) return;
+    if (!confirm('Tem certeza que deseja cancelar sua solicitacao?')) return;
+
+    setCancellingRequest(true);
+    try {
+      const { error } = await supabase
+        .from('league_join_requests')
+        .delete()
+        .eq('league_id', leagueId)
+        .eq('player_id', profile.id)
+        .eq('status', 'pending');
+
+      if (error) throw error;
+
+      setPendingRequests(prev => prev.filter(id => id !== leagueId));
+    } catch (error) {
+      console.error('Error cancelling request:', error);
+      alert('Erro ao cancelar solicitacao');
+    } finally {
+      setCancellingRequest(false);
+    }
+  };
+
+  const getNextWeeklyEventDate = (league: League): Date | null => {
+    if (league.format !== 'weekly' || league.weekly_day === null || league.weekly_day === undefined) {
+      return null;
+    }
+
+    const now = new Date();
+    const currentDay = now.getDay();
+    const targetDay = league.weekly_day;
+
+    let daysUntilEvent = targetDay - currentDay;
+    if (daysUntilEvent <= 0) {
+      daysUntilEvent += 7;
+    }
+
+    const nextEvent = new Date(now);
+    nextEvent.setDate(now.getDate() + daysUntilEvent);
+    nextEvent.setHours(0, 0, 0, 0);
+
+    return nextEvent;
+  };
+
+  const shouldShowAttendanceCard = (league: League): boolean => {
+    if (league.format !== 'weekly') return false;
+
+    const nextEvent = getNextWeeklyEventDate(league);
+    if (!nextEvent) return false;
+
+    const now = new Date();
+    const daysUntilEvent = Math.ceil((nextEvent.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+    return daysUntilEvent <= 5 && daysUntilEvent > 0;
+  };
+
+  const loadMyAttendance = async (leagueId: string) => {
+    if (!profile || !selectedLeague) return;
+
+    const nextEvent = getNextWeeklyEventDate(selectedLeague);
+    if (!nextEvent) return;
+
+    const weekDate = nextEvent.toISOString().split('T')[0];
+
+    try {
+      const { data, error } = await supabase
+        .from('league_attendance')
+        .select('*')
+        .eq('league_id', leagueId)
+        .eq('player_id', profile.id)
+        .eq('week_date', weekDate)
+        .maybeSingle();
+
+      if (error) throw error;
+      setMyAttendance(data);
+    } catch (error) {
+      console.error('Error loading attendance:', error);
+    }
+  };
+
+  const handleUpdateAttendance = async (status: 'confirmed' | 'declined') => {
+    if (!profile || !selectedLeague) return;
+
+    const nextEvent = getNextWeeklyEventDate(selectedLeague);
+    if (!nextEvent) return;
+
+    const weekDate = nextEvent.toISOString().split('T')[0];
+
+    setUpdatingAttendance(true);
+    try {
+      if (myAttendance) {
+        const { error } = await supabase
+          .from('league_attendance')
+          .update({
+            status,
+            confirmed_at: status === 'confirmed' ? new Date().toISOString() : null,
+          })
+          .eq('id', myAttendance.id);
+
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('league_attendance')
+          .insert([{
+            league_id: selectedLeague.id,
+            player_id: profile.id,
+            week_date: weekDate,
+            status,
+            confirmed_at: status === 'confirmed' ? new Date().toISOString() : null,
+          }]);
+
+        if (error) throw error;
+      }
+
+      await loadMyAttendance(selectedLeague.id);
+    } catch (error) {
+      console.error('Error updating attendance:', error);
+      alert('Erro ao atualizar presenca');
+    } finally {
+      setUpdatingAttendance(false);
+    }
+  };
+
+  const getDayName = (day: number): string => {
+    const days = ['Domingo', 'Segunda', 'Terca', 'Quarta', 'Quinta', 'Sexta', 'Sabado'];
+    return days[day] || '';
   };
 
   const handleJoinLeague = async (leagueId: string) => {
@@ -603,18 +750,100 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
                     </div>
                   )}
 
+                  {myLeagues.includes(selectedLeague.id) && shouldShowAttendanceCard(selectedLeague) && (
+                    <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 mb-6">
+                      <div className="flex items-start gap-3">
+                        <Calendar className="w-6 h-6 text-blue-600 flex-shrink-0 mt-0.5" />
+                        <div className="flex-1">
+                          <p className="font-semibold text-blue-900">
+                            Proximo evento semanal
+                          </p>
+                          <p className="text-sm text-blue-700 mt-1">
+                            {getDayName(selectedLeague.weekly_day || 0)}, {getNextWeeklyEventDate(selectedLeague)?.toLocaleDateString('pt-BR')}
+                            {selectedLeague.weekly_time && ` as ${selectedLeague.weekly_time.slice(0, 5)}`}
+                          </p>
+
+                          {myAttendance?.status === 'confirmed' ? (
+                            <div className="mt-3 flex items-center gap-2 text-emerald-700 bg-emerald-100 px-3 py-2 rounded-lg">
+                              <CalendarCheck className="w-5 h-5" />
+                              <span className="font-medium">Presenca confirmada!</span>
+                            </div>
+                          ) : myAttendance?.status === 'declined' ? (
+                            <div className="mt-3 flex items-center gap-2 text-red-700 bg-red-100 px-3 py-2 rounded-lg">
+                              <XCircle className="w-5 h-5" />
+                              <span className="font-medium">Voce indicou que nao podera comparecer</span>
+                            </div>
+                          ) : (
+                            <p className="text-sm text-blue-600 mt-2">
+                              Confirme sua presenca para o proximo evento
+                            </p>
+                          )}
+
+                          <div className="flex gap-2 mt-3">
+                            <button
+                              onClick={() => handleUpdateAttendance('confirmed')}
+                              disabled={updatingAttendance || myAttendance?.status === 'confirmed'}
+                              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg font-medium transition-colors disabled:opacity-50 ${
+                                myAttendance?.status === 'confirmed'
+                                  ? 'bg-emerald-600 text-white'
+                                  : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                              }`}
+                            >
+                              {updatingAttendance ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <CheckCircle className="w-4 h-4" />
+                              )}
+                              Vou participar
+                            </button>
+                            <button
+                              onClick={() => handleUpdateAttendance('declined')}
+                              disabled={updatingAttendance || myAttendance?.status === 'declined'}
+                              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg font-medium transition-colors disabled:opacity-50 ${
+                                myAttendance?.status === 'declined'
+                                  ? 'bg-red-600 text-white'
+                                  : 'bg-red-100 text-red-700 hover:bg-red-200'
+                              }`}
+                            >
+                              {updatingAttendance ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <XCircle className="w-4 h-4" />
+                              )}
+                              Nao poderei ir
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {pendingRequests.includes(selectedLeague.id) && (
                     <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-4 mb-6">
-                      <div className="flex items-center gap-3">
-                        <Clock className="w-6 h-6 text-amber-600" />
-                        <div>
-                          <p className="font-semibold text-amber-900">
-                            Solicitacao pendente
-                          </p>
-                          <p className="text-sm text-amber-700 mt-1">
-                            Aguardando aprovacao do organizador da liga
-                          </p>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <Clock className="w-6 h-6 text-amber-600" />
+                          <div>
+                            <p className="font-semibold text-amber-900">
+                              Solicitacao pendente
+                            </p>
+                            <p className="text-sm text-amber-700 mt-1">
+                              Aguardando aprovacao do organizador da liga
+                            </p>
+                          </div>
                         </div>
+                        <button
+                          onClick={() => handleCancelRequest(selectedLeague.id)}
+                          disabled={cancellingRequest}
+                          className="px-4 py-2 text-amber-700 bg-amber-100 hover:bg-amber-200 rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+                        >
+                          {cancellingRequest ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <XCircle className="w-4 h-4" />
+                          )}
+                          Cancelar
+                        </button>
                       </div>
                     </div>
                   )}
