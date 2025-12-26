@@ -78,6 +78,11 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
   const [cancellingRequest, setCancellingRequest] = useState(false);
   const [myAttendance, setMyAttendance] = useState<WeeklyAttendance | null>(null);
   const [updatingAttendance, setUpdatingAttendance] = useState(false);
+  const [scoringVictories, setScoringVictories] = useState(0);
+  const [scoringDefeats, setScoringDefeats] = useState(0);
+  const [scoringBbq, setScoringBbq] = useState(false);
+  const [submittingScore, setSubmittingScore] = useState(false);
+  const [weeklyScore, setWeeklyScore] = useState<any>(null);
 
   useEffect(() => {
     loadLeagues();
@@ -101,6 +106,12 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
       }
     }
   }, [selectedLeague, organizerLeagues, myLeagues]);
+
+  useEffect(() => {
+    if (selectedLeague && myAttendance && shouldShowScoringCard(selectedLeague)) {
+      loadWeeklyScore();
+    }
+  }, [selectedLeague, myAttendance]);
 
   const loadLeagues = async () => {
     setLoading(true);
@@ -418,8 +429,7 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
     const now = new Date();
     const hoursUntilEvent = (nextEvent.getTime() - now.getTime()) / (1000 * 60 * 60);
 
-    // MODO TESTE: Altere 120 (5 dias) para qualquer valor para testar
-    const maxHoursToShow = 365 * 24; // Trocar para 120 em producao
+    const maxHoursToShow = 5 * 24;
     return hoursUntilEvent <= maxHoursToShow && hoursUntilEvent > 0;
   };
 
@@ -493,6 +503,146 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
   const getDayName = (day: number): string => {
     const days = ['Domingo', 'Segunda', 'Terca', 'Quarta', 'Quinta', 'Sexta', 'Sabado'];
     return days[day] || '';
+  };
+
+  const getLastEventDate = (league: League): Date | null => {
+    if (league.format !== 'weekly' || league.weekly_day === null || league.weekly_day === undefined) return null;
+
+    const now = new Date();
+    const lastEvent = new Date(now);
+    const currentDay = now.getDay();
+
+    let daysBack = currentDay - league.weekly_day;
+    if (daysBack < 0) {
+      daysBack += 7;
+    } else if (daysBack === 0) {
+      if (league.weekly_time) {
+        const [hours, minutes] = league.weekly_time.split(':').map(Number);
+        const eventTime = new Date(now);
+        eventTime.setHours(hours, minutes, 0, 0);
+        if (now < eventTime) {
+          daysBack = 7;
+        }
+      }
+    }
+
+    lastEvent.setDate(now.getDate() - daysBack);
+
+    if (league.weekly_time) {
+      const [hours, minutes] = league.weekly_time.split(':').map(Number);
+      lastEvent.setHours(hours, minutes, 0, 0);
+    } else {
+      lastEvent.setHours(0, 0, 0, 0);
+    }
+
+    return lastEvent;
+  };
+
+  const shouldShowScoringCard = (league: League): boolean => {
+    if (league.format !== 'weekly') return false;
+    if (!myAttendance || myAttendance.status !== 'confirmed') return false;
+    if (!weeklyScore) return false;
+
+    const now = new Date();
+    const lastEvent = getLastEventDate(league);
+    const nextEvent = getNextWeeklyEventDate(league);
+
+    if (!lastEvent || !nextEvent) return false;
+
+    const scoringStart = lastEvent;
+    const hoursBeforeNextEvent = 5 * 24;
+    const scoringEnd = new Date(nextEvent.getTime() - (hoursBeforeNextEvent * 60 * 60 * 1000));
+
+    return now >= scoringStart && now < scoringEnd;
+  };
+
+  const loadWeeklyScore = async () => {
+    if (!profile || !selectedLeague) return;
+
+    const lastEvent = getLastEventDate(selectedLeague);
+    if (!lastEvent) return;
+
+    const eventDate = lastEvent.toISOString().split('T')[0];
+
+    try {
+      const { data: weeklyEvent, error: eventError } = await supabase
+        .from('weekly_events')
+        .select('id')
+        .eq('league_id', selectedLeague.id)
+        .eq('event_date', eventDate)
+        .maybeSingle();
+
+      if (eventError) throw eventError;
+
+      if (weeklyEvent) {
+        const { data: attendance, error: attendanceError } = await supabase
+          .from('weekly_event_attendance')
+          .select('*')
+          .eq('event_id', weeklyEvent.id)
+          .eq('player_id', profile.id)
+          .maybeSingle();
+
+        if (attendanceError) throw attendanceError;
+
+        if (attendance) {
+          setWeeklyScore(attendance);
+          setScoringVictories(attendance.victories || 0);
+          setScoringDefeats(attendance.defeats || 0);
+          setScoringBbq(attendance.bbq_participated || false);
+        } else {
+          const { data: newAttendance, error: createError } = await supabase
+            .from('weekly_event_attendance')
+            .insert({
+              event_id: weeklyEvent.id,
+              player_id: profile.id,
+              confirmed: true,
+              confirmed_at: new Date().toISOString()
+            })
+            .select()
+            .single();
+
+          if (createError) throw createError;
+          setWeeklyScore(newAttendance);
+        }
+      } else {
+        setWeeklyScore(null);
+      }
+    } catch (error) {
+      console.error('Error loading weekly score:', error);
+      setWeeklyScore(null);
+    }
+  };
+
+  const handleSubmitScore = async () => {
+    if (!weeklyScore) return;
+
+    setSubmittingScore(true);
+    try {
+      const totalPoints = scoringVictories + scoringDefeats + (scoringBbq ? 1 : 0);
+
+      const { error } = await supabase
+        .from('weekly_event_attendance')
+        .update({
+          victories: scoringVictories,
+          defeats: scoringDefeats,
+          bbq_participated: scoringBbq,
+          total_points: totalPoints,
+          points_submitted: true,
+          points_submitted_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', weeklyScore.id);
+
+      if (error) throw error;
+
+      alert('Pontuacao enviada com sucesso!');
+      await loadWeeklyScore();
+    } catch (error) {
+      console.error('Error submitting score:', error);
+      alert('Erro ao enviar pontuacao');
+    } finally {
+      setSubmittingScore(false);
+    }
   };
 
   const handleJoinLeague = async (leagueId: string) => {
@@ -877,6 +1027,94 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
                               Nao poderei ir
                             </button>
                           </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {shouldShowScoringCard(selectedLeague) && (
+                    <div className="bg-purple-50 border-2 border-purple-200 rounded-xl p-4 mb-6">
+                      <div className="flex items-start gap-3">
+                        <Trophy className="w-6 h-6 text-purple-600 flex-shrink-0 mt-0.5" />
+                        <div className="flex-1">
+                          <p className="font-semibold text-purple-900">
+                            Cadastro de Pontuacao Semanal
+                          </p>
+                          <p className="text-sm text-purple-700 mt-1">
+                            {getLastEventDate(selectedLeague)?.toLocaleDateString('pt-BR')}
+                          </p>
+
+                          {weeklyScore?.points_submitted ? (
+                            <div className="mt-3 p-3 bg-purple-100 rounded-lg">
+                              <p className="text-sm text-purple-800 font-medium">
+                                Pontuacao ja enviada
+                              </p>
+                              <div className="mt-2 flex gap-4 text-sm text-purple-700">
+                                <span>Vitorias: {weeklyScore.victories}</span>
+                                <span>Derrotas: {weeklyScore.defeats}</span>
+                                <span>Total: {weeklyScore.total_points} pts</span>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="mt-4 space-y-3">
+                                <div>
+                                  <label className="block text-sm font-medium text-purple-800 mb-1">
+                                    Vitorias
+                                  </label>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={scoringVictories}
+                                    onChange={(e) => setScoringVictories(Math.max(0, parseInt(e.target.value) || 0))}
+                                    className="w-full px-3 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium text-purple-800 mb-1">
+                                    Derrotas
+                                  </label>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={scoringDefeats}
+                                    onChange={(e) => setScoringDefeats(Math.max(0, parseInt(e.target.value) || 0))}
+                                    className="w-full px-3 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                  />
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="checkbox"
+                                    id="bbq"
+                                    checked={scoringBbq}
+                                    onChange={(e) => setScoringBbq(e.target.checked)}
+                                    className="w-4 h-4 text-purple-600 border-purple-300 rounded focus:ring-purple-500"
+                                  />
+                                  <label htmlFor="bbq" className="text-sm font-medium text-purple-800">
+                                    Participei do churrasco
+                                  </label>
+                                </div>
+                              </div>
+
+                              <button
+                                onClick={handleSubmitScore}
+                                disabled={submittingScore}
+                                className="mt-4 w-full flex items-center justify-center gap-2 py-2.5 rounded-lg font-medium bg-purple-600 text-white hover:bg-purple-700 transition-colors disabled:opacity-50"
+                              >
+                                {submittingScore ? (
+                                  <>
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    Enviando...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Check className="w-4 h-4" />
+                                    Enviar Pontuacao
+                                  </>
+                                )}
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
