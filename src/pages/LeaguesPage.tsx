@@ -176,6 +176,13 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
 
   const loadJoinRequests = async (leagueId: string) => {
     try {
+      const { data: members } = await supabase
+        .from('league_memberships')
+        .select('player_id')
+        .eq('league_id', leagueId);
+
+      const memberIds = new Set(members?.map(m => m.player_id) || []);
+
       const { data, error } = await supabase
         .from('league_join_requests')
         .select(`
@@ -187,7 +194,9 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
         .order('created_at', { ascending: true });
 
       if (error) throw error;
-      setJoinRequests(data || []);
+
+      const filteredRequests = (data || []).filter(r => !memberIds.has(r.player_id));
+      setJoinRequests(filteredRequests);
     } catch (error) {
       console.error('Error loading join requests:', error);
     }
@@ -301,8 +310,16 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
 
       if (error) throw error;
 
+      await supabase
+        .from('league_join_requests')
+        .delete()
+        .eq('league_id', selectedLeague.id)
+        .eq('player_id', playerId)
+        .eq('status', 'pending');
+
       await loadLeagueMembers(selectedLeague.id);
       await loadLeagueRankings(selectedLeague.id);
+      await loadJoinRequests(selectedLeague.id);
     } catch (error) {
       console.error('Error adding member:', error);
       alert('Erro ao adicionar membro');
@@ -601,7 +618,7 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
                         {!organizerLeagues.includes(league.id) && myLeagues.includes(league.id) && (
                           <Check className="w-5 h-5 text-emerald-600 flex-shrink-0" />
                         )}
-                        {!organizerLeagues.includes(league.id) && pendingRequests.includes(league.id) && (
+                        {!organizerLeagues.includes(league.id) && !myLeagues.includes(league.id) && pendingRequests.includes(league.id) && (
                           <Clock className="w-5 h-5 text-amber-500 flex-shrink-0" />
                         )}
                         <div className="flex-1">
@@ -846,7 +863,7 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
                     </div>
                   )}
 
-                  {pendingRequests.includes(selectedLeague.id) && (
+                  {!myLeagues.includes(selectedLeague.id) && pendingRequests.includes(selectedLeague.id) && (
                     <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-4 mb-6">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
