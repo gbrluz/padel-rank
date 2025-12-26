@@ -1,6 +1,5 @@
 import { api } from '../lib/api';
 import { Player, SystemStats } from '../types';
-import { mapProfileToPlayer, mapPlayerToProfile } from '../types/mappers';
 
 export interface AdminPlayer extends Player {
   email: string;
@@ -8,11 +7,8 @@ export interface AdminPlayer extends Player {
 
 export const adminService = {
   async getAllPlayers(search?: string): Promise<AdminPlayer[]> {
-    const { profiles } = await api.admin.getProfiles(search);
-    return (profiles || []).map((p: any) => ({
-      ...mapProfileToPlayer(p),
-      email: p.email,
-    }));
+    const { players } = await api.admin.getPlayers(search);
+    return players || [];
   },
 
   async searchPlayers(query: string): Promise<AdminPlayer[]> {
@@ -20,12 +16,8 @@ export const adminService = {
   },
 
   async updatePlayer(playerId: string, updates: Partial<Player>): Promise<AdminPlayer> {
-    const dbUpdates = mapPlayerToProfile(updates);
-    const { profile } = await api.admin.updateProfile(playerId, dbUpdates);
-    return {
-      ...mapProfileToPlayer(profile),
-      email: (profile as any).email,
-    };
+    const { player } = await api.admin.updatePlayer(playerId, updates);
+    return player;
   },
 
   async getSystemStats(): Promise<SystemStats> {
@@ -34,52 +26,52 @@ export const adminService = {
   },
 
   async makeAdmin(playerId: string): Promise<AdminPlayer> {
-    return this.updatePlayer(playerId, { isAdmin: true });
+    return this.updatePlayer(playerId, { is_admin: true });
   },
 
   async removeAdmin(playerId: string): Promise<AdminPlayer> {
-    return this.updatePlayer(playerId, { isAdmin: false });
+    return this.updatePlayer(playerId, { is_admin: false });
   },
 
   async updatePlayerPoints(playerId: string, points: number): Promise<AdminPlayer> {
-    return this.updatePlayer(playerId, { rankingPoints: points });
+    return this.updatePlayer(playerId, { ranking_points: points });
   },
 
   async resetPlayerStats(playerId: string): Promise<AdminPlayer> {
     return this.updatePlayer(playerId, {
-      rankingPoints: 1000,
-      totalMatches: 0,
-      totalWins: 0,
-      winRate: 0,
+      ranking_points: 1000,
+      total_matches: 0,
+      total_wins: 0,
+      win_rate: 0,
     });
   },
 
   validatePlayerUpdate(updates: Partial<Player>): string | null {
-    if (updates.rankingPoints !== undefined && updates.rankingPoints < 0) {
+    if (updates.ranking_points !== undefined && updates.ranking_points < 0) {
       return 'Pontos de ranking não podem ser negativos';
     }
 
-    if (updates.totalMatches !== undefined && updates.totalMatches < 0) {
+    if (updates.total_matches !== undefined && updates.total_matches < 0) {
       return 'Total de partidas não pode ser negativo';
     }
 
-    if (updates.totalWins !== undefined && updates.totalWins < 0) {
+    if (updates.total_wins !== undefined && updates.total_wins < 0) {
       return 'Total de vitórias não pode ser negativo';
     }
 
     if (
-      updates.totalWins !== undefined &&
-      updates.totalMatches !== undefined &&
-      updates.totalWins > updates.totalMatches
+      updates.total_wins !== undefined &&
+      updates.total_matches !== undefined &&
+      updates.total_wins > updates.total_matches
     ) {
       return 'Total de vitórias não pode ser maior que total de partidas';
     }
 
-    if (updates.fullName && updates.fullName.trim().length === 0) {
+    if (updates.full_name && updates.full_name.trim().length === 0) {
       return 'Nome não pode ser vazio';
     }
 
-    if (updates.fullName && updates.fullName.length > 100) {
+    if (updates.full_name && updates.full_name.length > 100) {
       return 'Nome muito longo (máximo 100 caracteres)';
     }
 
@@ -96,8 +88,8 @@ export const adminService = {
   },
 
   getPlayerStatus(player: Player): 'active' | 'inactive' | 'provisional' {
-    if (player.isProvisional) return 'provisional';
-    if (player.totalMatches === 0) return 'inactive';
+    if (player.is_provisional) return 'provisional';
+    if (player.total_matches === 0) return 'inactive';
     return 'active';
   },
 

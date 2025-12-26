@@ -1,47 +1,10 @@
-import { Profile, Match as DBMatch, QueueEntry as DBQueueEntry } from '../lib/supabase';
+import { Match as DBMatch, QueueEntry as DBQueueEntry } from '../lib/supabase';
 import {
-  Player,
   Match,
   QueueEntry,
-  Category,
   PreferredSide,
   Gender,
 } from './domain';
-
-export const mapProfileToPlayer = (profile: Profile): Player => ({
-  id: profile.id,
-  fullName: profile.full_name,
-  gender: profile.gender as Gender,
-  state: profile.state,
-  city: profile.city,
-  category: profile.category as Category,
-  rankingPoints: profile.ranking_points,
-  preferredSide: profile.preferred_side as PreferredSide | null,
-  availability: profile.availability || {},
-  totalMatches: profile.total_matches,
-  totalWins: profile.total_wins,
-  winRate: profile.win_rate,
-  isProvisional: profile.total_matches < 5,
-  isAdmin: profile.is_admin,
-  avatarUrl: profile.avatar_url,
-  createdAt: profile.created_at,
-});
-
-export const mapPlayerToProfile = (player: Partial<Player>): Partial<Profile> => ({
-  ...(player.fullName && { full_name: player.fullName }),
-  ...(player.gender && { gender: player.gender }),
-  ...(player.state && { state: player.state }),
-  ...(player.city && { city: player.city }),
-  ...(player.category && { category: player.category }),
-  ...(player.rankingPoints !== undefined && { ranking_points: player.rankingPoints }),
-  ...(player.preferredSide !== undefined && { preferred_side: player.preferredSide }),
-  ...(player.availability && { availability: player.availability }),
-  ...(player.totalMatches !== undefined && { total_matches: player.totalMatches }),
-  ...(player.totalWins !== undefined && { total_wins: player.totalWins }),
-  ...(player.winRate !== undefined && { win_rate: player.winRate }),
-  ...(player.isAdmin !== undefined && { is_admin: player.isAdmin }),
-  ...(player.avatarUrl !== undefined && { avatar_url: player.avatarUrl }),
-});
 
 export const mapDBMatchToMatch = (dbMatch: DBMatch): Match => ({
   id: dbMatch.id,

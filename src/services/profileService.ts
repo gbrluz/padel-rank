@@ -1,28 +1,26 @@
 import { api } from '../lib/api';
 import { Player, Category } from '../types';
-import { mapProfileToPlayer, mapPlayerToProfile } from '../types/mappers';
 
 export const profileService = {
   async getCurrentPlayer(): Promise<Player> {
-    const { profile } = await api.profiles.get();
-    if (!profile) {
+    const { player } = await api.players.get();
+    if (!player) {
       throw new Error('Jogador não encontrado');
     }
-    return mapProfileToPlayer(profile);
+    return player;
   },
 
   async getPlayer(id: string): Promise<Player | null> {
-    const { profile } = await api.profiles.get(id);
-    if (!profile) {
+    const { player } = await api.players.get(id);
+    if (!player) {
       return null;
     }
-    return mapProfileToPlayer(profile);
+    return player;
   },
 
   async updatePlayer(id: string, updates: Partial<Player>): Promise<Player> {
-    const dbUpdates = mapPlayerToProfile(updates);
-    const { profile } = await api.profiles.update(id, dbUpdates);
-    return mapProfileToPlayer(profile);
+    const { player } = await api.players.update(id, updates);
+    return player;
   },
 
   async updateCurrentPlayer(updates: Partial<Player>): Promise<Player> {
@@ -35,7 +33,7 @@ export const profileService = {
   },
 
   isProvisional(player: Player): boolean {
-    return player.isProvisional;
+    return player.is_provisional;
   },
 
   canJoinLeagues(player: Player): boolean {
@@ -43,7 +41,7 @@ export const profileService = {
   },
 
   getWinRate(player: Player): number {
-    return player.winRate;
+    return player.win_rate;
   },
 
   getCategoryFromPoints(points: number): Category {

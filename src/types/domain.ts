@@ -4,21 +4,27 @@ export type Category = 'Iniciante' | '7ª' | '6ª' | '5ª' | '4ª' | '3ª' | '2�
 
 export interface Player {
   id: string;
-  fullName: string;
+  full_name: string;
   gender: Gender;
+  birth_date: string;
   state: string;
   city: string;
   category: Category;
-  rankingPoints: number;
-  preferredSide: PreferredSide | null;
+  ranking_points: number;
+  preferred_side: PreferredSide;
   availability: Record<string, string[]>;
-  totalMatches: number;
-  totalWins: number;
-  winRate: number;
-  isProvisional: boolean;
-  isAdmin: boolean;
-  avatarUrl: string | null;
-  createdAt: string;
+  photo_url: string | null;
+  total_matches: number;
+  total_wins: number;
+  win_rate: number;
+  is_provisional: boolean;
+  provisional_games_played: number;
+  can_join_leagues: boolean;
+  is_admin: boolean;
+  captain_count: number;
+  global_ranking_points: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export type MatchStatus = 'pending_approval' | 'scheduled' | 'cancelled' | 'completed';

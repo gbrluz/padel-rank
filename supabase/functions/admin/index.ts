@@ -28,13 +28,13 @@ Deno.serve(async (req: Request) => {
     }
 
     // Check if user is admin
-    const { data: profile } = await supabase
-      .from('profiles')
+    const { data: player } = await supabase
+      .from('players')
       .select('is_admin')
       .eq('id', user.id)
       .maybeSingle();
 
-    if (!profile?.is_admin) {
+    if (!player?.is_admin) {
       throw new Error('Admin access required');
     }
 
@@ -42,26 +42,26 @@ Deno.serve(async (req: Request) => {
     const pathParts = url.pathname.split('/').filter(Boolean);
     const method = req.method;
 
-    // GET /admin/profiles - List all profiles with email
-    if (method === 'GET' && pathParts.includes('profiles')) {
+    // GET /admin/players - List all players with email
+    if (method === 'GET' && pathParts.includes('players')) {
       const search = url.searchParams.get('search');
       
-      const { data: profiles, error } = await supabase.rpc('get_profiles_with_email', {
+      const { data: players, error } = await supabase.rpc('get_players_with_email', {
         search_term: search || null
       });
 
       if (error) throw error;
 
       return new Response(
-        JSON.stringify({ profiles }),
+        JSON.stringify({ players }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     // GET /admin/stats - Get system stats
     if (method === 'GET' && pathParts.includes('stats')) {
-      const { data: profiles } = await supabase
-        .from('profiles')
+      const { data: players } = await supabase
+        .from('players')
         .select('*', { count: 'exact' });
 
       const { data: matches } = await supabase
@@ -80,7 +80,7 @@ Deno.serve(async (req: Request) => {
       return new Response(
         JSON.stringify({
           stats: {
-            totalProfiles: profiles?.length || 0,
+            totalPlayers: players?.length || 0,
             totalMatches: matches?.length || 0,
             totalLeagues: leagues?.length || 0,
             activeQueueEntries: activeQueue?.length || 0
@@ -90,22 +90,22 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // PUT /admin/profiles/:id - Update any profile
-    if (method === 'PUT' && pathParts.includes('profiles')) {
-      const profileId = pathParts[2];
+    // PUT /admin/players/:id - Update any player
+    if (method === 'PUT' && pathParts.includes('players')) {
+      const playerId = pathParts[2];
       const updates = await req.json();
       
-      const { data: updatedProfile, error } = await supabase
-        .from('profiles')
+      const { data: updatedPlayer, error } = await supabase
+        .from('players')
         .update(updates)
-        .eq('id', profileId)
+        .eq('id', playerId)
         .select()
         .single();
 
       if (error) throw error;
 
       return new Response(
-        JSON.stringify({ profile: updatedProfile }),
+        JSON.stringify({ player: updatedPlayer }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

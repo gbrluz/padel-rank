@@ -1,6 +1,5 @@
 import { api } from '../lib/api';
 import { Player, GlobalRanking, RankingHistory, Category } from '../types';
-import { mapProfileToPlayer } from '../types/mappers';
 
 export interface RankingFilters {
   state?: string;
@@ -12,7 +11,7 @@ export interface RankingFilters {
 export const rankingService = {
   async getRegionalRanking(filters?: RankingFilters): Promise<Player[]> {
     const { ranking } = await api.rankings.getRegional(filters);
-    return (ranking || []).map(mapProfileToPlayer);
+    return ranking || [];
   },
 
   async getGlobalRanking(gender?: string): Promise<GlobalRanking[]> {

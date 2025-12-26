@@ -65,7 +65,7 @@ Deno.serve(async (req: Request) => {
 
       // Get user profile
       const { data: profile } = await supabase
-        .from('profiles')
+        .from('players')
         .select('*')
         .eq('id', user.id)
         .single();
@@ -74,7 +74,7 @@ Deno.serve(async (req: Request) => {
 
       if (partnerId) {
         const { data: partner } = await supabase
-          .from('profiles')
+          .from('players')
           .select('*')
           .eq('id', partnerId)
           .single();

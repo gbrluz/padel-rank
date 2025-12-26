@@ -29,15 +29,15 @@ async function fetchAPI(endpoint: string, options: RequestInit = {}) {
   return response.json();
 }
 
-// Profile API
-export const profileAPI = {
+// Player API
+export const playerAPI = {
   async get(id?: string) {
-    const endpoint = id ? `/profiles/${id}` : '/profiles';
+    const endpoint = id ? `/players/${id}` : '/players';
     return fetchAPI(endpoint);
   },
 
   async update(id: string, updates: any) {
-    return fetchAPI(`/profiles/${id}`, {
+    return fetchAPI(`/players/${id}`, {
       method: 'PUT',
       body: JSON.stringify(updates),
     });
@@ -187,13 +187,13 @@ export const queueAPI = {
 
 // Admin API
 export const adminAPI = {
-  async getProfiles(search?: string) {
+  async getPlayers(search?: string) {
     const query = search ? `?search=${encodeURIComponent(search)}` : '';
-    return fetchAPI(`/admin/profiles${query}`);
+    return fetchAPI(`/admin/players${query}`);
   },
 
-  async updateProfile(id: string, updates: any) {
-    return fetchAPI(`/admin/profiles/${id}`, {
+  async updatePlayer(id: string, updates: any) {
+    return fetchAPI(`/admin/players/${id}`, {
       method: 'PUT',
       body: JSON.stringify(updates),
     });
@@ -205,7 +205,7 @@ export const adminAPI = {
 };
 
 export const api = {
-  profiles: profileAPI,
+  players: playerAPI,
   matches: matchesAPI,
   leagues: leaguesAPI,
   rankings: rankingsAPI,

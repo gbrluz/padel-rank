@@ -46,7 +46,7 @@ Deno.serve(async (req: Request) => {
       const category = url.searchParams.get('category');
       
       let query = supabase
-        .from('profiles')
+        .from('players')
         .select('*')
         .eq('is_provisional', false);
 

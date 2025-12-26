@@ -114,7 +114,7 @@ Deno.serve(async (req: Request) => {
     // POST /leagues - Create new league (admin only)
     if (method === 'POST') {
       const { data: profile } = await supabase
-        .from('profiles')
+        .from('players')
         .select('is_admin')
         .eq('id', user.id)
         .maybeSingle();
@@ -144,7 +144,7 @@ Deno.serve(async (req: Request) => {
       const leagueId = pathParts[1];
       
       const { data: profile } = await supabase
-        .from('profiles')
+        .from('players')
         .select('is_admin')
         .eq('id', user.id)
         .maybeSingle();
@@ -176,7 +176,7 @@ Deno.serve(async (req: Request) => {
       
       // Check if user can join leagues
       const { data: profile } = await supabase
-        .from('profiles')
+        .from('players')
         .select('*')
         .eq('id', user.id)
         .maybeSingle();

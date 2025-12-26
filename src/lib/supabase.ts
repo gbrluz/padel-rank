@@ -8,26 +8,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 export { api } from './api';
 export * from '../services';
 
-export type Profile = {
-  id: string;
-  full_name: string;
-  gender: 'male' | 'female';
-  birth_date: string;
-  preferred_side: 'left' | 'right' | 'both';
-  category: string;
-  state: string;
-  city: string;
-  availability: Record<string, string[]>;
-  photo_url: string | null;
-  ranking_points: number;
-  total_matches: number;
-  total_wins: number;
-  win_rate: string | number;
-  is_admin: boolean;
-  created_at: string;
-  updated_at: string;
-};
-
 export type Match = {
   id: string;
   gender: 'male' | 'female';

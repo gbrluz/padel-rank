@@ -202,7 +202,7 @@ Deno.serve(async (req: Request) => {
     });
 
     const { data: playerProfiles } = await supabase
-      .from('profiles')
+      .from('players')
       .select('*')
       .in('id', Array.from(allPlayerIds));
 
@@ -436,7 +436,7 @@ Deno.serve(async (req: Request) => {
       ];
 
       const { data: matchPlayerProfiles } = await supabase
-        .from('profiles')
+        .from('players')
         .select('id, availability')
         .in('id', allPlayerIds);
 

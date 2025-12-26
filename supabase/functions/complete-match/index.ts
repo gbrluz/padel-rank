@@ -167,7 +167,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const { data: profiles } = await supabase
-      .from('profiles')
+      .from('players')
       .select('*')
       .in('id', playerIds);
 
@@ -282,7 +282,7 @@ Deno.serve(async (req: Request) => {
       // Update Team A Player 1
       const newProvisionalGamesA1 = teamAPlayer1.provisional_games_played + 1;
       await supabase
-        .from('profiles')
+        .from('players')
         .update({
           ranking_points: newTeamAPlayer1Points,
           total_matches: teamAPlayer1.total_matches + 1,
@@ -297,7 +297,7 @@ Deno.serve(async (req: Request) => {
       // Update Team A Player 2
       const newProvisionalGamesA2 = teamAPlayer2.provisional_games_played + 1;
       await supabase
-        .from('profiles')
+        .from('players')
         .update({
           ranking_points: newTeamAPlayer2Points,
           total_matches: teamAPlayer2.total_matches + 1,
@@ -312,7 +312,7 @@ Deno.serve(async (req: Request) => {
       // Update Team B Player 1
       const newProvisionalGamesB1 = teamBPlayer1.provisional_games_played + 1;
       await supabase
-        .from('profiles')
+        .from('players')
         .update({
           ranking_points: newTeamBPlayer1Points,
           total_matches: teamBPlayer1.total_matches + 1,
@@ -327,7 +327,7 @@ Deno.serve(async (req: Request) => {
       // Update Team B Player 2
       const newProvisionalGamesB2 = teamBPlayer2.provisional_games_played + 1;
       await supabase
-        .from('profiles')
+        .from('players')
         .update({
           ranking_points: newTeamBPlayer2Points,
           total_matches: teamBPlayer2.total_matches + 1,
