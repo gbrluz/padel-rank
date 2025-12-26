@@ -398,7 +398,13 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
 
     const nextEvent = new Date(now);
     nextEvent.setDate(now.getDate() + daysUntilEvent);
-    nextEvent.setHours(0, 0, 0, 0);
+
+    if (league.weekly_time) {
+      const [hours, minutes] = league.weekly_time.split(':').map(Number);
+      nextEvent.setHours(hours, minutes, 0, 0);
+    } else {
+      nextEvent.setHours(0, 0, 0, 0);
+    }
 
     return nextEvent;
   };
@@ -410,11 +416,22 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
     if (!nextEvent) return false;
 
     const now = new Date();
-    const daysUntilEvent = Math.ceil((nextEvent.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    const hoursUntilEvent = (nextEvent.getTime() - now.getTime()) / (1000 * 60 * 60);
 
-    // MODO TESTE: Altere 5 para 365 para testar attendance em qualquer dia
-    const maxDaysToShow = 365; // Trocar para 5 em producao
-    return daysUntilEvent <= maxDaysToShow && daysUntilEvent > 0;
+    console.log('Debug Attendance Card:', {
+      leagueName: league.name,
+      weeklyDay: league.weekly_day,
+      weeklyTime: league.weekly_time,
+      now: now.toLocaleString('pt-BR'),
+      nextEvent: nextEvent.toLocaleString('pt-BR'),
+      hoursUntilEvent: hoursUntilEvent.toFixed(2),
+      maxHoursToShow: 365 * 24,
+      willShow: hoursUntilEvent <= 365 * 24 && hoursUntilEvent > 0
+    });
+
+    // MODO TESTE: Altere 120 (5 dias) para qualquer valor para testar
+    const maxHoursToShow = 365 * 24; // Trocar para 120 em producao
+    return hoursUntilEvent <= maxHoursToShow && hoursUntilEvent > 0;
   };
 
   const loadMyAttendance = async (leagueId: string) => {
@@ -808,7 +825,16 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
                     </div>
                   )}
 
-                  {myLeagues.includes(selectedLeague.id) && shouldShowAttendanceCard(selectedLeague) && (
+                  {(() => {
+                    const isInLeague = myLeagues.includes(selectedLeague.id);
+                    const shouldShow = shouldShowAttendanceCard(selectedLeague);
+                    console.log('Card visibility check:', {
+                      isInLeague,
+                      shouldShow,
+                      willDisplayCard: isInLeague && shouldShow
+                    });
+                    return isInLeague && shouldShow;
+                  })() && (
                     <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 mb-6">
                       <div className="flex items-start gap-3">
                         <Calendar className="w-6 h-6 text-blue-600 flex-shrink-0 mt-0.5" />
