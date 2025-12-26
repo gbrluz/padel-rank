@@ -86,10 +86,11 @@ export const matchesAPI = {
 
 // Leagues API
 export const leaguesAPI = {
-  async list(filters?: { status?: string; gender?: string }) {
+  async list(filters?: { status?: string; gender?: string; my_leagues?: boolean }) {
     const params = new URLSearchParams();
     if (filters?.status) params.append('status', filters.status);
     if (filters?.gender) params.append('gender', filters.gender);
+    if (filters?.my_leagues) params.append('my_leagues', 'true');
 
     const query = params.toString() ? `?${params.toString()}` : '';
     return fetchAPI(`/leagues${query}`);
@@ -113,9 +114,10 @@ export const leaguesAPI = {
     });
   },
 
-  async join(id: string) {
+  async join(id: string, message?: string) {
     return fetchAPI(`/leagues/${id}/join`, {
       method: 'POST',
+      body: JSON.stringify({ message }),
     });
   },
 
@@ -125,12 +127,116 @@ export const leaguesAPI = {
     });
   },
 
+  async getMembers(id: string) {
+    return fetchAPI(`/leagues/${id}/members`);
+  },
+
   async getParticipants(id: string) {
-    return fetchAPI(`/leagues/${id}/participants`);
+    return fetchAPI(`/leagues/${id}/members`);
   },
 
   async getRanking(id: string) {
     return fetchAPI(`/leagues/${id}/ranking`);
+  },
+
+  async getJoinRequests(id: string, status?: string) {
+    const query = status ? `?status=${status}` : '';
+    return fetchAPI(`/leagues/${id}/requests${query}`);
+  },
+
+  async approveJoinRequest(leagueId: string, requestId: string) {
+    return fetchAPI(`/leagues/${leagueId}/requests/${requestId}/approve`, {
+      method: 'POST',
+    });
+  },
+
+  async rejectJoinRequest(leagueId: string, requestId: string) {
+    return fetchAPI(`/leagues/${leagueId}/requests/${requestId}/reject`, {
+      method: 'POST',
+    });
+  },
+
+  async getEvents(id: string) {
+    return fetchAPI(`/leagues/${id}/events`);
+  },
+
+  async createEvent(leagueId: string, data: { event_date: string; duo_sorting_config?: any }) {
+    return fetchAPI(`/leagues/${leagueId}/events`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+};
+
+export interface DuoSortingConfig {
+  type: 'all_together' | 'by_groups';
+  groups?: Array<{ name: string; count: number }>;
+}
+
+export interface WeeklyScoreData {
+  player_id?: string;
+  victories: number;
+  defeats: number;
+  bbq_participated: boolean;
+}
+
+// Weekly Events API
+export const weeklyEventsAPI = {
+  async get(eventId: string) {
+    return fetchAPI(`/weekly-events/${eventId}`);
+  },
+
+  async getAttendance(eventId: string) {
+    return fetchAPI(`/weekly-events/${eventId}/attendance`);
+  },
+
+  async getDuos(eventId: string) {
+    return fetchAPI(`/weekly-events/${eventId}/duos`);
+  },
+
+  async getMatches(eventId: string) {
+    return fetchAPI(`/weekly-events/${eventId}/matches`);
+  },
+
+  async confirmAttendance(eventId: string, duoPartnerId?: string) {
+    return fetchAPI(`/weekly-events/${eventId}/confirm`, {
+      method: 'POST',
+      body: JSON.stringify({ duo_partner_id: duoPartnerId }),
+    });
+  },
+
+  async cancelAttendance(eventId: string) {
+    return fetchAPI(`/weekly-events/${eventId}/cancel`, {
+      method: 'POST',
+    });
+  },
+
+  async generateDuos(eventId: string, sortingConfig?: DuoSortingConfig) {
+    return fetchAPI(`/weekly-events/${eventId}/generate-duos`, {
+      method: 'POST',
+      body: JSON.stringify({ sorting_config: sortingConfig }),
+    });
+  },
+
+  async submitScore(eventId: string, data: WeeklyScoreData) {
+    return fetchAPI(`/weekly-events/${eventId}/score`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async updateStatus(eventId: string, status: string) {
+    return fetchAPI(`/weekly-events/${eventId}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    });
+  },
+
+  async updateSortingConfig(eventId: string, sortingConfig: DuoSortingConfig) {
+    return fetchAPI(`/weekly-events/${eventId}/sorting-config`, {
+      method: 'PUT',
+      body: JSON.stringify({ sorting_config: sortingConfig }),
+    });
   },
 };
 
@@ -208,6 +314,7 @@ export const api = {
   players: playerAPI,
   matches: matchesAPI,
   leagues: leaguesAPI,
+  weeklyEvents: weeklyEventsAPI,
   rankings: rankingsAPI,
   queue: queueAPI,
   admin: adminAPI,
