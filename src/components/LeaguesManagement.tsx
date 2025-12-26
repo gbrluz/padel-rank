@@ -453,17 +453,6 @@ export default function LeaguesManagement() {
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Critério para Solicitar Entrada</label>
-              <textarea
-                value={leagueFormData.entry_criteria || ''}
-                onChange={(e) => setLeagueFormData({ ...leagueFormData, entry_criteria: e.target.value })}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
-                rows={2}
-                placeholder="Descreva os critérios para entrada (visível para jogadores)"
-              />
-            </div>
-
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Pontuação Mínima</label>
@@ -519,6 +508,16 @@ export default function LeaguesManagement() {
               <label className="text-sm text-gray-700">Afeta ranking regional</label>
             </div>
 
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={leagueFormData.requires_approval || false}
+                onChange={(e) => setLeagueFormData({ ...leagueFormData, requires_approval: e.target.checked })}
+                className="w-4 h-4"
+              />
+              <label className="text-sm text-gray-700">Requer aprovacao para entrar</label>
+            </div>
+
             <div className="flex gap-2">
               <button
                 onClick={handleCreateLeague}
@@ -568,12 +567,6 @@ export default function LeaguesManagement() {
                     )}
                     <p className="text-sm text-gray-600 mt-1">{league.description || 'Sem descrição'}</p>
 
-                    {league.entry_criteria && (
-                      <p className="text-xs text-gray-500 mt-1 italic">
-                        Critério: {league.entry_criteria}
-                      </p>
-                    )}
-
                     <div className="flex flex-wrap items-center gap-2 mt-2 text-xs">
                       <span className="px-2 py-1 bg-gray-100 rounded">{
                         league.type === 'friends' ? 'Amigos' :
@@ -614,6 +607,12 @@ export default function LeaguesManagement() {
                       {league.affects_regional_ranking && (
                         <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded">
                           Afeta Regional
+                        </span>
+                      )}
+
+                      {league.requires_approval && (
+                        <span className="px-2 py-1 bg-amber-100 text-amber-800 rounded">
+                          Requer Aprovacao
                         </span>
                       )}
 
@@ -871,17 +870,6 @@ export default function LeaguesManagement() {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Critério para Solicitar Entrada</label>
-                <textarea
-                  value={leagueFormData.entry_criteria || ''}
-                  onChange={(e) => setLeagueFormData({ ...leagueFormData, entry_criteria: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
-                  rows={2}
-                  placeholder="Descreva os critérios para entrada (visível para jogadores)"
-                />
-              </div>
-
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Pontuação Mínima</label>
@@ -935,6 +923,16 @@ export default function LeaguesManagement() {
                   className="w-4 h-4"
                 />
                 <label className="text-sm text-gray-700">Afeta ranking regional</label>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={leagueFormData.requires_approval || false}
+                  onChange={(e) => setLeagueFormData({ ...leagueFormData, requires_approval: e.target.checked })}
+                  className="w-4 h-4"
+                />
+                <label className="text-sm text-gray-700">Requer aprovacao para entrar</label>
               </div>
 
               <div className="flex items-center gap-2">
