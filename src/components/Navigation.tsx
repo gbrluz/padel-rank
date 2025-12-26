@@ -9,7 +9,7 @@ type NavigationProps = {
 };
 
 export default function Navigation({ currentPage, onNavigate }: NavigationProps) {
-  const { profile, isAdmin } = useAuth();
+  const { player: profile, isAdmin } = useAuth();
   const [pendingApprovals, setPendingApprovals] = useState(0);
 
   useEffect(() => {

@@ -23,7 +23,7 @@ const PERIOD_LABELS: Record<string, string> = {
 };
 
 export default function ProfilePage() {
-  const { profile, signOut, refreshProfile } = useAuth();
+  const { player: profile, signOut, refreshPlayer } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -141,7 +141,7 @@ export default function ProfilePage() {
 
       if (updateError) throw updateError;
 
-      await refreshProfile();
+      await refreshPlayer();
       setIsEditing(false);
     } catch (err: any) {
       setError(err.message || 'Erro ao atualizar perfil');
