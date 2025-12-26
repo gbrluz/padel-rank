@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Medal, Plus, CreditCard as Edit, Save, X, Users, Trash2, UserPlus } from 'lucide-react';
+import { Medal, Plus, CreditCard as Edit, Save, X, Users, Trash2, UserPlus, Shield } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Player as Profile } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -30,6 +30,15 @@ interface League {
   weekly_time: string | null;
   attendance_deadline_hours: number | null;
   monthly_min_matches: number | null;
+  requires_approval: boolean;
+}
+
+interface LeagueOrganizer {
+  id: string;
+  league_id: string;
+  player_id: string;
+  created_at: string;
+  player: Profile;
 }
 
 interface LeagueMembership {
@@ -56,7 +65,9 @@ export default function LeaguesManagement() {
   const [selectedLeague, setSelectedLeague] = useState<League | null>(null);
   const [leagueMembers, setLeagueMembers] = useState<LeagueMembership[]>([]);
   const [leagueRankings, setLeagueRankings] = useState<LeagueRanking[]>([]);
+  const [leagueOrganizers, setLeagueOrganizers] = useState<LeagueOrganizer[]>([]);
   const [availablePlayers, setAvailablePlayers] = useState<Profile[]>([]);
+  const [allPlayers, setAllPlayers] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingLeague, setEditingLeague] = useState<League | null>(null);
   const [showCreateLeague, setShowCreateLeague] = useState(false);
@@ -72,6 +83,7 @@ export default function LeaguesManagement() {
 
   useEffect(() => {
     loadLeagues();
+    loadAllPlayers();
   }, []);
 
   useEffect(() => {
@@ -79,6 +91,7 @@ export default function LeaguesManagement() {
       loadLeagueMembers(selectedLeague.id);
       loadLeagueRankings(selectedLeague.id);
       loadAvailablePlayers(selectedLeague.id);
+      loadLeagueOrganizers(selectedLeague.id);
     }
   }, [selectedLeague]);
 
@@ -159,6 +172,77 @@ export default function LeaguesManagement() {
       setAvailablePlayers(data || []);
     } catch (error) {
       console.error('Error loading available players:', error);
+    }
+  };
+
+  const loadAllPlayers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('players')
+        .select('*')
+        .order('full_name');
+
+      if (error) throw error;
+      setAllPlayers(data || []);
+    } catch (error) {
+      console.error('Error loading all players:', error);
+    }
+  };
+
+  const loadLeagueOrganizers = async (leagueId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('league_organizers')
+        .select(`
+          *,
+          player:players(*)
+        `)
+        .eq('league_id', leagueId);
+
+      if (error) throw error;
+      setLeagueOrganizers(data || []);
+    } catch (error) {
+      console.error('Error loading league organizers:', error);
+    }
+  };
+
+  const handleAddOrganizer = async (playerId: string) => {
+    if (!selectedLeague) return;
+
+    try {
+      const { error } = await supabase
+        .from('league_organizers')
+        .insert([{
+          league_id: selectedLeague.id,
+          player_id: playerId,
+        }]);
+
+      if (error) throw error;
+
+      await loadLeagueOrganizers(selectedLeague.id);
+    } catch (error) {
+      console.error('Error adding organizer:', error);
+      alert('Erro ao adicionar organizador');
+    }
+  };
+
+  const handleRemoveOrganizer = async (organizerId: string) => {
+    if (!confirm('Tem certeza que deseja remover este organizador?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('league_organizers')
+        .delete()
+        .eq('id', organizerId);
+
+      if (error) throw error;
+
+      if (selectedLeague) {
+        await loadLeagueOrganizers(selectedLeague.id);
+      }
+    } catch (error) {
+      console.error('Error removing organizer:', error);
+      alert('Erro ao remover organizador');
     }
   };
 
@@ -698,6 +782,59 @@ export default function LeaguesManagement() {
                   </button>
                 </div>
               ))}
+            </div>
+
+            <div className="mt-6 border-t pt-6">
+              <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                <Shield className="w-5 h-5 text-amber-600" />
+                Organizadores
+              </h4>
+              <div className="mb-4">
+                <select
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      handleAddOrganizer(e.target.value);
+                      e.target.value = '';
+                    }
+                  }}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500"
+                >
+                  <option value="">Adicionar organizador...</option>
+                  {allPlayers
+                    .filter(p => !leagueOrganizers.some(o => o.player_id === p.id))
+                    .map((player) => (
+                      <option key={player.id} value={player.id}>
+                        {player.full_name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <div className="space-y-2 max-h-40 overflow-y-auto">
+                {leagueOrganizers.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-2">Nenhum organizador designado</p>
+                ) : (
+                  leagueOrganizers.map((organizer) => (
+                    <div
+                      key={organizer.id}
+                      className="flex items-center justify-between p-3 bg-amber-50 rounded-lg"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Shield className="w-4 h-4 text-amber-600" />
+                        <p className="font-semibold text-gray-900">{organizer.player.full_name}</p>
+                      </div>
+                      <button
+                        onClick={() => handleRemoveOrganizer(organizer.id)}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                Organizadores podem adicionar/remover membros e gerenciar pontuacao semanal
+              </p>
             </div>
 
             {leagueRankings.length > 0 && (

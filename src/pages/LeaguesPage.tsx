@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Medal, Users, Trophy, TrendingUp, UserPlus, Clock, Check, Loader2 } from 'lucide-react';
+import { Medal, Users, Trophy, TrendingUp, UserPlus, Clock, Check, Loader2, Shield, CheckCircle, XCircle, Trash2, PlusCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Player as Profile } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -30,6 +30,23 @@ interface LeagueRanking {
   player: Profile;
 }
 
+interface JoinRequest {
+  id: string;
+  league_id: string;
+  player_id: string;
+  status: string;
+  message: string | null;
+  created_at: string;
+  player: Profile;
+}
+
+interface LeagueMember {
+  id: string;
+  league_id: string;
+  player_id: string;
+  player: Profile;
+}
+
 export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
   const { player: profile } = useAuth();
   const [leagues, setLeagues] = useState<League[]>([]);
@@ -37,23 +54,35 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
   const [leagueRankings, setLeagueRankings] = useState<LeagueRanking[]>([]);
   const [myLeagues, setMyLeagues] = useState<string[]>([]);
   const [pendingRequests, setPendingRequests] = useState<string[]>([]);
+  const [organizerLeagues, setOrganizerLeagues] = useState<string[]>([]);
+  const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([]);
+  const [leagueMembers, setLeagueMembers] = useState<LeagueMember[]>([]);
+  const [allPlayers, setAllPlayers] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [joiningLeague, setJoiningLeague] = useState<string | null>(null);
   const [joinMessage, setJoinMessage] = useState('');
+  const [processingRequest, setProcessingRequest] = useState<string | null>(null);
+  const [showOrganizerPanel, setShowOrganizerPanel] = useState(false);
 
   useEffect(() => {
     loadLeagues();
+    loadAllPlayers();
     if (profile) {
       loadMyLeagues();
       loadPendingRequests();
+      loadOrganizerLeagues();
     }
   }, [profile]);
 
   useEffect(() => {
     if (selectedLeague) {
       loadLeagueRankings(selectedLeague.id);
+      if (organizerLeagues.includes(selectedLeague.id)) {
+        loadJoinRequests(selectedLeague.id);
+        loadLeagueMembers(selectedLeague.id);
+      }
     }
-  }, [selectedLeague]);
+  }, [selectedLeague, organizerLeagues]);
 
   const loadLeagues = async () => {
     setLoading(true);
@@ -108,6 +137,178 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
       setPendingRequests(data?.map(r => r.league_id) || []);
     } catch (error) {
       console.error('Error loading pending requests:', error);
+    }
+  };
+
+  const loadOrganizerLeagues = async () => {
+    if (!profile) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('league_organizers')
+        .select('league_id')
+        .eq('player_id', profile.id);
+
+      if (error) throw error;
+      setOrganizerLeagues(data?.map(o => o.league_id) || []);
+    } catch (error) {
+      console.error('Error loading organizer leagues:', error);
+    }
+  };
+
+  const loadJoinRequests = async (leagueId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('league_join_requests')
+        .select(`
+          *,
+          player:players(*)
+        `)
+        .eq('league_id', leagueId)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      setJoinRequests(data || []);
+    } catch (error) {
+      console.error('Error loading join requests:', error);
+    }
+  };
+
+  const loadLeagueMembers = async (leagueId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('league_memberships')
+        .select(`
+          *,
+          player:players(*)
+        `)
+        .eq('league_id', leagueId)
+        .eq('status', 'active');
+
+      if (error) throw error;
+      setLeagueMembers(data || []);
+    } catch (error) {
+      console.error('Error loading league members:', error);
+    }
+  };
+
+  const loadAllPlayers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('players')
+        .select('*')
+        .order('full_name');
+
+      if (error) throw error;
+      setAllPlayers(data || []);
+    } catch (error) {
+      console.error('Error loading all players:', error);
+    }
+  };
+
+  const handleApproveRequest = async (requestId: string, playerId: string) => {
+    if (!selectedLeague || !profile) return;
+
+    setProcessingRequest(requestId);
+    try {
+      const { error: updateError } = await supabase
+        .from('league_join_requests')
+        .update({
+          status: 'approved',
+          reviewed_by: profile.id,
+          reviewed_at: new Date().toISOString(),
+        })
+        .eq('id', requestId);
+
+      if (updateError) throw updateError;
+
+      const { error: memberError } = await supabase
+        .from('league_memberships')
+        .insert([{
+          league_id: selectedLeague.id,
+          player_id: playerId,
+          status: 'active',
+        }]);
+
+      if (memberError) throw memberError;
+
+      await loadJoinRequests(selectedLeague.id);
+      await loadLeagueMembers(selectedLeague.id);
+      await loadLeagueRankings(selectedLeague.id);
+    } catch (error) {
+      console.error('Error approving request:', error);
+      alert('Erro ao aprovar solicitacao');
+    } finally {
+      setProcessingRequest(null);
+    }
+  };
+
+  const handleRejectRequest = async (requestId: string) => {
+    if (!selectedLeague || !profile) return;
+
+    setProcessingRequest(requestId);
+    try {
+      const { error } = await supabase
+        .from('league_join_requests')
+        .update({
+          status: 'rejected',
+          reviewed_by: profile.id,
+          reviewed_at: new Date().toISOString(),
+        })
+        .eq('id', requestId);
+
+      if (error) throw error;
+
+      await loadJoinRequests(selectedLeague.id);
+    } catch (error) {
+      console.error('Error rejecting request:', error);
+      alert('Erro ao rejeitar solicitacao');
+    } finally {
+      setProcessingRequest(null);
+    }
+  };
+
+  const handleAddMember = async (playerId: string) => {
+    if (!selectedLeague) return;
+
+    try {
+      const { error } = await supabase
+        .from('league_memberships')
+        .insert([{
+          league_id: selectedLeague.id,
+          player_id: playerId,
+          status: 'active',
+        }]);
+
+      if (error) throw error;
+
+      await loadLeagueMembers(selectedLeague.id);
+      await loadLeagueRankings(selectedLeague.id);
+    } catch (error) {
+      console.error('Error adding member:', error);
+      alert('Erro ao adicionar membro');
+    }
+  };
+
+  const handleRemoveMember = async (membershipId: string) => {
+    if (!confirm('Tem certeza que deseja remover este jogador da liga?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('league_memberships')
+        .delete()
+        .eq('id', membershipId);
+
+      if (error) throw error;
+
+      if (selectedLeague) {
+        await loadLeagueMembers(selectedLeague.id);
+        await loadLeagueRankings(selectedLeague.id);
+      }
+    } catch (error) {
+      console.error('Error removing member:', error);
+      alert('Erro ao remover membro');
     }
   };
 
@@ -208,7 +409,10 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
                   {leagues.map((league) => (
                     <button
                       key={league.id}
-                      onClick={() => setSelectedLeague(league)}
+                      onClick={() => {
+                        setSelectedLeague(league);
+                        setShowOrganizerPanel(false);
+                      }}
                       className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
                         selectedLeague?.id === league.id
                           ? 'border-emerald-500 bg-emerald-50'
@@ -216,10 +420,13 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
                       }`}
                     >
                       <div className="flex items-start gap-3">
-                        {myLeagues.includes(league.id) && (
+                        {organizerLeagues.includes(league.id) && (
+                          <Shield className="w-5 h-5 text-amber-600 flex-shrink-0" />
+                        )}
+                        {!organizerLeagues.includes(league.id) && myLeagues.includes(league.id) && (
                           <Check className="w-5 h-5 text-emerald-600 flex-shrink-0" />
                         )}
-                        {pendingRequests.includes(league.id) && (
+                        {!organizerLeagues.includes(league.id) && pendingRequests.includes(league.id) && (
                           <Clock className="w-5 h-5 text-amber-500 flex-shrink-0" />
                         )}
                         <div className="flex-1">
@@ -227,13 +434,18 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
                           <p className="text-sm text-gray-600 mt-1">
                             {league.description || 'Sem descrição'}
                           </p>
-                          <div className="flex items-center gap-2 mt-2">
+                          <div className="flex items-center gap-2 mt-2 flex-wrap">
                             <span className="text-xs px-2 py-1 bg-gray-100 rounded">
                               {getLeagueTypeName(league.type)}
                             </span>
                             {league.affects_regional_ranking && (
                               <span className="text-xs px-2 py-1 bg-yellow-100 text-yellow-800 rounded">
                                 Afeta Regional
+                              </span>
+                            )}
+                            {organizerLeagues.includes(league.id) && (
+                              <span className="text-xs px-2 py-1 bg-amber-100 text-amber-800 rounded">
+                                Organizador
                               </span>
                             )}
                           </div>
@@ -253,7 +465,125 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
                       <h2 className="text-2xl font-bold text-gray-900">{selectedLeague.name}</h2>
                       <p className="text-gray-600 mt-1">{selectedLeague.description}</p>
                     </div>
+                    {organizerLeagues.includes(selectedLeague.id) && (
+                      <button
+                        onClick={() => setShowOrganizerPanel(!showOrganizerPanel)}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+                          showOrganizerPanel
+                            ? 'bg-amber-600 text-white'
+                            : 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+                        }`}
+                      >
+                        <Shield className="w-4 h-4" />
+                        Gerenciar
+                        {joinRequests.length > 0 && (
+                          <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
+                            {joinRequests.length}
+                          </span>
+                        )}
+                      </button>
+                    )}
                   </div>
+
+                  {showOrganizerPanel && organizerLeagues.includes(selectedLeague.id) && (
+                    <div className="mb-6 space-y-4">
+                      {joinRequests.length > 0 && (
+                        <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-4">
+                          <h3 className="font-bold text-amber-900 mb-3 flex items-center gap-2">
+                            <Clock className="w-5 h-5" />
+                            Solicitacoes Pendentes ({joinRequests.length})
+                          </h3>
+                          <div className="space-y-2">
+                            {joinRequests.map((request) => (
+                              <div
+                                key={request.id}
+                                className="flex items-center justify-between p-3 bg-white rounded-lg border border-amber-200"
+                              >
+                                <div>
+                                  <p className="font-semibold text-gray-900">{request.player.full_name}</p>
+                                  <p className="text-sm text-gray-600">
+                                    {request.player.ranking_points} pts • {request.player.category}
+                                  </p>
+                                  {request.message && (
+                                    <p className="text-sm text-gray-500 italic mt-1">"{request.message}"</p>
+                                  )}
+                                </div>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => handleApproveRequest(request.id, request.player_id)}
+                                    disabled={processingRequest === request.id}
+                                    className="p-2 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 disabled:opacity-50"
+                                    title="Aprovar"
+                                  >
+                                    <CheckCircle className="w-5 h-5" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleRejectRequest(request.id)}
+                                    disabled={processingRequest === request.id}
+                                    className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 disabled:opacity-50"
+                                    title="Rejeitar"
+                                  >
+                                    <XCircle className="w-5 h-5" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="bg-gray-50 border-2 border-gray-200 rounded-xl p-4">
+                        <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                          <Users className="w-5 h-5" />
+                          Membros da Liga ({leagueMembers.length})
+                        </h3>
+
+                        <div className="mb-4">
+                          <select
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                handleAddMember(e.target.value);
+                                e.target.value = '';
+                              }
+                            }}
+                            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                          >
+                            <option value="">Adicionar jogador...</option>
+                            {allPlayers
+                              .filter(p => !leagueMembers.some(m => m.player_id === p.id))
+                              .map((player) => (
+                                <option key={player.id} value={player.id}>
+                                  {player.full_name} - {player.ranking_points} pts
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+
+                        <div className="space-y-2 max-h-64 overflow-y-auto">
+                          {leagueMembers.map((member) => (
+                            <div
+                              key={member.id}
+                              className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200"
+                            >
+                              <div>
+                                <p className="font-semibold text-gray-900">{member.player.full_name}</p>
+                                <p className="text-sm text-gray-600">
+                                  {member.player.ranking_points} pts • {member.player.category}
+                                </p>
+                              </div>
+                              <button
+                                onClick={() => handleRemoveMember(member.id)}
+                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                                title="Remover"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {myLeagues.includes(selectedLeague.id) && (
                     <div className="bg-emerald-50 border-2 border-emerald-200 rounded-xl p-4 mb-6">
