@@ -679,6 +679,7 @@ const shouldShowScoringCard = (league: League): boolean => {
     setSubmittingScore(true);
     try {
       const totalPoints = scoringVictories + scoringDefeats + (scoringBbq ? 1 : 0);
+      console.log('[SubmitScore] weeklyScore:', weeklyScore);
 
       const { error } = await supabase
         .from('weekly_event_attendance')
