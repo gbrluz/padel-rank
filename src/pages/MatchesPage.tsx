@@ -1004,9 +1004,9 @@ export default function MatchesPage() {
                     <div className="mt-6 pt-6 border-t border-gray-200">
                       <button
                         onClick={() => setContestingMatch(match)}
-                        className="w-full flex items-center justify-center px-6 py-3 bg-amber-600 text-white font-bold rounded-xl hover:bg-amber-700 transition-colors"
+                        className="flex items-center justify-center px-4 py-2 text-sm text-red-600 border border-red-300 rounded-lg hover:bg-red-50 transition-colors"
                       >
-                        <AlertTriangle className="w-5 h-5 mr-2" />
+                        <AlertTriangle className="w-4 h-4 mr-1.5" />
                         Contestar Resultado
                       </button>
                     </div>
