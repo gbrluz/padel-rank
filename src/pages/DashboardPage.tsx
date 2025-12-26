@@ -32,7 +32,7 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
 
     try {
       const { data: rankings } = await supabase
-        .from('profiles')
+        .from('players')
         .select('*')
         .eq('gender', profile.gender)
         .order('ranking_points', { ascending: false })
@@ -45,7 +45,7 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
           setUserPosition(position + 1);
         } else {
           const { count } = await supabase
-            .from('profiles')
+            .from('players')
             .select('id', { count: 'exact', head: true })
             .eq('gender', profile.gender)
             .gt('ranking_points', profile.ranking_points);

@@ -19,7 +19,7 @@ export default function RankingPage() {
     setLoading(true);
     try {
       let query = supabase
-        .from('profiles')
+        .from('players')
         .select('*')
         .eq('gender', gender);
 

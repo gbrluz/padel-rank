@@ -103,7 +103,7 @@ export default function BackofficePage({ onNavigate }: BackofficePageProps) {
     if (!editingProfile) return;
 
     const { error } = await supabase
-      .from('profiles')
+      .from('players')
       .update({
         full_name: formData.full_name,
         gender: formData.gender,
@@ -132,7 +132,7 @@ export default function BackofficePage({ onNavigate }: BackofficePageProps) {
     }
 
     const { error } = await supabase
-      .from('profiles')
+      .from('players')
       .delete()
       .eq('id', profileId);
 

@@ -44,7 +44,7 @@ export default function RegistrationFormPage() {
     const loadExistingProfile = async () => {
       if (user) {
         const { data, error } = await supabase
-          .from('profiles')
+          .from('players')
           .select('*')
           .eq('id', user.id)
           .maybeSingle();
@@ -147,7 +147,7 @@ export default function RegistrationFormPage() {
 
     try {
       const { data: existingProfile } = await supabase
-        .from('profiles')
+        .from('players')
         .select('id')
         .eq('id', user!.id)
         .maybeSingle();
@@ -158,14 +158,14 @@ export default function RegistrationFormPage() {
 
       if (existingProfile) {
         const { error: updateError } = await supabase
-          .from('profiles')
+          .from('players')
           .update(formData)
           .eq('id', user!.id);
 
         if (updateError) throw updateError;
       } else {
         const { error: insertError } = await supabase
-          .from('profiles')
+          .from('players')
           .insert([{
             id: user!.id,
             ...formData,

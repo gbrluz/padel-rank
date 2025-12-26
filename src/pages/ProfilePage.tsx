@@ -128,7 +128,7 @@ export default function ProfilePage() {
 
     try {
       const { error: updateError } = await supabase
-        .from('profiles')
+        .from('players')
         .update({
           full_name: formData.full_name,
           preferred_side: formData.preferred_side,

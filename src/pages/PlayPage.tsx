@@ -205,7 +205,7 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
     if (!profile) return;
 
     const { data } = await supabase
-      .from('profiles')
+      .from('players')
       .select('*')
       .eq('gender', profile.gender)
       .neq('id', profile.id)
@@ -235,7 +235,7 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
     const allIds = [...new Set([...playerIds, ...partnerIds])];
 
     const { data: profiles } = await supabase
-      .from('profiles')
+      .from('players')
       .select('*')
       .in('id', allIds);
 
@@ -302,7 +302,7 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
     if (receivedInvites && receivedInvites.length > 0) {
       const allUserIds = receivedInvites.map(inv => inv.sender_id);
       const { data: profiles } = await supabase
-        .from('profiles')
+        .from('players')
         .select('*')
         .in('id', allUserIds);
 
@@ -320,7 +320,7 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
 
     if (sentInvite) {
       const { data: receiverProfile } = await supabase
-        .from('profiles')
+        .from('players')
         .select('*')
         .eq('id', sentInvite.receiver_id)
         .maybeSingle();
@@ -394,7 +394,7 @@ export default function PlayPage({ onNavigate }: PlayPageProps) {
       if (updateError) throw updateError;
 
       const { data: senderProfile } = await supabase
-        .from('profiles')
+        .from('players')
         .select('*')
         .eq('id', senderId)
         .maybeSingle();

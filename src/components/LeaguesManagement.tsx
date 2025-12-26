@@ -144,7 +144,7 @@ export default function LeaguesManagement() {
       const memberIds = members?.map(m => m.player_id) || [];
 
       const { data, error } = await supabase
-        .from('profiles')
+        .from('players')
         .select('*')
         .not('id', 'in', `(${memberIds.join(',') || 'null'})`)
         .order('full_name');
