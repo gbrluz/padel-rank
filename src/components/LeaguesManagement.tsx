@@ -25,7 +25,7 @@ interface League {
   entry_criteria: string | null;
   min_points: number | null;
   max_points: number | null;
-  scoring_type: 'standard' | 'games_won' | 'games_balance';
+  scoring_type: 'standard' | 'games_won' | 'games_balance' | 'by_event';
   weekly_day: number | null;
   weekly_time: string | null;
   attendance_deadline_hours: number | null;
@@ -414,21 +414,8 @@ export default function LeaguesManagement() {
               </div>
             )}
 
-            {leagueFormData.type === 'friends' && (
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Nome do Grupo</label>
-                <input
-                  type="text"
-                  value={leagueFormData.group_name || ''}
-                  onChange={(e) => setLeagueFormData({ ...leagueFormData, group_name: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
-                  placeholder="Nome do grupo de amigos"
-                />
-              </div>
-            )}
-
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Descrição</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Descricao</label>
               <textarea
                 value={leagueFormData.description || ''}
                 onChange={(e) => setLeagueFormData({ ...leagueFormData, description: e.target.value })}
@@ -438,20 +425,19 @@ export default function LeaguesManagement() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Duração (máximo 6 meses)</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Duracao (meses)</label>
               <input
                 type="number"
                 min="1"
-                max="6"
                 value={leagueFormData.duration_months || ''}
                 onChange={(e) => setLeagueFormData({ ...leagueFormData, duration_months: e.target.value ? parseInt(e.target.value) : null })}
                 className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
-                placeholder="Número de meses"
+                placeholder="Numero de meses (opcional)"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Número de Vagas</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Numero de Vagas</label>
               <input
                 type="number"
                 min="2"
@@ -498,16 +484,24 @@ export default function LeaguesManagement() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Tipo de Pontuação</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Tipo de Pontuacao</label>
               <select
                 value={leagueFormData.scoring_type || 'standard'}
                 onChange={(e) => setLeagueFormData({ ...leagueFormData, scoring_type: e.target.value as any })}
                 className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
               >
-                <option value="standard">Pontuação Padrão (começa do zero, pode ficar negativa)</option>
+                <option value="standard">Pontuacao Padrao (comeca do zero, pode ficar negativa)</option>
                 <option value="games_won">Por games ganhos no total</option>
                 <option value="games_balance">Por saldo de games no geral</option>
+                {leagueFormData.format === 'weekly' && (
+                  <option value="by_event">Por Evento (presenca 4pts, churrasco 2pts, vitoria 3pts, derrota 1pt)</option>
+                )}
               </select>
+              {leagueFormData.format === 'weekly' && leagueFormData.scoring_type === 'by_event' && (
+                <p className="mt-2 text-sm text-gray-600 bg-blue-50 p-3 rounded-lg">
+                  Pontuacao por evento: Presenca = 4 pontos | Churrasco = 2 pontos | Vitoria = 3 pontos | Derrota = 1 ponto
+                </p>
+              )}
             </div>
 
             <div className="flex items-center gap-2">
@@ -606,7 +600,9 @@ export default function LeaguesManagement() {
 
                       {league.scoring_type && league.scoring_type !== 'standard' && (
                         <span className="px-2 py-1 bg-cyan-100 text-cyan-800 rounded">
-                          {league.scoring_type === 'games_won' ? 'Games ganhos' : 'Saldo de games'}
+                          {league.scoring_type === 'games_won' ? 'Games ganhos' :
+                           league.scoring_type === 'games_balance' ? 'Saldo de games' :
+                           league.scoring_type === 'by_event' ? 'Por evento' : ''}
                         </span>
                       )}
 
@@ -836,21 +832,8 @@ export default function LeaguesManagement() {
                 </div>
               )}
 
-              {leagueFormData.type === 'friends' && (
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Nome do Grupo</label>
-                  <input
-                    type="text"
-                    value={leagueFormData.group_name || ''}
-                    onChange={(e) => setLeagueFormData({ ...leagueFormData, group_name: e.target.value })}
-                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
-                    placeholder="Nome do grupo de amigos"
-                  />
-                </div>
-              )}
-
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Descrição</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Descricao</label>
                 <textarea
                   value={leagueFormData.description || ''}
                   onChange={(e) => setLeagueFormData({ ...leagueFormData, description: e.target.value })}
@@ -860,15 +843,14 @@ export default function LeaguesManagement() {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Duração (máximo 6 meses)</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Duracao (meses)</label>
                 <input
                   type="number"
                   min="1"
-                  max="6"
                   value={leagueFormData.duration_months || ''}
                   onChange={(e) => setLeagueFormData({ ...leagueFormData, duration_months: e.target.value ? parseInt(e.target.value) : null })}
                   className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
-                  placeholder="Número de meses"
+                  placeholder="Numero de meses (opcional)"
                 />
               </div>
 
@@ -920,16 +902,24 @@ export default function LeaguesManagement() {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Tipo de Pontuação</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Tipo de Pontuacao</label>
                 <select
                   value={leagueFormData.scoring_type || 'standard'}
                   onChange={(e) => setLeagueFormData({ ...leagueFormData, scoring_type: e.target.value as any })}
                   className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
                 >
-                  <option value="standard">Pontuação Padrão (começa do zero, pode ficar negativa)</option>
+                  <option value="standard">Pontuacao Padrao (comeca do zero, pode ficar negativa)</option>
                   <option value="games_won">Por games ganhos no total</option>
                   <option value="games_balance">Por saldo de games no geral</option>
+                  {leagueFormData.format === 'weekly' && (
+                    <option value="by_event">Por Evento (presenca 4pts, churrasco 2pts, vitoria 3pts, derrota 1pt)</option>
+                  )}
                 </select>
+                {leagueFormData.format === 'weekly' && leagueFormData.scoring_type === 'by_event' && (
+                  <p className="mt-2 text-sm text-gray-600 bg-blue-50 p-3 rounded-lg">
+                    Pontuacao por evento: Presenca = 4 pontos | Churrasco = 2 pontos | Vitoria = 3 pontos | Derrota = 1 ponto
+                  </p>
+                )}
               </div>
 
               <div className="flex items-center gap-2">
