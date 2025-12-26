@@ -484,18 +484,46 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
 
   const loadLeagueRankings = async (leagueId: string) => {
     try {
-      const { data, error } = await supabase
-        .from('league_rankings')
+      const { data: members, error: membersError } = await supabase
+        .from('league_memberships')
         .select(`
-          *,
+          player_id,
           player:players(*)
         `)
-        .eq('league_id', leagueId)
-        .order('points', { ascending: false })
-        .limit(50);
+        .eq('league_id', leagueId);
 
-      if (error) throw error;
-      setLeagueRankings(data || []);
+      if (membersError) throw membersError;
+
+      const { data: rankings, error: rankingsError } = await supabase
+        .from('league_rankings')
+        .select('*')
+        .eq('league_id', leagueId);
+
+      if (rankingsError) throw rankingsError;
+
+      const rankingsMap = new Map(rankings?.map(r => [r.player_id, r]) || []);
+
+      const combinedRankings = (members || []).map(member => {
+        const existingRanking = rankingsMap.get(member.player_id);
+        return {
+          player_id: member.player_id,
+          league_id: leagueId,
+          points: existingRanking?.points || 0,
+          matches_played: existingRanking?.matches_played || 0,
+          wins: existingRanking?.wins || 0,
+          losses: existingRanking?.losses || 0,
+          win_rate: existingRanking?.win_rate || 0,
+          player: member.player,
+        };
+      });
+
+      combinedRankings.sort((a, b) => {
+        if (b.points !== a.points) return b.points - a.points;
+        if (b.wins !== a.wins) return b.wins - a.wins;
+        return a.player?.full_name?.localeCompare(b.player?.full_name || '') || 0;
+      });
+
+      setLeagueRankings(combinedRankings);
     } catch (error) {
       console.error('Error loading league rankings:', error);
     }
