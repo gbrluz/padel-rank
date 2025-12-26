@@ -1,91 +1,98 @@
-import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import {
+  handleCors,
+  jsonResponse,
+  Errors,
+  authenticateRequest,
+  getPlayerProfile,
+  whitelistFields,
+} from "../_shared/index.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
-};
+const ALLOWED_UPDATE_FIELDS = [
+  "full_name",
+  "nickname",
+  "state",
+  "city",
+  "preferred_side",
+  "availability",
+  "avatar_url",
+] as const;
 
 Deno.serve(async (req: Request) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 200,
-      headers: corsHeaders,
-    });
-  }
+  const corsResponse = handleCors(req);
+  if (corsResponse) return corsResponse;
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    const authHeader = req.headers.get('Authorization')!;
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-
-    if (authError || !user) {
-      throw new Error('Unauthorized');
+    const authResult = await authenticateRequest(req);
+    if (!authResult.success) {
+      return authResult.response;
     }
 
+    const { user, supabase } = authResult;
     const url = new URL(req.url);
-    const pathParts = url.pathname.split('/').filter(Boolean);
+    const pathParts = url.pathname.split("/").filter(Boolean);
     const method = req.method;
 
-    if (method === 'GET') {
+    if (method === "GET") {
       const playerId = pathParts[1] || user.id;
-      
+
       const { data: player, error } = await supabase
-        .from('players')
-        .select('*')
-        .eq('id', playerId)
+        .from("players")
+        .select("*")
+        .eq("id", playerId)
         .maybeSingle();
 
-      if (error) throw error;
-
-      return new Response(
-        JSON.stringify({ player }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    if (method === 'PUT') {
-      const playerId = pathParts[1] || user.id;
-      
-      const { data: requestingPlayer } = await supabase
-        .from('players')
-        .select('is_admin')
-        .eq('id', user.id)
-        .maybeSingle();
-
-      if (playerId !== user.id && !requestingPlayer?.is_admin) {
-        throw new Error('Unauthorized to update this player');
+      if (error) {
+        return Errors.internal();
       }
 
-      const updates = await req.json();
-      
+      if (!player) {
+        return Errors.notFound("Jogador");
+      }
+
+      return jsonResponse({ player });
+    }
+
+    if (method === "PUT") {
+      const playerId = pathParts[1] || user.id;
+
+      if (playerId !== user.id) {
+        const requestingPlayer = await getPlayerProfile(supabase, user.id);
+
+        if (!requestingPlayer?.is_admin) {
+          return Errors.forbidden("Sem permissao para atualizar este jogador");
+        }
+      }
+
+      let updates;
+      try {
+        updates = await req.json();
+      } catch {
+        return Errors.badRequest("Corpo da requisicao invalido");
+      }
+
+      const safeUpdates = whitelistFields(updates, [...ALLOWED_UPDATE_FIELDS]);
+
+      if (Object.keys(safeUpdates).length === 0) {
+        return Errors.badRequest("Nenhum campo valido para atualizar");
+      }
+
       const { data: player, error } = await supabase
-        .from('players')
-        .update(updates)
-        .eq('id', playerId)
+        .from("players")
+        .update(safeUpdates)
+        .eq("id", playerId)
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        return Errors.internal();
+      }
 
-      return new Response(
-        JSON.stringify({ player }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({ player });
     }
 
-    return new Response(
-      JSON.stringify({ error: 'Method not allowed' }),
-      { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  } catch (error: any) {
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return Errors.badRequest("Metodo nao permitido");
+  } catch {
+    return Errors.internal();
   }
 });
