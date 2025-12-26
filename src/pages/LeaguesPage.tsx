@@ -1100,6 +1100,7 @@ console.log({
                   )}
 
                   {shouldShowScoringCard(selectedLeague) && (
+                  console.log(selectedLeague)
                     <div className="bg-purple-50 border-2 border-purple-200 rounded-xl p-4 mb-6">
                       <div className="flex items-start gap-3">
                         <Trophy className="w-6 h-6 text-purple-600 flex-shrink-0 mt-0.5" />
