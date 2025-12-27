@@ -683,9 +683,50 @@ const shouldShowScoringCard = (league: League): boolean => {
         (scoringDefeats ?? 0) +
         (scoringBbq ? 1 : 0);
 
-      if (!weeklyScore) {
-        alert('Registro de presenca nao encontrado');
+      const lastEvent = getLastEventDate(selectedLeague);
+      if (!lastEvent) {
+        alert('Nao foi possivel determinar a data do evento');
         return;
+      }
+      const eventDate = lastEvent.toISOString().split('T')[0];
+
+      let attendanceId = weeklyScore?.id;
+
+      if (!attendanceId) {
+        let { data: weeklyEvent } = await supabase
+          .from('weekly_events')
+          .select('id')
+          .eq('league_id', selectedLeague.id)
+          .eq('event_date', eventDate)
+          .maybeSingle();
+
+        if (!weeklyEvent) {
+          const { data: newEvent, error: eventError } = await supabase
+            .from('weekly_events')
+            .insert({
+              league_id: selectedLeague.id,
+              event_date: eventDate,
+            })
+            .select()
+            .single();
+
+          if (eventError) throw eventError;
+          weeklyEvent = newEvent;
+        }
+
+        const { data: newAttendance, error: attendanceError } = await supabase
+          .from('weekly_event_attendance')
+          .insert({
+            event_id: weeklyEvent.id,
+            player_id: profile.id,
+            confirmed: true,
+            confirmed_at: new Date().toISOString(),
+          })
+          .select()
+          .single();
+
+        if (attendanceError) throw attendanceError;
+        attendanceId = newAttendance.id;
       }
 
       const { error } = await supabase
@@ -699,7 +740,7 @@ const shouldShowScoringCard = (league: League): boolean => {
           points_submitted_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
-        .eq('id', weeklyScore.id);
+        .eq('id', attendanceId);
 
       if (error) throw error;
 
