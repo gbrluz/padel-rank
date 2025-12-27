@@ -674,35 +674,35 @@ const shouldShowScoringCard = (league: League): boolean => {
   };
 
   const handleSubmitScore = async () => {
-    //if (!weeklyScore) return;
+    if (!selectedLeague || !profile) return;
 
-setSubmittingScore(true);
+    setSubmittingScore(true);
     try {
-       const totalPoints =
-    (scoringVictories ?? 0) +
-    (scoringDefeats ?? 0) +
-    (scoringBbq ? 1 : 0);
+      const totalPoints =
+        (scoringVictories ?? 0) +
+        (scoringDefeats ?? 0) +
+        (scoringBbq ? 1 : 0);
 
-  const payload = {
-    victories: scoringVictories ?? 0,
-    defeats: scoringDefeats ?? 0,
-    bbq_participated: scoringBbq ?? false,
-    total_points: totalPoints,
-    points_submitted: true,
-    points_submitted_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    league_id: league.id,
-    user_id: user.id,
-    event_date: getLastEventDate(league)?.toISOString(),
-  };
-      const query = weeklyScore
-    ? supabase
-        .from('weekly_event_attendance')
-        .update(payload)
-        .eq('id', weeklyScore.id)
-    : supabase
-        .from('weekly_event_attendance')
-        .insert(payload);
+      const payload = {
+        victories: scoringVictories ?? 0,
+        defeats: scoringDefeats ?? 0,
+        bbq_participated: scoringBbq ?? false,
+        total_points: totalPoints,
+        points_submitted: true,
+        points_submitted_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        league_id: selectedLeague.id,
+        user_id: profile.id,
+        event_date: getLastEventDate(selectedLeague)?.toISOString(),
+      };
+      const { error } = weeklyScore
+        ? await supabase
+            .from('weekly_event_attendance')
+            .update(payload)
+            .eq('id', weeklyScore.id)
+        : await supabase
+            .from('weekly_event_attendance')
+            .insert(payload);
 
       if (error) throw error;
 
