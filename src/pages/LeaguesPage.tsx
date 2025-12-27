@@ -683,26 +683,23 @@ const shouldShowScoringCard = (league: League): boolean => {
         (scoringDefeats ?? 0) +
         (scoringBbq ? 1 : 0);
 
-      const payload = {
-        victories: scoringVictories ?? 0,
-        defeats: scoringDefeats ?? 0,
-        bbq_participated: scoringBbq ?? false,
-        total_points: totalPoints,
-        points_submitted: true,
-        points_submitted_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        league_id: selectedLeague.id,
-        user_id: profile.id,
-        event_date: getLastEventDate(selectedLeague)?.toISOString(),
-      };
-      const { error } = weeklyScore
-        ? await supabase
-            .from('weekly_event_attendance')
-            .update(payload)
-            .eq('id', weeklyScore.id)
-        : await supabase
-            .from('weekly_event_attendance')
-            .insert(payload);
+      if (!weeklyScore) {
+        alert('Registro de presenca nao encontrado');
+        return;
+      }
+
+      const { error } = await supabase
+        .from('weekly_event_attendance')
+        .update({
+          victories: scoringVictories ?? 0,
+          defeats: scoringDefeats ?? 0,
+          bbq_participated: scoringBbq ?? false,
+          total_points: totalPoints,
+          points_submitted: true,
+          points_submitted_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', weeklyScore.id);
 
       if (error) throw error;
 
