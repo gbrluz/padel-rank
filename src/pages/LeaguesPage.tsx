@@ -677,50 +677,33 @@ const shouldShowScoringCard = (league: League): boolean => {
     //if (!weeklyScore) return;
 
 setSubmittingScore(true);
+    try {
+      const totalPoints = scoringVictories + scoringDefeats + (scoringBbq ? 1 : 0);
 
-try {
-  const totalPoints =
-    (scoringVictories ?? 0) +
-    (scoringDefeats ?? 0) +
-    (scoringBbq ? 1 : 0);
+      const { error } = await supabase
+        .from('weekly_event_attendance')
+        .update({
+          victories: scoringVictories,
+          defeats: scoringDefeats,
+          bbq_participated: scoringBbq,
+          total_points: totalPoints,
+          points_submitted: true,
+          points_submitted_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', weeklyScore.id);
 
-  const payload = {
-    victories: scoringVictories ?? 0,
-    defeats: scoringDefeats ?? 0,
-    bbq_participated: scoringBbq ?? false,
-    total_points: totalPoints,
-    points_submitted: true,
-    points_submitted_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    league_id: league.id,
-    user_id: user.id,
-    event_date: getLastEventDate(league)?.toISOString(),
+      if (error) throw error;
+
+      alert('Pontuacao enviada com sucesso!');
+      await loadWeeklyScore();
+    } catch (error) {
+      console.error('Error submitting score:', error);
+      alert('Erro ao enviar pontuacao');
+    } finally {
+      setSubmittingScore(false);
+    }
   };
-
-  console.log('[SubmitScore] payload:', payload);
-
-  const query = weeklyScore
-    ? supabase
-        .from('weekly_event_attendance')
-        .update(payload)
-        .eq('id', weeklyScore.id)
-    : supabase
-        .from('weekly_event_attendance')
-        .insert(payload);
-
-  const { error } = await query;
-
-  if (error) throw error;
-
-  alert('Pontuação enviada com sucesso!');
-  await loadWeeklyScore();
-
-} catch (error: any) {
-  console.error('[SubmitScore] ERROR:', error);
-  alert(error?.message ?? 'Erro ao enviar pontuação');
-} finally {
-  setSubmittingScore(false);
-}
 
   const handleJoinLeague = async (leagueId: string) => {
     if (!profile) return;
