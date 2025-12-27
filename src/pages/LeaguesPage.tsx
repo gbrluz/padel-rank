@@ -785,29 +785,53 @@ const shouldShowScoringCard = (league: League): boolean => {
           player_id,
           player:players(*)
         `)
-        .eq('league_id', leagueId);
+        .eq('league_id', leagueId)
+        .eq('status', 'active');
 
       if (membersError) throw membersError;
 
-      const { data: rankings, error: rankingsError } = await supabase
-        .from('league_rankings')
-        .select('*')
+      const { data: events, error: eventsError } = await supabase
+        .from('weekly_events')
+        .select('id')
         .eq('league_id', leagueId);
 
-      if (rankingsError) throw rankingsError;
+      if (eventsError) throw eventsError;
 
-      const rankingsMap = new Map(rankings?.map(r => [r.player_id, r]) || []);
+      const eventIds = events?.map(e => e.id) || [];
+
+      let attendanceData: any[] = [];
+      if (eventIds.length > 0) {
+        const { data: attendance, error: attendanceError } = await supabase
+          .from('weekly_event_attendance')
+          .select('player_id, victories, defeats, total_points, bbq_participated')
+          .in('event_id', eventIds)
+          .eq('points_submitted', true);
+
+        if (attendanceError) throw attendanceError;
+        attendanceData = attendance || [];
+      }
+
+      const statsMap = new Map<string, { points: number; wins: number; losses: number }>();
+      attendanceData.forEach(att => {
+        const existing = statsMap.get(att.player_id) || { points: 0, wins: 0, losses: 0 };
+        statsMap.set(att.player_id, {
+          points: existing.points + (att.total_points || 0),
+          wins: existing.wins + (att.victories || 0),
+          losses: existing.losses + (att.defeats || 0),
+        });
+      });
 
       const combinedRankings = (members || []).map(member => {
-        const existingRanking = rankingsMap.get(member.player_id);
+        const stats = statsMap.get(member.player_id) || { points: 0, wins: 0, losses: 0 };
+        const matchesPlayed = stats.wins + stats.losses;
         return {
           player_id: member.player_id,
           league_id: leagueId,
-          points: existingRanking?.points || 0,
-          matches_played: existingRanking?.matches_played || 0,
-          wins: existingRanking?.wins || 0,
-          losses: existingRanking?.losses || 0,
-          win_rate: existingRanking?.win_rate || 0,
+          points: stats.points,
+          matches_played: matchesPlayed,
+          wins: stats.wins,
+          losses: stats.losses,
+          win_rate: matchesPlayed > 0 ? (stats.wins / matchesPlayed) * 100 : 0,
           player: member.player,
         };
       });
