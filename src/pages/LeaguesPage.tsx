@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Medal, Users, Trophy, TrendingUp, UserPlus, Clock, Check, Loader2, Shield, CheckCircle, XCircle, Trash2, Calendar, CalendarCheck, RotateCcw, AlertTriangle } from 'lucide-react';
+import { Medal, Users, Trophy, TrendingUp, UserPlus, Clock, Check, Loader2, Shield, CheckCircle, XCircle, Trash2, Calendar, CalendarCheck, RotateCcw, AlertTriangle, Shuffle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Player as Profile } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -61,6 +61,25 @@ interface LeagueMember {
   player: Profile;
 }
 
+interface EventDraw {
+  id: string;
+  league_id: string;
+  event_date: string;
+  drawn_at: string;
+  drawn_by: string;
+}
+
+interface EventPair {
+  id: string;
+  draw_id: string;
+  player1_id: string;
+  player2_id: string | null;
+  pair_number: number;
+  is_top_12: boolean;
+  player1?: Profile;
+  player2?: Profile;
+}
+
 export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
   const { player: profile } = useAuth();
   const [leagues, setLeagues] = useState<League[]>([]);
@@ -92,6 +111,9 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resettingPoints, setResettingPoints] = useState(false);
   const [showBlowoutRanking, setShowBlowoutRanking] = useState(false);
+  const [currentDraw, setCurrentDraw] = useState<EventDraw | null>(null);
+  const [currentPairs, setCurrentPairs] = useState<EventPair[]>([]);
+  const [performingDraw, setPerformingDraw] = useState(false);
 
   useEffect(() => {
     loadLeagues();
@@ -112,6 +134,7 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
       }
       if (selectedLeague.format === 'weekly') {
         loadAllAttendances(selectedLeague.id);
+        loadEventDraw(selectedLeague.id);
         if (myLeagues.includes(selectedLeague.id)) {
           loadMyAttendance(selectedLeague.id);
           loadMyLastEventAttendance(selectedLeague.id);
@@ -555,6 +578,225 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
       setAllAttendances(attendanceMap);
     } catch (error) {
       console.error('Error loading all attendances:', error);
+    }
+  };
+
+  const loadEventDraw = async (leagueId: string) => {
+    if (!selectedLeague) return;
+
+    const nextEvent = getNextWeeklyEventDate(selectedLeague);
+    const lastEvent = getLastEventDate(selectedLeague);
+
+    const eventDate = nextEvent?.toISOString().split('T')[0] || lastEvent?.toISOString().split('T')[0];
+    if (!eventDate) return;
+
+    try {
+      const { data: drawData, error: drawError } = await supabase
+        .from('weekly_event_draws')
+        .select('*')
+        .eq('league_id', leagueId)
+        .eq('event_date', eventDate)
+        .maybeSingle();
+
+      if (drawError) throw drawError;
+
+      if (drawData) {
+        setCurrentDraw(drawData);
+
+        const { data: pairsData, error: pairsError } = await supabase
+          .from('weekly_event_pairs')
+          .select('*')
+          .eq('draw_id', drawData.id)
+          .order('pair_number');
+
+        if (pairsError) throw pairsError;
+
+        const playersMap = new Map(allPlayers.map(p => [p.id, p]));
+        const pairsWithPlayers = (pairsData || []).map(pair => ({
+          ...pair,
+          player1: playersMap.get(pair.player1_id),
+          player2: pair.player2_id ? playersMap.get(pair.player2_id) : undefined,
+        }));
+
+        setCurrentPairs(pairsWithPlayers);
+      } else {
+        setCurrentDraw(null);
+        setCurrentPairs([]);
+      }
+    } catch (error) {
+      console.error('Error loading event draw:', error);
+    }
+  };
+
+  const canOrganizerPerformDraw = (league: League): boolean => {
+    if (league.format !== 'weekly') return false;
+
+    const nextEvent = getNextWeeklyEventDate(league);
+    const deadline = getAttendanceDeadline(league);
+
+    if (!nextEvent || !deadline) return false;
+
+    const now = new Date();
+    return now >= deadline && now < nextEvent;
+  };
+
+  const shouldShowDrawResults = (league: League): boolean => {
+    if (league.format !== 'weekly') return false;
+    if (!currentDraw) return false;
+
+    const now = Date.now();
+    const lastEvent = getLastEventDate(league);
+    const nextEvent = getNextWeeklyEventDate(league);
+
+    if (lastEvent) {
+      const showEnd = lastEvent.getTime() + (48 * 60 * 60 * 1000);
+      if (now >= lastEvent.getTime() && now < showEnd) {
+        return true;
+      }
+    }
+
+    if (nextEvent) {
+      const deadline = getAttendanceDeadline(league);
+      if (deadline && now >= deadline.getTime() && now < nextEvent.getTime()) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
+  const handlePerformDraw = async () => {
+    if (!selectedLeague || !profile) return;
+
+    const nextEvent = getNextWeeklyEventDate(selectedLeague);
+    if (!nextEvent) return;
+
+    const eventDate = nextEvent.toISOString().split('T')[0];
+
+    setPerformingDraw(true);
+    try {
+      const confirmedPlayers = Object.entries(allAttendances)
+        .filter(([_, att]) => att.status === 'confirmed')
+        .map(([playerId]) => playerId);
+
+      if (confirmedPlayers.length < 2) {
+        alert('Sao necessarios pelo menos 2 jogadores confirmados para realizar o sorteio');
+        return;
+      }
+
+      const playersWithPoints = confirmedPlayers.map(playerId => {
+        const ranking = leagueRankings.find(r => r.player_id === playerId);
+        return {
+          playerId,
+          points: ranking?.points || 0,
+        };
+      });
+
+      playersWithPoints.sort((a, b) => b.points - a.points);
+
+      const allSamePoints = playersWithPoints.every(p => p.points === playersWithPoints[0].points);
+
+      let top12Players: string[] = [];
+      let remainingPlayers: string[] = [];
+
+      if (allSamePoints) {
+        remainingPlayers = playersWithPoints.map(p => p.playerId);
+      } else {
+        top12Players = playersWithPoints.slice(0, 12).map(p => p.playerId);
+        remainingPlayers = playersWithPoints.slice(12).map(p => p.playerId);
+      }
+
+      const shuffleArray = (arr: string[]) => {
+        const shuffled = [...arr];
+        for (let i = shuffled.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        return shuffled;
+      };
+
+      const shuffledTop12 = shuffleArray(top12Players);
+      const shuffledRemaining = shuffleArray(remainingPlayers);
+
+      const pairs: { player1: string; player2: string | null; isTop12: boolean }[] = [];
+
+      for (let i = 0; i < shuffledTop12.length; i += 2) {
+        if (i + 1 < shuffledTop12.length) {
+          pairs.push({ player1: shuffledTop12[i], player2: shuffledTop12[i + 1], isTop12: true });
+        } else {
+          pairs.push({ player1: shuffledTop12[i], player2: null, isTop12: true });
+        }
+      }
+
+      for (let i = 0; i < shuffledRemaining.length; i += 2) {
+        if (i + 1 < shuffledRemaining.length) {
+          pairs.push({ player1: shuffledRemaining[i], player2: shuffledRemaining[i + 1], isTop12: false });
+        } else {
+          if (pairs.length > 0 && pairs[pairs.length - 1].player2 === null) {
+            pairs[pairs.length - 1].player2 = shuffledRemaining[i];
+          } else {
+            pairs.push({ player1: shuffledRemaining[i], player2: null, isTop12: false });
+          }
+        }
+      }
+
+      await supabase
+        .from('weekly_event_draws')
+        .delete()
+        .eq('league_id', selectedLeague.id)
+        .eq('event_date', eventDate);
+
+      const { data: newDraw, error: drawError } = await supabase
+        .from('weekly_event_draws')
+        .insert({
+          league_id: selectedLeague.id,
+          event_date: eventDate,
+          drawn_by: profile.id,
+        })
+        .select()
+        .single();
+
+      if (drawError) throw drawError;
+
+      const pairsToInsert = pairs.map((pair, index) => ({
+        draw_id: newDraw.id,
+        player1_id: pair.player1,
+        player2_id: pair.player2,
+        pair_number: index + 1,
+        is_top_12: pair.isTop12,
+      }));
+
+      const { error: pairsError } = await supabase
+        .from('weekly_event_pairs')
+        .insert(pairsToInsert);
+
+      if (pairsError) throw pairsError;
+
+      await loadEventDraw(selectedLeague.id);
+      alert('Sorteio realizado com sucesso!');
+    } catch (error) {
+      console.error('Error performing draw:', error);
+      alert('Erro ao realizar sorteio');
+    } finally {
+      setPerformingDraw(false);
+    }
+  };
+
+  const handleDeleteDraw = async () => {
+    if (!selectedLeague || !currentDraw) return;
+    if (!confirm('Tem certeza que deseja apagar o sorteio atual?')) return;
+
+    try {
+      await supabase
+        .from('weekly_event_draws')
+        .delete()
+        .eq('id', currentDraw.id);
+
+      setCurrentDraw(null);
+      setCurrentPairs([]);
+    } catch (error) {
+      console.error('Error deleting draw:', error);
+      alert('Erro ao apagar sorteio');
     }
   };
 
@@ -1191,6 +1433,61 @@ const shouldShowScoringCard = (league: League): boolean => {
                       </div>
 
                       {selectedLeague.format === 'weekly' && (
+                        <div className="bg-cyan-50 border-2 border-cyan-200 rounded-xl p-4">
+                          <h3 className="font-bold text-cyan-900 mb-3 flex items-center gap-2">
+                            <Shuffle className="w-5 h-5" />
+                            Sorteio de Duplas
+                          </h3>
+                          {canOrganizerPerformDraw(selectedLeague) ? (
+                            <>
+                              <p className="text-sm text-cyan-700 mb-3">
+                                Realize o sorteio das duplas para o proximo evento. O sorteio e feito primeiro entre os 12 melhores colocados confirmados, depois com os demais.
+                              </p>
+                              {currentDraw ? (
+                                <div className="space-y-3">
+                                  <div className="bg-cyan-100 rounded-lg p-3">
+                                    <p className="text-sm text-cyan-800 font-medium">Sorteio ja realizado</p>
+                                    <p className="text-xs text-cyan-600 mt-1">
+                                      {currentPairs.length} dupla(s) sorteada(s)
+                                    </p>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={handlePerformDraw}
+                                      disabled={performingDraw}
+                                      className="flex-1 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+                                    >
+                                      {performingDraw ? <Loader2 className="w-4 h-4 animate-spin" /> : <Shuffle className="w-4 h-4" />}
+                                      Refazer Sorteio
+                                    </button>
+                                    <button
+                                      onClick={handleDeleteDraw}
+                                      className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 font-medium"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={handlePerformDraw}
+                                  disabled={performingDraw}
+                                  className="w-full py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+                                >
+                                  {performingDraw ? <Loader2 className="w-4 h-4 animate-spin" /> : <Shuffle className="w-4 h-4" />}
+                                  Realizar Sorteio
+                                </button>
+                              )}
+                            </>
+                          ) : (
+                            <p className="text-sm text-cyan-600">
+                              O sorteio pode ser realizado apos o prazo de confirmacao de presenca e antes do inicio do evento.
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {selectedLeague.format === 'weekly' && (
                         <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4">
                           <h3 className="font-bold text-red-900 mb-3 flex items-center gap-2">
                             <RotateCcw className="w-5 h-5" />
@@ -1323,6 +1620,72 @@ const shouldShowScoringCard = (league: League): boolean => {
                               <span className="truncate">Nao poderei ir</span>
                             </button>
                           </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {myLeagues.includes(selectedLeague.id) && shouldShowDrawResults(selectedLeague) && currentPairs.length > 0 && (
+                    <div className="bg-cyan-50 border-2 border-cyan-200 rounded-xl p-4 mb-6">
+                      <div className="flex items-start gap-3">
+                        <Shuffle className="w-6 h-6 text-cyan-600 flex-shrink-0 mt-0.5" />
+                        <div className="flex-1">
+                          <p className="font-semibold text-cyan-900">
+                            Duplas Sorteadas
+                          </p>
+                          <p className="text-sm text-cyan-700 mt-1">
+                            {currentDraw?.event_date && new Date(currentDraw.event_date + 'T00:00:00').toLocaleDateString('pt-BR')}
+                          </p>
+
+                          <div className="mt-4 space-y-2">
+                            {currentPairs.map((pair, index) => {
+                              const isMyPair = pair.player1_id === profile?.id || pair.player2_id === profile?.id;
+                              return (
+                                <div
+                                  key={pair.id}
+                                  className={`p-3 rounded-lg border ${
+                                    isMyPair
+                                      ? 'bg-cyan-100 border-cyan-300'
+                                      : 'bg-white border-cyan-200'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <span className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold ${
+                                      pair.is_top_12 ? 'bg-amber-500 text-white' : 'bg-gray-300 text-gray-700'
+                                    }`}>
+                                      {index + 1}
+                                    </span>
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <span className={`font-medium ${pair.player1_id === profile?.id ? 'text-cyan-700' : 'text-gray-900'}`}>
+                                          {pair.player1?.full_name || 'Jogador'}
+                                          {pair.player1_id === profile?.id && ' (Voce)'}
+                                        </span>
+                                        {pair.player2 ? (
+                                          <>
+                                            <span className="text-gray-400">&</span>
+                                            <span className={`font-medium ${pair.player2_id === profile?.id ? 'text-cyan-700' : 'text-gray-900'}`}>
+                                              {pair.player2?.full_name || 'Jogador'}
+                                              {pair.player2_id === profile?.id && ' (Voce)'}
+                                            </span>
+                                          </>
+                                        ) : (
+                                          <span className="text-amber-600 font-medium">(Coringa)</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {currentPairs.some(p => p.is_top_12) && (
+                            <p className="text-xs text-cyan-600 mt-3 flex items-center gap-1">
+                              <span className="w-3 h-3 rounded-full bg-amber-500 inline-block"></span>
+                              Top 12 colocados
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>
