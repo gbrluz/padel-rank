@@ -209,7 +209,7 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
         .from('league_join_requests')
         .select(`
           *,
-          player:players(*)
+          player:players!league_join_requests_player_id_fkey(*)
         `)
         .eq('league_id', leagueId)
         .eq('status', 'pending')
@@ -684,20 +684,15 @@ const shouldShowScoringCard = (league: League): boolean => {
           setScoringVictories(attendance.victories || 0);
           setScoringDefeats(attendance.defeats || 0);
           setScoringBbq(attendance.bbq_participated || false);
+          setHasBlowouts((attendance.blowouts_received || 0) > 0);
+          setScoringBlowouts(attendance.blowouts_received || 0);
         } else {
-          const { data: newAttendance, error: createError } = await supabase
-            .from('weekly_event_attendance')
-            .insert({
-              event_id: weeklyEvent.id,
-              player_id: profile.id,
-              confirmed: true,
-              confirmed_at: new Date().toISOString()
-            })
-            .select()
-            .single();
-
-          if (createError) throw createError;
-          setWeeklyScore(newAttendance);
+          setWeeklyScore(null);
+          setScoringVictories(0);
+          setScoringDefeats(0);
+          setScoringBbq(false);
+          setHasBlowouts(false);
+          setScoringBlowouts(0);
         }
       } else {
         setWeeklyScore(null);
@@ -727,48 +722,34 @@ const shouldShowScoringCard = (league: League): boolean => {
       }
       const eventDate = lastEvent.toISOString().split('T')[0];
 
-      let attendanceId = weeklyScore?.id;
+      let { data: weeklyEvent } = await supabase
+        .from('weekly_events')
+        .select('id')
+        .eq('league_id', selectedLeague.id)
+        .eq('event_date', eventDate)
+        .maybeSingle();
 
-      if (!attendanceId) {
-        let { data: weeklyEvent } = await supabase
+      if (!weeklyEvent) {
+        const { data: newEvent, error: eventError } = await supabase
           .from('weekly_events')
-          .select('id')
-          .eq('league_id', selectedLeague.id)
-          .eq('event_date', eventDate)
-          .maybeSingle();
-
-        if (!weeklyEvent) {
-          const { data: newEvent, error: eventError } = await supabase
-            .from('weekly_events')
-            .insert({
-              league_id: selectedLeague.id,
-              event_date: eventDate,
-            })
-            .select()
-            .single();
-
-          if (eventError) throw eventError;
-          weeklyEvent = newEvent;
-        }
-
-        const { data: newAttendance, error: attendanceError } = await supabase
-          .from('weekly_event_attendance')
           .insert({
-            event_id: weeklyEvent.id,
-            player_id: profile.id,
-            confirmed: true,
-            confirmed_at: new Date().toISOString(),
+            league_id: selectedLeague.id,
+            event_date: eventDate,
           })
           .select()
           .single();
 
-        if (attendanceError) throw attendanceError;
-        attendanceId = newAttendance.id;
+        if (eventError) throw eventError;
+        weeklyEvent = newEvent;
       }
 
       const { error } = await supabase
         .from('weekly_event_attendance')
-        .update({
+        .upsert({
+          event_id: weeklyEvent.id,
+          player_id: profile.id,
+          confirmed: true,
+          confirmed_at: new Date().toISOString(),
           victories: scoringVictories ?? 0,
           defeats: scoringDefeats ?? 0,
           bbq_participated: scoringBbq ?? false,
@@ -777,8 +758,9 @@ const shouldShowScoringCard = (league: League): boolean => {
           points_submitted: true,
           points_submitted_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-        })
-        .eq('id', attendanceId);
+        }, {
+          onConflict: 'event_id,player_id'
+        });
 
       if (error) throw error;
 
