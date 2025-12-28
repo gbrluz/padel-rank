@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 
-const API_BASE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 async function getAuthToken(): Promise<string> {
   const { data: { session } } = await supabase.auth.getSession();
@@ -70,14 +70,14 @@ export const matchesAPI = {
   },
 
   async complete(matchId: string, data: any) {
-    return fetchAPI(`/complete-match`, {
+    return fetchAPI(`/matches/complete`, {
       method: 'POST',
       body: JSON.stringify({ matchId, ...data }),
     });
   },
 
   async approve(matchId: string, approved: boolean) {
-    return fetchAPI(`/match-approval`, {
+    return fetchAPI(`/matches/approve`, {
       method: 'POST',
       body: JSON.stringify({ matchId, approved }),
     });
@@ -284,7 +284,7 @@ export const queueAPI = {
   },
 
   async findMatch(data: any) {
-    return fetchAPI('/find-match', {
+    return fetchAPI('/queue/find-match', {
       method: 'POST',
       body: JSON.stringify(data),
     });
