@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Medal, Users, Trophy, TrendingUp, UserPlus, Clock, Check, Loader2, Shield, CheckCircle, XCircle, Trash2, Calendar, CalendarCheck } from 'lucide-react';
+import { Medal, Users, Trophy, TrendingUp, UserPlus, Clock, Check, Loader2, Shield, CheckCircle, XCircle, Trash2, Calendar, CalendarCheck, RotateCcw, AlertTriangle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Player as Profile } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -84,6 +84,8 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
   const [submittingScore, setSubmittingScore] = useState(false);
   const [weeklyScore, setWeeklyScore] = useState<any>(null);
   const [allAttendances, setAllAttendances] = useState<Record<string, WeeklyAttendance>>({});
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [resettingPoints, setResettingPoints] = useState(false);
 
   useEffect(() => {
     loadLeagues();
@@ -359,6 +361,40 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
     } catch (error) {
       console.error('Error removing member:', error);
       alert('Erro ao remover membro');
+    }
+  };
+
+  const handleResetPoints = async () => {
+    if (!selectedLeague) return;
+
+    setResettingPoints(true);
+    try {
+      const { data: events } = await supabase
+        .from('weekly_events')
+        .select('id')
+        .eq('league_id', selectedLeague.id);
+
+      if (events && events.length > 0) {
+        const eventIds = events.map(e => e.id);
+
+        await supabase
+          .from('weekly_event_attendance')
+          .update({
+            victories: 0,
+            defeats: 0,
+            total_points: 0,
+            points_submitted: false
+          })
+          .in('event_id', eventIds);
+      }
+
+      await loadLeagueRankings(selectedLeague.id);
+      setShowResetConfirm(false);
+    } catch (error) {
+      console.error('Error resetting points:', error);
+      alert('Erro ao resetar pontos');
+    } finally {
+      setResettingPoints(false);
     }
   };
 
@@ -1069,6 +1105,24 @@ const shouldShowScoringCard = (league: League): boolean => {
                           ))}
                         </div>
                       </div>
+
+                      {selectedLeague.format === 'weekly' && (
+                        <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4">
+                          <h3 className="font-bold text-red-900 mb-3 flex items-center gap-2">
+                            <RotateCcw className="w-5 h-5" />
+                            Resetar Pontuacao
+                          </h3>
+                          <p className="text-sm text-red-700 mb-3">
+                            Zera todas as pontuacoes da liga. Esta acao nao pode ser desfeita.
+                          </p>
+                          <button
+                            onClick={() => setShowResetConfirm(true)}
+                            className="w-full py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium"
+                          >
+                            Resetar Pontos da Liga
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -1398,6 +1452,45 @@ const shouldShowScoringCard = (league: League): boolean => {
           </div>
         )}
       </div>
+
+      {showResetConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-3 bg-red-100 rounded-full">
+                <AlertTriangle className="w-6 h-6 text-red-600" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900">Confirmar Reset</h3>
+            </div>
+            <p className="text-gray-600 mb-6">
+              Tem certeza que deseja resetar todas as pontuacoes da liga? Esta acao ira zerar vitorias, derrotas e pontos de todos os jogadores. Esta acao nao pode ser desfeita.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowResetConfirm(false)}
+                disabled={resettingPoints}
+                className="flex-1 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleResetPoints}
+                disabled={resettingPoints}
+                className="flex-1 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {resettingPoints ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Resetando...
+                  </>
+                ) : (
+                  'Confirmar Reset'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
