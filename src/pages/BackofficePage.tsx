@@ -213,43 +213,44 @@ export default function BackofficePage({ onNavigate }: BackofficePageProps) {
         </div>
 
         <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-          <div className="flex border-b border-gray-200">
+          <div className="flex border-b border-gray-200 overflow-x-auto scrollbar-hide">
             <button
               onClick={() => setActiveTab('profiles')}
-              className={`flex-1 px-6 py-4 text-center font-semibold transition-colors flex items-center justify-center ${
+              className={`flex-1 min-w-[100px] px-3 md:px-6 py-3 md:py-4 text-center font-semibold transition-colors flex items-center justify-center text-sm md:text-base ${
                 activeTab === 'profiles'
                   ? 'bg-emerald-500 text-white'
                   : 'bg-white text-gray-600 hover:bg-gray-50'
               }`}
             >
-              <Users className="w-5 h-5 mr-2" />
-              Perfis de Usuários
+              <Users className="w-4 h-4 md:w-5 md:h-5 mr-1.5 md:mr-2 flex-shrink-0" />
+              <span className="hidden md:inline">Perfis de Usuarios</span>
+              <span className="md:hidden">Perfis</span>
             </button>
             <button
               onClick={() => setActiveTab('matches')}
-              className={`flex-1 px-6 py-4 text-center font-semibold transition-colors flex items-center justify-center ${
+              className={`flex-1 min-w-[100px] px-3 md:px-6 py-3 md:py-4 text-center font-semibold transition-colors flex items-center justify-center text-sm md:text-base ${
                 activeTab === 'matches'
                   ? 'bg-emerald-500 text-white'
                   : 'bg-white text-gray-600 hover:bg-gray-50'
               }`}
             >
-              <Calendar className="w-5 h-5 mr-2" />
+              <Calendar className="w-4 h-4 md:w-5 md:h-5 mr-1.5 md:mr-2 flex-shrink-0" />
               Partidas
             </button>
             <button
               onClick={() => setActiveTab('leagues')}
-              className={`flex-1 px-6 py-4 text-center font-semibold transition-colors flex items-center justify-center ${
+              className={`flex-1 min-w-[100px] px-3 md:px-6 py-3 md:py-4 text-center font-semibold transition-colors flex items-center justify-center text-sm md:text-base ${
                 activeTab === 'leagues'
                   ? 'bg-emerald-500 text-white'
                   : 'bg-white text-gray-600 hover:bg-gray-50'
               }`}
             >
-              <Medal className="w-5 h-5 mr-2" />
+              <Medal className="w-4 h-4 md:w-5 md:h-5 mr-1.5 md:mr-2 flex-shrink-0" />
               Ligas
             </button>
           </div>
 
-          <div className="p-6">
+          <div className="p-4 md:p-6">
             {loading ? (
               <div className="text-center py-12">
                 <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-gray-200 border-t-emerald-500"></div>

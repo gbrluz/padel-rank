@@ -203,17 +203,17 @@ export default function RegistrationFormPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50 py-8 px-4 overflow-x-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50 py-4 md:py-8 px-4 overflow-x-hidden">
       <div className="max-w-3xl mx-auto">
-        <div className="bg-white rounded-3xl shadow-2xl p-8 md:p-10">
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-3xl font-bold text-gray-900">Complete seu Perfil</h2>
+        <div className="bg-white rounded-2xl md:rounded-3xl shadow-2xl p-5 md:p-10">
+          <div className="flex items-center justify-between mb-6 md:mb-8">
+            <h2 className="text-xl md:text-3xl font-bold text-gray-900">Complete seu Perfil</h2>
             <button
               onClick={handleSignOut}
-              className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+              className="flex items-center gap-1 md:gap-2 px-3 md:px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <LogOut className="w-5 h-5" />
-              <span className="text-sm font-medium">Sair</span>
+              <span className="text-sm font-medium hidden md:inline">Sair</span>
             </button>
           </div>
 
@@ -383,7 +383,7 @@ export default function RegistrationFormPage() {
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-4">
                 <label className="flex items-center text-sm font-semibold text-gray-700">
                   <Clock className="w-4 h-4 mr-2" />
                   Disponibilidade Semanal
@@ -392,7 +392,7 @@ export default function RegistrationFormPage() {
                   <button
                     type="button"
                     onClick={selectAllAvailability}
-                    className="text-xs px-3 py-1 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 font-medium"
+                    className="text-xs px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 font-medium"
                     disabled={loading}
                   >
                     Selecionar Todos
@@ -400,26 +400,26 @@ export default function RegistrationFormPage() {
                   <button
                     type="button"
                     onClick={clearAllAvailability}
-                    className="text-xs px-3 py-1 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
+                    className="text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
                     disabled={loading}
                   >
                     Limpar
                   </button>
                 </div>
               </div>
-              <div className="flex gap-2 mb-3 justify-end">
+              <div className="flex gap-2 mb-3 justify-end flex-wrap">
                 <button
                   type="button"
                   onClick={() => selectAllPeriod('morning')}
-                  className="text-xs px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 font-medium"
+                  className="text-xs px-2 md:px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 font-medium"
                   disabled={loading}
                 >
-                  Todas Manhãs
+                  Todas Manhas
                 </button>
                 <button
                   type="button"
                   onClick={() => selectAllPeriod('afternoon')}
-                  className="text-xs px-3 py-1 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 font-medium"
+                  className="text-xs px-2 md:px-3 py-1 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 font-medium"
                   disabled={loading}
                 >
                   Todas Tardes
@@ -427,17 +427,17 @@ export default function RegistrationFormPage() {
                 <button
                   type="button"
                   onClick={() => selectAllPeriod('evening')}
-                  className="text-xs px-3 py-1 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 font-medium"
+                  className="text-xs px-2 md:px-3 py-1 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-medium"
                   disabled={loading}
                 >
                   Todas Noites
                 </button>
               </div>
-              <div className="space-y-3">
+              <div className="space-y-2 md:space-y-3">
                 {DAYS.map((day) => (
-                  <div key={day} className="flex items-center gap-3">
-                    <div className="w-24 text-sm font-medium text-gray-700">{day}</div>
-                    <div className="flex gap-2 flex-1">
+                  <div key={day} className="flex items-center gap-2 md:gap-3">
+                    <div className="w-16 md:w-24 text-xs md:text-sm font-medium text-gray-700">{day.substring(0, 3)}<span className="hidden md:inline">{day.substring(3)}</span></div>
+                    <div className="flex gap-1.5 md:gap-2 flex-1">
                       {PERIODS.map((period) => {
                         const isSelected = (formData.availability[day.toLowerCase()] || []).includes(period);
                         return (
@@ -445,14 +445,15 @@ export default function RegistrationFormPage() {
                             key={period}
                             type="button"
                             onClick={() => toggleAvailability(day, period)}
-                            className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
+                            className={`flex-1 py-2 md:py-2 px-1 md:px-3 rounded-lg text-xs md:text-sm font-medium transition-all ${
                               isSelected
                                 ? 'bg-emerald-600 text-white'
                                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                             }`}
                             disabled={loading}
                           >
-                            {PERIOD_LABELS[period]}
+                            <span className="md:hidden">{PERIOD_LABELS[period].substring(0, 1)}</span>
+                            <span className="hidden md:inline">{PERIOD_LABELS[period]}</span>
                           </button>
                         );
                       })}
