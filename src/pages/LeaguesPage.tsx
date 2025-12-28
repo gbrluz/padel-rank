@@ -29,7 +29,7 @@ interface WeeklyAttendance {
   league_id: string;
   player_id: string;
   week_date: string;
-  status: 'confirmed' | 'declined' | 'no_response';
+  status: 'confirmed' | 'declined' | 'no_response' | 'bbq_only';
 }
 
 interface LeagueRanking {
@@ -532,7 +532,7 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
     }
   };
 
-  const handleUpdateAttendance = async (status: 'confirmed' | 'declined') => {
+  const handleUpdateAttendance = async (status: 'confirmed' | 'declined' | 'bbq_only') => {
     if (!profile || !selectedLeague) return;
 
     const nextEvent = getNextWeeklyEventDate(selectedLeague);
@@ -547,7 +547,7 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
           .from('league_attendance')
           .update({
             status,
-            confirmed_at: status === 'confirmed' ? new Date().toISOString() : null,
+            confirmed_at: (status === 'confirmed' || status === 'bbq_only') ? new Date().toISOString() : null,
           })
           .eq('id', myAttendance.id);
 
@@ -560,7 +560,7 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
             player_id: profile.id,
             week_date: weekDate,
             status,
-            confirmed_at: status === 'confirmed' ? new Date().toISOString() : null,
+            confirmed_at: (status === 'confirmed' || status === 'bbq_only') ? new Date().toISOString() : null,
           }]);
 
         if (error) throw error;
@@ -638,7 +638,7 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
 
 const shouldShowScoringCard = (league: League): boolean => {
   if (league.format !== 'weekly') return false;
-  if (!myAttendance || myAttendance.status !== 'confirmed') return false;
+  if (!myAttendance || (myAttendance.status !== 'confirmed' && myAttendance.status !== 'bbq_only')) return false;
 
   const now = Date.now();
   const lastEvent = getLastEventDate(league);
@@ -769,6 +769,70 @@ const shouldShowScoringCard = (league: League): boolean => {
     } catch (error) {
       console.error('Error submitting score:', error);
       alert('Erro ao enviar pontuacao');
+    } finally {
+      setSubmittingScore(false);
+    }
+  };
+
+  const handleSubmitBbqOnly = async () => {
+    if (!selectedLeague || !profile) return;
+
+    setSubmittingScore(true);
+    try {
+      const lastEvent = getLastEventDate(selectedLeague);
+      if (!lastEvent) {
+        alert('Nao foi possivel determinar a data do evento');
+        return;
+      }
+      const eventDate = lastEvent.toISOString().split('T')[0];
+
+      let { data: weeklyEvent } = await supabase
+        .from('weekly_events')
+        .select('id')
+        .eq('league_id', selectedLeague.id)
+        .eq('event_date', eventDate)
+        .maybeSingle();
+
+      if (!weeklyEvent) {
+        const { data: newEvent, error: eventError } = await supabase
+          .from('weekly_events')
+          .insert({
+            league_id: selectedLeague.id,
+            event_date: eventDate,
+          })
+          .select()
+          .single();
+
+        if (eventError) throw eventError;
+        weeklyEvent = newEvent;
+      }
+
+      const { error } = await supabase
+        .from('weekly_event_attendance')
+        .upsert({
+          event_id: weeklyEvent.id,
+          player_id: profile.id,
+          confirmed: true,
+          confirmed_at: new Date().toISOString(),
+          victories: 0,
+          defeats: 0,
+          bbq_participated: true,
+          blowouts_received: 0,
+          total_points: 2.5,
+          points_submitted: true,
+          points_submitted_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }, {
+          onConflict: 'event_id,player_id'
+        });
+
+      if (error) throw error;
+
+      alert('Presenca no churrasco confirmada! +2,5 pontos');
+      await loadWeeklyScore();
+    } catch (error) {
+      console.error('Error submitting BBQ score:', error);
+      alert('Erro ao confirmar presenca no churrasco');
     } finally {
       setSubmittingScore(false);
     }
@@ -1140,33 +1204,41 @@ const shouldShowScoringCard = (league: League): boolean => {
 
                   {myLeagues.includes(selectedLeague.id) && shouldShowAttendanceCard(selectedLeague) && (
                     <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 mb-6">
-                      <div className="flex items-start gap-3">
-                        <Calendar className="w-6 h-6 text-blue-600 flex-shrink-0 mt-0.5" />
-                        <div className="flex-1">
-                          <p className="font-semibold text-blue-900">
-                            Proximo evento semanal
-                          </p>
+                      <div className="flex flex-col sm:flex-row sm:items-start gap-3">
+                        <Calendar className="w-6 h-6 text-blue-600 flex-shrink-0 hidden sm:block" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 sm:gap-0">
+                            <Calendar className="w-5 h-5 text-blue-600 sm:hidden" />
+                            <p className="font-semibold text-blue-900">
+                              Proximo evento semanal
+                            </p>
+                          </div>
                           <p className="text-sm text-blue-700 mt-1">
                             {getDayName(selectedLeague.weekly_day || 0)}, {getNextWeeklyEventDate(selectedLeague)?.toLocaleDateString('pt-BR')}
                             {selectedLeague.weekly_time && ` as ${selectedLeague.weekly_time.slice(0, 5)}`}
                           </p>
                           {getAttendanceDeadline(selectedLeague) && (
                             <div className="mt-2 flex items-center gap-1.5 text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded-md w-fit">
-                              <Clock className="w-3.5 h-3.5" />
+                              <Clock className="w-3.5 h-3.5 flex-shrink-0" />
                               <span>
-                                Confirmação disponível até {formatDeadlineTime(getAttendanceDeadline(selectedLeague)!)}
+                                Confirmacao disponivel ate {formatDeadlineTime(getAttendanceDeadline(selectedLeague)!)}
                               </span>
                             </div>
                           )}
 
                           {myAttendance?.status === 'confirmed' ? (
                             <div className="mt-3 flex items-center gap-2 text-emerald-700 bg-emerald-100 px-3 py-2 rounded-lg">
-                              <CalendarCheck className="w-5 h-5" />
+                              <CalendarCheck className="w-5 h-5 flex-shrink-0" />
                               <span className="font-medium">Presenca confirmada!</span>
+                            </div>
+                          ) : myAttendance?.status === 'bbq_only' ? (
+                            <div className="mt-3 flex items-center gap-2 text-amber-700 bg-amber-100 px-3 py-2 rounded-lg">
+                              <CheckCircle className="w-5 h-5 flex-shrink-0" />
+                              <span className="font-medium">Apenas churrasco confirmado!</span>
                             </div>
                           ) : myAttendance?.status === 'declined' ? (
                             <div className="mt-3 flex items-center gap-2 text-red-700 bg-red-100 px-3 py-2 rounded-lg">
-                              <XCircle className="w-5 h-5" />
+                              <XCircle className="w-5 h-5 flex-shrink-0" />
                               <span className="font-medium">Voce indicou que nao podera comparecer</span>
                             </div>
                           ) : (
@@ -1175,11 +1247,11 @@ const shouldShowScoringCard = (league: League): boolean => {
                             </p>
                           )}
 
-                          <div className="flex gap-2 mt-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3">
                             <button
                               onClick={() => handleUpdateAttendance('confirmed')}
                               disabled={updatingAttendance || myAttendance?.status === 'confirmed'}
-                              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg font-medium transition-colors disabled:opacity-50 ${
+                              className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg font-medium transition-colors disabled:opacity-50 ${
                                 myAttendance?.status === 'confirmed'
                                   ? 'bg-emerald-600 text-white'
                                   : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
@@ -1188,14 +1260,30 @@ const shouldShowScoringCard = (league: League): boolean => {
                               {updatingAttendance ? (
                                 <Loader2 className="w-4 h-4 animate-spin" />
                               ) : (
-                                <CheckCircle className="w-4 h-4" />
+                                <CheckCircle className="w-4 h-4 flex-shrink-0" />
                               )}
-                              Vou participar
+                              <span className="truncate">Vou participar</span>
+                            </button>
+                            <button
+                              onClick={() => handleUpdateAttendance('bbq_only')}
+                              disabled={updatingAttendance || myAttendance?.status === 'bbq_only'}
+                              className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg font-medium transition-colors disabled:opacity-50 ${
+                                myAttendance?.status === 'bbq_only'
+                                  ? 'bg-amber-600 text-white'
+                                  : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                              }`}
+                            >
+                              {updatingAttendance ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                              )}
+                              <span className="truncate">Apenas churrasco</span>
                             </button>
                             <button
                               onClick={() => handleUpdateAttendance('declined')}
                               disabled={updatingAttendance || myAttendance?.status === 'declined'}
-                              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg font-medium transition-colors disabled:opacity-50 ${
+                              className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg font-medium transition-colors disabled:opacity-50 ${
                                 myAttendance?.status === 'declined'
                                   ? 'bg-red-600 text-white'
                                   : 'bg-red-100 text-red-700 hover:bg-red-200'
@@ -1204,9 +1292,9 @@ const shouldShowScoringCard = (league: League): boolean => {
                               {updatingAttendance ? (
                                 <Loader2 className="w-4 h-4 animate-spin" />
                               ) : (
-                                <XCircle className="w-4 h-4" />
+                                <XCircle className="w-4 h-4 flex-shrink-0" />
                               )}
-                              Nao poderei ir
+                              <span className="truncate">Nao poderei ir</span>
                             </button>
                           </div>
                         </div>
@@ -1214,24 +1302,77 @@ const shouldShowScoringCard = (league: League): boolean => {
                     </div>
                   )}
 
-                  {shouldShowScoringCard(selectedLeague) && (
-                    <div className="bg-purple-50 border-2 border-purple-200 rounded-xl p-4 mb-6">
+                  {shouldShowScoringCard(selectedLeague) && myAttendance?.status === 'bbq_only' && (
+                    <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-4 mb-6">
                       <div className="flex items-start gap-3">
-                        <Trophy className="w-6 h-6 text-purple-600 flex-shrink-0 mt-0.5" />
+                        <Trophy className="w-6 h-6 text-amber-600 flex-shrink-0 mt-0.5" />
                         <div className="flex-1">
-                          <p className="font-semibold text-purple-900">
-                            Cadastro de Pontuacao Semanal
+                          <p className="font-semibold text-amber-900">
+                            Pontuacao do Churrasco
                           </p>
-                          <p className="text-sm text-purple-700 mt-1">
+                          <p className="text-sm text-amber-700 mt-1">
                             {getLastEventDate(selectedLeague)?.toLocaleDateString('pt-BR')}
                           </p>
 
                           {weeklyScore?.points_submitted ? (
-                            <div className="mt-3 p-3 bg-purple-100 rounded-lg">
-                              <p className="text-sm text-purple-800 font-medium">
+                            <div className="mt-3 p-3 bg-amber-100 rounded-lg">
+                              <p className="text-sm text-amber-800 font-medium">
+                                Pontuacao ja registrada
+                              </p>
+                              <p className="mt-1 text-amber-700">
+                                <span className="font-medium">Total: {weeklyScore.total_points} pts</span> (apenas churrasco)
+                              </p>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="mt-3 p-3 bg-amber-100 rounded-lg">
+                                <p className="text-sm text-amber-800">
+                                  Voce selecionou <span className="font-semibold">apenas churrasco</span>. Ao confirmar, voce recebera automaticamente <span className="font-bold">2,5 pontos</span>.
+                                </p>
+                              </div>
+
+                              <button
+                                onClick={handleSubmitBbqOnly}
+                                disabled={submittingScore}
+                                className="mt-4 w-full flex items-center justify-center gap-2 py-2.5 rounded-lg font-medium bg-amber-600 text-white hover:bg-amber-700 transition-colors disabled:opacity-50"
+                              >
+                                {submittingScore ? (
+                                  <>
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    Confirmando...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Check className="w-4 h-4" />
+                                    Confirmar Presenca no Churrasco
+                                  </>
+                                )}
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {shouldShowScoringCard(selectedLeague) && myAttendance?.status === 'confirmed' && (
+                    <div className="bg-teal-50 border-2 border-teal-200 rounded-xl p-4 mb-6">
+                      <div className="flex items-start gap-3">
+                        <Trophy className="w-6 h-6 text-teal-600 flex-shrink-0 mt-0.5" />
+                        <div className="flex-1">
+                          <p className="font-semibold text-teal-900">
+                            Cadastro de Pontuacao Semanal
+                          </p>
+                          <p className="text-sm text-teal-700 mt-1">
+                            {getLastEventDate(selectedLeague)?.toLocaleDateString('pt-BR')}
+                          </p>
+
+                          {weeklyScore?.points_submitted ? (
+                            <div className="mt-3 p-3 bg-teal-100 rounded-lg">
+                              <p className="text-sm text-teal-800 font-medium">
                                 Pontuacao ja enviada
                               </p>
-                              <div className="mt-2 flex flex-wrap gap-3 text-sm text-purple-700">
+                              <div className="mt-2 flex flex-wrap gap-3 text-sm text-teal-700">
                                 <span>Vitorias: {weeklyScore.victories}</span>
                                 <span>Derrotas: {weeklyScore.defeats}</span>
                                 {weeklyScore.blowouts_received > 0 && (
@@ -1245,7 +1386,7 @@ const shouldShowScoringCard = (league: League): boolean => {
                               <div className="mt-4 space-y-3">
                                 <div className="grid grid-cols-2 gap-3">
                                   <div>
-                                    <label className="block text-sm font-medium text-purple-800 mb-1">
+                                    <label className="block text-sm font-medium text-teal-800 mb-1">
                                       Vitorias
                                     </label>
                                     <input
@@ -1253,11 +1394,11 @@ const shouldShowScoringCard = (league: League): boolean => {
                                       min="0"
                                       value={scoringVictories}
                                       onChange={(e) => setScoringVictories(Math.max(0, parseInt(e.target.value) || 0))}
-                                      className="w-full px-3 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                      className="w-full px-3 py-2 border border-teal-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
                                     />
                                   </div>
                                   <div>
-                                    <label className="block text-sm font-medium text-purple-800 mb-1">
+                                    <label className="block text-sm font-medium text-teal-800 mb-1">
                                       Derrotas
                                     </label>
                                     <input
@@ -1265,7 +1406,7 @@ const shouldShowScoringCard = (league: League): boolean => {
                                       min="0"
                                       value={scoringDefeats}
                                       onChange={(e) => setScoringDefeats(Math.max(0, parseInt(e.target.value) || 0))}
-                                      className="w-full px-3 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                      className="w-full px-3 py-2 border border-teal-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
                                     />
                                   </div>
                                 </div>
@@ -1275,9 +1416,9 @@ const shouldShowScoringCard = (league: League): boolean => {
                                     id="bbq"
                                     checked={scoringBbq}
                                     onChange={(e) => setScoringBbq(e.target.checked)}
-                                    className="w-4 h-4 text-purple-600 border-purple-300 rounded focus:ring-purple-500"
+                                    className="w-4 h-4 text-teal-600 border-teal-300 rounded focus:ring-teal-500"
                                   />
-                                  <label htmlFor="bbq" className="text-sm font-medium text-purple-800">
+                                  <label htmlFor="bbq" className="text-sm font-medium text-teal-800">
                                     Participei do churrasco
                                   </label>
                                 </div>
@@ -1292,7 +1433,7 @@ const shouldShowScoringCard = (league: League): boolean => {
                                     }}
                                     className="w-4 h-4 text-red-600 border-red-300 rounded focus:ring-red-500"
                                   />
-                                  <label htmlFor="hasBlowouts" className="text-sm font-medium text-purple-800">
+                                  <label htmlFor="hasBlowouts" className="text-sm font-medium text-teal-800">
                                     Tomei pneu (6x0)
                                   </label>
                                 </div>
@@ -1310,13 +1451,13 @@ const shouldShowScoringCard = (league: League): boolean => {
                                     />
                                   </div>
                                 )}
-                                <div className="bg-purple-100 rounded-lg p-3 text-sm text-purple-800">
+                                <div className="bg-teal-100 rounded-lg p-3 text-sm text-teal-800">
                                   <p className="font-medium mb-1">Previa da pontuacao:</p>
                                   <p>Presenca: +2,5 pts</p>
                                   {scoringBbq && <p>Churras: +2,5 pts</p>}
                                   {scoringVictories > 0 && <p>Vitorias: +{scoringVictories * 2} pts</p>}
                                   {hasBlowouts && scoringBlowouts > 0 && <p className="text-red-700">Pneus: -{scoringBlowouts * 2} pts</p>}
-                                  <p className="font-bold mt-1 pt-1 border-t border-purple-200">
+                                  <p className="font-bold mt-1 pt-1 border-t border-teal-200">
                                     Total: {(2.5 + (scoringBbq ? 2.5 : 0) + (scoringVictories * 2) + ((hasBlowouts ? scoringBlowouts : 0) * -2)).toFixed(1)} pts
                                   </p>
                                 </div>
@@ -1325,7 +1466,7 @@ const shouldShowScoringCard = (league: League): boolean => {
                               <button
                                 onClick={handleSubmitScore}
                                 disabled={submittingScore}
-                                className="mt-4 w-full flex items-center justify-center gap-2 py-2.5 rounded-lg font-medium bg-purple-600 text-white hover:bg-purple-700 transition-colors disabled:opacity-50"
+                                className="mt-4 w-full flex items-center justify-center gap-2 py-2.5 rounded-lg font-medium bg-teal-600 text-white hover:bg-teal-700 transition-colors disabled:opacity-50"
                               >
                                 {submittingScore ? (
                                   <>
