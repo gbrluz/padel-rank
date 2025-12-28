@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Medal, Users, Trophy, TrendingUp, UserPlus, Clock, Check, Loader2, Shield, CheckCircle, XCircle, Trash2, Calendar, CalendarCheck, RotateCcw, AlertTriangle, Shuffle } from 'lucide-react';
+import { Medal, Users, Trophy, TrendingUp, UserPlus, Clock, Check, Loader2, Shield, CheckCircle, XCircle, Trash2, Calendar, CalendarCheck, RotateCcw, AlertTriangle, Shuffle, Beef, CircleDot } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Player as Profile } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -29,7 +29,7 @@ interface WeeklyAttendance {
   league_id: string;
   player_id: string;
   week_date: string;
-  status: 'confirmed' | 'declined' | 'no_response' | 'bbq_only';
+  status: 'confirmed' | 'declined' | 'no_response' | 'bbq_only' | 'play_and_bbq';
 }
 
 interface LeagueRanking {
@@ -681,8 +681,9 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
 
     setPerformingDraw(true);
     try {
+      const playingStatuses = ['confirmed', 'play_and_bbq'];
       const confirmedPlayers = Object.entries(allAttendances)
-        .filter(([_, att]) => att.status === 'confirmed')
+        .filter(([_, att]) => playingStatuses.includes(att.status))
         .map(([playerId]) => playerId);
 
       if (confirmedPlayers.length < 2) {
@@ -806,13 +807,14 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
     }
   };
 
-  const handleUpdateAttendance = async (status: 'confirmed' | 'declined' | 'bbq_only') => {
+  const handleUpdateAttendance = async (status: 'confirmed' | 'declined' | 'bbq_only' | 'play_and_bbq') => {
     if (!profile || !selectedLeague) return;
 
     const nextEvent = getNextWeeklyEventDate(selectedLeague);
     if (!nextEvent) return;
 
     const weekDate = nextEvent.toISOString().split('T')[0];
+    const isConfirming = status !== 'declined';
 
     setUpdatingAttendance(true);
     try {
@@ -821,7 +823,7 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
           .from('league_attendance')
           .update({
             status,
-            confirmed_at: (status === 'confirmed' || status === 'bbq_only') ? new Date().toISOString() : null,
+            confirmed_at: isConfirming ? new Date().toISOString() : null,
           })
           .eq('id', myAttendance.id);
 
@@ -834,7 +836,7 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
             player_id: profile.id,
             week_date: weekDate,
             status,
-            confirmed_at: (status === 'confirmed' || status === 'bbq_only') ? new Date().toISOString() : null,
+            confirmed_at: isConfirming ? new Date().toISOString() : null,
           }]);
 
         if (error) throw error;
@@ -912,7 +914,8 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
 
 const shouldShowScoringCard = (league: League): boolean => {
   if (league.format !== 'weekly') return false;
-  if (!myLastEventAttendance || (myLastEventAttendance.status !== 'confirmed' && myLastEventAttendance.status !== 'bbq_only')) return false;
+  const validStatuses = ['confirmed', 'bbq_only', 'play_and_bbq'];
+  if (!myLastEventAttendance || !validStatuses.includes(myLastEventAttendance.status)) return false;
 
   const now = Date.now();
   const lastEvent = getLastEventDate(league);
@@ -1562,14 +1565,22 @@ const shouldShowScoringCard = (league: League): boolean => {
                             )
                           )}
 
-                          {myAttendance?.status === 'confirmed' ? (
+                          {myAttendance?.status === 'play_and_bbq' ? (
+                            <div className="mt-3 flex items-center gap-2 text-cyan-700 bg-cyan-100 px-3 py-2 rounded-lg">
+                              <div className="flex items-center gap-1">
+                                <CircleDot className="w-5 h-5 flex-shrink-0" />
+                                <Beef className="w-5 h-5 flex-shrink-0" />
+                              </div>
+                              <span className="font-medium">Vou jogar e participar do churrasco!</span>
+                            </div>
+                          ) : myAttendance?.status === 'confirmed' ? (
                             <div className="mt-3 flex items-center gap-2 text-emerald-700 bg-emerald-100 px-3 py-2 rounded-lg">
-                              <CalendarCheck className="w-5 h-5 flex-shrink-0" />
-                              <span className="font-medium">Presenca confirmada!</span>
+                              <CircleDot className="w-5 h-5 flex-shrink-0" />
+                              <span className="font-medium">Vou apenas jogar!</span>
                             </div>
                           ) : myAttendance?.status === 'bbq_only' ? (
                             <div className="mt-3 flex items-center gap-2 text-amber-700 bg-amber-100 px-3 py-2 rounded-lg">
-                              <CheckCircle className="w-5 h-5 flex-shrink-0" />
+                              <Beef className="w-5 h-5 flex-shrink-0" />
                               <span className="font-medium">Apenas churrasco confirmado!</span>
                             </div>
                           ) : myAttendance?.status === 'declined' ? (
@@ -1589,7 +1600,26 @@ const shouldShowScoringCard = (league: League): boolean => {
                           )}
 
                           {!isAttendanceDeadlinePassed(selectedLeague) && (
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3">
+                            <div className="grid grid-cols-2 gap-2 mt-3">
+                              <button
+                                onClick={() => handleUpdateAttendance('play_and_bbq')}
+                                disabled={updatingAttendance || myAttendance?.status === 'play_and_bbq'}
+                                className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg font-medium transition-colors disabled:opacity-50 ${
+                                  myAttendance?.status === 'play_and_bbq'
+                                    ? 'bg-cyan-600 text-white'
+                                    : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'
+                                }`}
+                              >
+                                {updatingAttendance ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <div className="flex items-center gap-0.5">
+                                    <CircleDot className="w-4 h-4 flex-shrink-0" />
+                                    <Beef className="w-4 h-4 flex-shrink-0" />
+                                  </div>
+                                )}
+                                <span className="truncate">Jogar + Churrasco</span>
+                              </button>
                               <button
                                 onClick={() => handleUpdateAttendance('confirmed')}
                                 disabled={updatingAttendance || myAttendance?.status === 'confirmed'}
@@ -1602,9 +1632,9 @@ const shouldShowScoringCard = (league: League): boolean => {
                                 {updatingAttendance ? (
                                   <Loader2 className="w-4 h-4 animate-spin" />
                                 ) : (
-                                  <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                                  <CircleDot className="w-4 h-4 flex-shrink-0" />
                                 )}
-                                <span className="truncate">Vou participar</span>
+                                <span className="truncate">Apenas jogar</span>
                               </button>
                               <button
                                 onClick={() => handleUpdateAttendance('bbq_only')}
@@ -1618,7 +1648,7 @@ const shouldShowScoringCard = (league: League): boolean => {
                                 {updatingAttendance ? (
                                   <Loader2 className="w-4 h-4 animate-spin" />
                                 ) : (
-                                  <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                                  <Beef className="w-4 h-4 flex-shrink-0" />
                                 )}
                                 <span className="truncate">Apenas churrasco</span>
                               </button>
@@ -1764,7 +1794,7 @@ const shouldShowScoringCard = (league: League): boolean => {
                     </div>
                   )}
 
-                  {shouldShowScoringCard(selectedLeague) && myLastEventAttendance?.status === 'confirmed' && (
+                  {shouldShowScoringCard(selectedLeague) && (myLastEventAttendance?.status === 'confirmed' || myLastEventAttendance?.status === 'play_and_bbq') && (
                     <div className="bg-teal-50 border-2 border-teal-200 rounded-xl p-4 mb-6">
                       <div className="flex items-start gap-3">
                         <Trophy className="w-6 h-6 text-teal-600 flex-shrink-0 mt-0.5" />
@@ -2069,8 +2099,11 @@ const shouldShowScoringCard = (league: League): boolean => {
                           <div className="space-y-2">
                             {leagueRankings.map((ranking, index) => {
                               const isMe = ranking.player_id === profile?.id;
-                              const hasConfirmed = selectedLeague?.format === 'weekly' &&
-                                allAttendances[ranking.player_id]?.status === 'confirmed';
+                              const attendanceStatus = selectedLeague?.format === 'weekly'
+                                ? allAttendances[ranking.player_id]?.status
+                                : null;
+                              const willPlay = attendanceStatus === 'confirmed' || attendanceStatus === 'play_and_bbq';
+                              const willBbq = attendanceStatus === 'bbq_only' || attendanceStatus === 'play_and_bbq';
                               return (
                                 <div
                                   key={ranking.player_id}
@@ -2098,10 +2131,14 @@ const shouldShowScoringCard = (league: League): boolean => {
                                             {ranking.player.full_name}
                                             {isMe && ' (Voce)'}
                                           </p>
-                                          {hasConfirmed && (
-                                            <div className="flex items-center gap-1 px-2 py-0.5 bg-emerald-100 rounded-full" title="Presenca confirmada">
-                                              <CheckCircle className="w-4 h-4 text-emerald-600" />
-                                              <span className="text-xs font-medium text-emerald-700">Confirmado</span>
+                                          {(willPlay || willBbq) && (
+                                            <div className="flex items-center gap-1" title={
+                                              willPlay && willBbq ? 'Vai jogar e participar do churrasco' :
+                                              willPlay ? 'Vai apenas jogar' :
+                                              'Vai apenas ao churrasco'
+                                            }>
+                                              {willPlay && <CircleDot className="w-4 h-4 text-emerald-600" />}
+                                              {willBbq && <Beef className="w-4 h-4 text-amber-600" />}
                                             </div>
                                           )}
                                         </div>
