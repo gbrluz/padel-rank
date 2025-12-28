@@ -1006,10 +1006,9 @@ const shouldShowScoringCard = (league: League): boolean => {
       const blowouts = hasBlowouts ? (scoringBlowouts ?? 0) : 0;
       const bbqParticipated = myLastEventAttendance?.status === 'play_and_bbq' || myLastEventAttendance?.status === 'bbq_only';
       const totalPoints =
-        4 +
-        (bbqParticipated ? 2 : 0) +
-        ((scoringVictories ?? 0) * 3) +
-        ((scoringDefeats ?? 0) * 1) +
+        2.5 +
+        (bbqParticipated ? 2.5 : 0) +
+        ((scoringVictories ?? 0) * 2) +
         (blowouts * -2);
 
       const lastEvent = getLastEventDate(selectedLeague);
@@ -1115,7 +1114,7 @@ const shouldShowScoringCard = (league: League): boolean => {
           defeats: 0,
           bbq_participated: true,
           blowouts_received: 0,
-          total_points: 6,
+          total_points: 2.5,
           points_submitted: true,
           points_submitted_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
@@ -1125,7 +1124,7 @@ const shouldShowScoringCard = (league: League): boolean => {
 
       if (error) throw error;
 
-      alert('Presenca no churrasco confirmada! +6 pontos (4 presenca + 2 churrasco)');
+      alert('Presenca no churrasco confirmada! +2,5 pontos');
       await loadWeeklyScore();
     } catch (error) {
       console.error('Error submitting BBQ score:', error);
@@ -1786,7 +1785,7 @@ const shouldShowScoringCard = (league: League): boolean => {
                             <>
                               <div className="mt-3 p-3 bg-amber-100 rounded-lg">
                                 <p className="text-sm text-amber-800">
-                                  Voce selecionou <span className="font-semibold">apenas churrasco</span>. Ao confirmar, voce recebera automaticamente <span className="font-bold">6 pontos</span> (4 presenca + 2 churrasco).
+                                  Voce selecionou <span className="font-semibold">apenas churrasco</span>. Ao confirmar, voce recebera automaticamente <span className="font-bold">2,5 pontos</span>.
                                 </p>
                               </div>
 
@@ -1900,13 +1899,12 @@ const shouldShowScoringCard = (league: League): boolean => {
                                 )}
                                 <div className="bg-teal-100 rounded-lg p-3 text-sm text-teal-800">
                                   <p className="font-medium mb-1">Previa da pontuacao:</p>
-                                  <p>Presenca: +4 pts</p>
-                                  {(myLastEventAttendance?.status === 'play_and_bbq' || myLastEventAttendance?.status === 'bbq_only') && <p>Churrasco: +2 pts</p>}
-                                  {scoringVictories > 0 && <p>Vitorias: +{scoringVictories * 3} pts</p>}
-                                  {scoringDefeats > 0 && <p>Derrotas: +{scoringDefeats * 1} pts</p>}
+                                  <p>Presenca: +2,5 pts</p>
+                                  {(myLastEventAttendance?.status === 'play_and_bbq' || myLastEventAttendance?.status === 'bbq_only') && <p>Churras: +2,5 pts</p>}
+                                  {scoringVictories > 0 && <p>Vitorias: +{scoringVictories * 2} pts</p>}
                                   {hasBlowouts && scoringBlowouts > 0 && <p className="text-red-700">Pneus: -{scoringBlowouts * 2} pts</p>}
                                   <p className="font-bold mt-1 pt-1 border-t border-teal-200">
-                                    Total: {(4 + ((myLastEventAttendance?.status === 'play_and_bbq' || myLastEventAttendance?.status === 'bbq_only') ? 2 : 0) + (scoringVictories * 3) + (scoringDefeats * 1) + ((hasBlowouts ? scoringBlowouts : 0) * -2))} pts
+                                    Total: {(2.5 + ((myLastEventAttendance?.status === 'play_and_bbq' || myLastEventAttendance?.status === 'bbq_only') ? 2.5 : 0) + (scoringVictories * 2) + ((hasBlowouts ? scoringBlowouts : 0) * -2)).toFixed(1)} pts
                                   </p>
                                 </div>
                               </div>

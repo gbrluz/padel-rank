@@ -573,12 +573,12 @@ export default function LeaguesManagement() {
                 <option value="games_won">Por games ganhos no total</option>
                 <option value="games_balance">Por saldo de games no geral</option>
                 {leagueFormData.format === 'weekly' && (
-                  <option value="by_event">Por Evento (presenca 4pts, churrasco 2pts, vitoria 3pts, derrota 1pt)</option>
+                  <option value="by_event">Por Evento (presenca 2,5pts, churrasco 2,5pts, vitoria 2pts, pneu -2pts)</option>
                 )}
               </select>
               {leagueFormData.format === 'weekly' && leagueFormData.scoring_type === 'by_event' && (
                 <p className="mt-2 text-sm text-gray-600 bg-blue-50 p-3 rounded-lg">
-                  Pontuacao por evento: Presenca = 4 pontos | Churrasco = 2 pontos | Vitoria = 3 pontos | Derrota = 1 ponto
+                  Pontuacao por evento: Presenca = 2,5 pontos | Churrasco = 2,5 pontos | Vitoria = 2 pontos | Pneu (6x0) = -2 pontos
                 </p>
               )}
             </div>
@@ -1044,12 +1044,12 @@ export default function LeaguesManagement() {
                   <option value="games_won">Por games ganhos no total</option>
                   <option value="games_balance">Por saldo de games no geral</option>
                   {leagueFormData.format === 'weekly' && (
-                    <option value="by_event">Por Evento (presenca 4pts, churrasco 2pts, vitoria 3pts, derrota 1pt)</option>
+                    <option value="by_event">Por Evento (presenca 2,5pts, churrasco 2,5pts, vitoria 2pts, pneu -2pts)</option>
                   )}
                 </select>
                 {leagueFormData.format === 'weekly' && leagueFormData.scoring_type === 'by_event' && (
                   <p className="mt-2 text-sm text-gray-600 bg-blue-50 p-3 rounded-lg">
-                    Pontuacao por evento: Presenca = 4 pontos | Churrasco = 2 pontos | Vitoria = 3 pontos | Derrota = 1 ponto
+                    Pontuacao por evento: Presenca = 2,5 pontos | Churrasco = 2,5 pontos | Vitoria = 2 pontos | Pneu (6x0) = -2 pontos
                   </p>
                 )}
               </div>
