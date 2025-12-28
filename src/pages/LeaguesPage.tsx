@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Medal, Users, Trophy, TrendingUp, UserPlus, Clock, Check, Loader2, Shield, CheckCircle, XCircle, Trash2, Calendar, CalendarCheck, RotateCcw, AlertTriangle, Shuffle, Beef, CircleDot } from 'lucide-react';
+import { Medal, Users, Trophy, TrendingUp, UserPlus, Clock, Check, Loader2, Shield, CheckCircle, XCircle, Trash2, Calendar, CalendarCheck, RotateCcw, AlertTriangle, Shuffle, Beef } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Player as Profile } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -1568,14 +1568,14 @@ const shouldShowScoringCard = (league: League): boolean => {
                           {myAttendance?.status === 'play_and_bbq' ? (
                             <div className="mt-3 flex items-center gap-2 text-cyan-700 bg-cyan-100 px-3 py-2 rounded-lg">
                               <div className="flex items-center gap-1">
-                                <CircleDot className="w-5 h-5 flex-shrink-0" />
-                                <Beef className="w-5 h-5 flex-shrink-0" />
+                                <span className="w-5 h-5 rounded-full bg-gradient-to-br from-yellow-300 to-yellow-500 border border-yellow-600 shadow-sm inline-block flex-shrink-0" />
+                                <Beef className="w-5 h-5 flex-shrink-0 text-amber-600" />
                               </div>
                               <span className="font-medium">Vou jogar e participar do churrasco!</span>
                             </div>
                           ) : myAttendance?.status === 'confirmed' ? (
                             <div className="mt-3 flex items-center gap-2 text-emerald-700 bg-emerald-100 px-3 py-2 rounded-lg">
-                              <CircleDot className="w-5 h-5 flex-shrink-0" />
+                              <span className="w-5 h-5 rounded-full bg-gradient-to-br from-yellow-300 to-yellow-500 border border-yellow-600 shadow-sm inline-block flex-shrink-0" />
                               <span className="font-medium">Vou apenas jogar!</span>
                             </div>
                           ) : myAttendance?.status === 'bbq_only' ? (
@@ -1614,7 +1614,7 @@ const shouldShowScoringCard = (league: League): boolean => {
                                   <Loader2 className="w-4 h-4 animate-spin" />
                                 ) : (
                                   <div className="flex items-center gap-0.5">
-                                    <CircleDot className="w-4 h-4 flex-shrink-0" />
+                                    <span className="w-4 h-4 rounded-full bg-gradient-to-br from-yellow-300 to-yellow-500 border border-yellow-600 shadow-sm inline-block flex-shrink-0" />
                                     <Beef className="w-4 h-4 flex-shrink-0" />
                                   </div>
                                 )}
@@ -1632,7 +1632,7 @@ const shouldShowScoringCard = (league: League): boolean => {
                                 {updatingAttendance ? (
                                   <Loader2 className="w-4 h-4 animate-spin" />
                                 ) : (
-                                  <CircleDot className="w-4 h-4 flex-shrink-0" />
+                                  <span className="w-4 h-4 rounded-full bg-gradient-to-br from-yellow-300 to-yellow-500 border border-yellow-600 shadow-sm inline-block flex-shrink-0" />
                                 )}
                                 <span className="truncate">Apenas jogar</span>
                               </button>
@@ -2137,7 +2137,7 @@ const shouldShowScoringCard = (league: League): boolean => {
                                               willPlay ? 'Vai apenas jogar' :
                                               'Vai apenas ao churrasco'
                                             }>
-                                              {willPlay && <CircleDot className="w-4 h-4 text-emerald-600" />}
+                                              {willPlay && <span className="w-4 h-4 rounded-full bg-gradient-to-br from-yellow-300 to-yellow-500 border border-yellow-600 shadow-sm inline-block" />}
                                               {willBbq && <Beef className="w-4 h-4 text-amber-600" />}
                                             </div>
                                           )}
