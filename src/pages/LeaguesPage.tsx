@@ -2130,7 +2130,7 @@ const shouldShowScoringCard = (league: League): boolean => {
                               return (
                                 <div
                                   key={ranking.player_id}
-                                  className={`p-4 rounded-xl ${
+                                  className={`p-3 rounded-xl ${
                                     isMe
                                       ? 'bg-emerald-100 border-2 border-emerald-500'
                                       : index < 3
@@ -2138,46 +2138,44 @@ const shouldShowScoringCard = (league: League): boolean => {
                                       : 'bg-gray-50 border-2 border-gray-200'
                                   }`}
                                 >
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-4">
-                                      <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
-                                        index === 0 ? 'bg-yellow-500 text-white' :
-                                        index === 1 ? 'bg-gray-400 text-white' :
-                                        index === 2 ? 'bg-orange-600 text-white' :
-                                        'bg-gray-200 text-gray-700'
-                                      }`}>
-                                        {index + 1}
-                                      </div>
-                                      <div>
-                                        <div className="flex items-center gap-2">
-                                          <p className={`font-bold ${isMe ? 'text-emerald-900' : 'text-gray-900'}`}>
-                                            {ranking.player.full_name}
-                                            {isMe && ' (Voce)'}
-                                          </p>
-                                          {(willPlay || willBbq) && (
-                                            <div className="flex items-center gap-1" title={
-                                              inScoringWindow
-                                                ? (willPlay && willBbq ? 'Jogou e participou do churrasco' :
-                                                   willPlay ? 'Jogou' : 'Participou do churrasco')
-                                                : (willPlay && willBbq ? 'Vai jogar e participar do churrasco' :
-                                                   willPlay ? 'Vai apenas jogar' : 'Vai apenas ao churrasco')
-                                            }>
-                                              {willPlay && <span className="w-4 h-4 rounded-full bg-gradient-to-br from-yellow-300 to-yellow-500 border border-yellow-600 shadow-sm inline-block" />}
-                                              {willBbq && <Beef className="w-4 h-4 text-amber-600" />}
-                                            </div>
-                                          )}
-                                        </div>
-                                        <p className="text-sm text-gray-600">
-                                          {ranking.matches_played} partidas • {ranking.wins}V / {ranking.losses}D
-                                          {ranking.win_rate > 0 && ` • ${ranking.win_rate.toFixed(0)}% vitorias`}
-                                          {ranking.blowouts > 0 && (
-                                            <span className="text-red-600"> • {ranking.blowouts} pneu{ranking.blowouts > 1 ? 's' : ''}</span>
-                                          )}
-                                        </p>
-                                      </div>
+                                  <div className="flex items-center gap-3">
+                                    <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0 ${
+                                      index === 0 ? 'bg-yellow-500 text-white' :
+                                      index === 1 ? 'bg-gray-400 text-white' :
+                                      index === 2 ? 'bg-orange-600 text-white' :
+                                      'bg-gray-200 text-gray-700'
+                                    }`}>
+                                      {index + 1}
                                     </div>
-                                    <div className="text-right">
-                                      <p className={`text-2xl font-bold ${isMe ? 'text-emerald-600' : 'text-gray-900'}`}>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-1.5">
+                                        <p className={`font-bold text-sm truncate ${isMe ? 'text-emerald-900' : 'text-gray-900'}`}>
+                                          {ranking.player.full_name}
+                                          {isMe && ' (Voce)'}
+                                        </p>
+                                        {(willPlay || willBbq) && (
+                                          <div className="flex items-center gap-0.5 flex-shrink-0" title={
+                                            inScoringWindow
+                                              ? (willPlay && willBbq ? 'Jogou e participou do churrasco' :
+                                                 willPlay ? 'Jogou' : 'Participou do churrasco')
+                                              : (willPlay && willBbq ? 'Vai jogar e participar do churrasco' :
+                                                 willPlay ? 'Vai apenas jogar' : 'Vai apenas ao churrasco')
+                                          }>
+                                            {willPlay && <span className="w-3.5 h-3.5 rounded-full bg-gradient-to-br from-yellow-300 to-yellow-500 border border-yellow-600 shadow-sm inline-block" />}
+                                            {willBbq && <Beef className="w-3.5 h-3.5 text-amber-600" />}
+                                          </div>
+                                        )}
+                                      </div>
+                                      <p className="text-xs text-gray-600 truncate">
+                                        {ranking.matches_played} partidas • {ranking.wins}V / {ranking.losses}D
+                                        {ranking.win_rate > 0 && ` • ${ranking.win_rate.toFixed(0)}%`}
+                                        {ranking.blowouts > 0 && (
+                                          <span className="text-red-600"> • {ranking.blowouts} pneu{ranking.blowouts > 1 ? 's' : ''}</span>
+                                        )}
+                                      </p>
+                                    </div>
+                                    <div className="text-right flex-shrink-0">
+                                      <p className={`text-xl font-bold ${isMe ? 'text-emerald-600' : 'text-gray-900'}`}>
                                         {ranking.points.toFixed(1)}
                                       </p>
                                       <p className="text-xs text-gray-600">pontos</p>
