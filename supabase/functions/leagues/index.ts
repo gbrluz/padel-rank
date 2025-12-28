@@ -199,14 +199,24 @@ Deno.serve(async (req: Request) => {
     if (method === "POST" && pathParts.includes("join")) {
       const leagueId = pathParts[1];
 
+      const { data: league } = await supabase
+        .from("leagues")
+        .select("type, requires_approval")
+        .eq("id", leagueId)
+        .maybeSingle();
+
+      if (!league) {
+        return errorResponse("Liga nao encontrada", 404);
+      }
+
       const { data: profile } = await supabase
         .from("players")
         .select("*")
         .eq("id", user.id)
         .maybeSingle();
 
-      if (!profile?.can_join_leagues) {
-        return errorResponse("Complete 5 partidas provisionais antes de entrar em ligas");
+      if (league.type === "official" && !profile?.can_join_leagues) {
+        return errorResponse("Complete 5 partidas provisionais antes de entrar em ligas oficiais");
       }
 
       const { data: existing } = await supabase
@@ -219,12 +229,6 @@ Deno.serve(async (req: Request) => {
       if (existing) {
         return errorResponse("Voce ja e membro desta liga");
       }
-
-      const { data: league } = await supabase
-        .from("leagues")
-        .select("requires_approval")
-        .eq("id", leagueId)
-        .maybeSingle();
 
       if (league?.requires_approval) {
         const { data: pendingRequest } = await supabase
