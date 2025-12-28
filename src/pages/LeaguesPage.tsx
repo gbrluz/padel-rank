@@ -1457,8 +1457,8 @@ const shouldShowScoringCard = (league: League): boolean => {
                             {[...leagueRankings]
                               .filter(r => r.blowouts > 0)
                               .sort((a, b) => {
-                                if (b.blowouts !== a.blowouts) return b.blowouts - a.blowouts;
-                                return b.blowout_rate - a.blowout_rate;
+                                if (b.blowout_rate !== a.blowout_rate) return b.blowout_rate - a.blowout_rate;
+                                return b.blowouts - a.blowouts;
                               })
                               .map((ranking, index) => {
                                 const isMe = ranking.player_id === profile?.id;
