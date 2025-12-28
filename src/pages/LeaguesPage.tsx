@@ -108,6 +108,7 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
   const [submittingScore, setSubmittingScore] = useState(false);
   const [weeklyScore, setWeeklyScore] = useState<any>(null);
   const [allAttendances, setAllAttendances] = useState<Record<string, WeeklyAttendance>>({});
+  const [lastEventAttendances, setLastEventAttendances] = useState<Record<string, WeeklyAttendance>>({});
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resettingPoints, setResettingPoints] = useState(false);
   const [showBlowoutRanking, setShowBlowoutRanking] = useState(false);
@@ -562,26 +563,46 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
     if (!selectedLeague) return;
 
     const nextEvent = getNextWeeklyEventDate(selectedLeague);
-    if (!nextEvent) return;
-
-    const weekDate = nextEvent.toISOString().split('T')[0];
+    const lastEvent = getLastEventDate(selectedLeague);
 
     try {
-      const { data, error } = await supabase
-        .from('league_attendance')
-        .select('*')
-        .eq('league_id', leagueId)
-        .eq('week_date', weekDate);
+      if (nextEvent) {
+        const weekDate = nextEvent.toISOString().split('T')[0];
+        const { data, error } = await supabase
+          .from('league_attendance')
+          .select('*')
+          .eq('league_id', leagueId)
+          .eq('week_date', weekDate);
 
-      if (error) throw error;
+        if (error) throw error;
 
-      const attendanceMap: Record<string, WeeklyAttendance> = {};
-      if (data) {
-        data.forEach((attendance) => {
-          attendanceMap[attendance.player_id] = attendance;
-        });
+        const attendanceMap: Record<string, WeeklyAttendance> = {};
+        if (data) {
+          data.forEach((attendance) => {
+            attendanceMap[attendance.player_id] = attendance;
+          });
+        }
+        setAllAttendances(attendanceMap);
       }
-      setAllAttendances(attendanceMap);
+
+      if (lastEvent) {
+        const lastWeekDate = lastEvent.toISOString().split('T')[0];
+        const { data: lastData, error: lastError } = await supabase
+          .from('league_attendance')
+          .select('*')
+          .eq('league_id', leagueId)
+          .eq('week_date', lastWeekDate);
+
+        if (lastError) throw lastError;
+
+        const lastAttendanceMap: Record<string, WeeklyAttendance> = {};
+        if (lastData) {
+          lastData.forEach((attendance) => {
+            lastAttendanceMap[attendance.player_id] = attendance;
+          });
+        }
+        setLastEventAttendances(lastAttendanceMap);
+      }
     } catch (error) {
       console.error('Error loading all attendances:', error);
     }
@@ -2099,8 +2120,10 @@ const shouldShowScoringCard = (league: League): boolean => {
                           <div className="space-y-2">
                             {leagueRankings.map((ranking, index) => {
                               const isMe = ranking.player_id === profile?.id;
+                              const inScoringWindow = selectedLeague && shouldShowScoringCard(selectedLeague);
+                              const attendanceData = inScoringWindow ? lastEventAttendances : allAttendances;
                               const attendanceStatus = selectedLeague?.format === 'weekly'
-                                ? allAttendances[ranking.player_id]?.status
+                                ? attendanceData[ranking.player_id]?.status
                                 : null;
                               const willPlay = attendanceStatus === 'confirmed' || attendanceStatus === 'play_and_bbq';
                               const willBbq = attendanceStatus === 'bbq_only' || attendanceStatus === 'play_and_bbq';
@@ -2133,9 +2156,11 @@ const shouldShowScoringCard = (league: League): boolean => {
                                           </p>
                                           {(willPlay || willBbq) && (
                                             <div className="flex items-center gap-1" title={
-                                              willPlay && willBbq ? 'Vai jogar e participar do churrasco' :
-                                              willPlay ? 'Vai apenas jogar' :
-                                              'Vai apenas ao churrasco'
+                                              inScoringWindow
+                                                ? (willPlay && willBbq ? 'Jogou e participou do churrasco' :
+                                                   willPlay ? 'Jogou' : 'Participou do churrasco')
+                                                : (willPlay && willBbq ? 'Vai jogar e participar do churrasco' :
+                                                   willPlay ? 'Vai apenas jogar' : 'Vai apenas ao churrasco')
                                             }>
                                               {willPlay && <span className="w-4 h-4 rounded-full bg-gradient-to-br from-yellow-300 to-yellow-500 border border-yellow-600 shadow-sm inline-block" />}
                                               {willBbq && <Beef className="w-4 h-4 text-amber-600" />}
