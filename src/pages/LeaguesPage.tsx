@@ -102,7 +102,6 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
   const [updatingAttendance, setUpdatingAttendance] = useState(false);
   const [scoringVictories, setScoringVictories] = useState(0);
   const [scoringDefeats, setScoringDefeats] = useState(0);
-  const [scoringBbq, setScoringBbq] = useState(false);
   const [scoringBlowouts, setScoringBlowouts] = useState(0);
   const [hasBlowouts, setHasBlowouts] = useState(false);
   const [submittingScore, setSubmittingScore] = useState(false);
@@ -981,14 +980,12 @@ const shouldShowScoringCard = (league: League): boolean => {
           setWeeklyScore(attendance);
           setScoringVictories(attendance.victories || 0);
           setScoringDefeats(attendance.defeats || 0);
-          setScoringBbq(attendance.bbq_participated || false);
           setHasBlowouts((attendance.blowouts_received || 0) > 0);
           setScoringBlowouts(attendance.blowouts_received || 0);
         } else {
           setWeeklyScore(null);
           setScoringVictories(0);
           setScoringDefeats(0);
-          setScoringBbq(false);
           setHasBlowouts(false);
           setScoringBlowouts(0);
         }
@@ -1007,9 +1004,10 @@ const shouldShowScoringCard = (league: League): boolean => {
     setSubmittingScore(true);
     try {
       const blowouts = hasBlowouts ? (scoringBlowouts ?? 0) : 0;
+      const bbqParticipated = myLastEventAttendance?.status === 'play_and_bbq' || myLastEventAttendance?.status === 'bbq_only';
       const totalPoints =
         2.5 +
-        (scoringBbq ? 2.5 : 0) +
+        (bbqParticipated ? 2.5 : 0) +
         ((scoringVictories ?? 0) * 2) +
         (blowouts * -2);
 
@@ -1050,7 +1048,7 @@ const shouldShowScoringCard = (league: League): boolean => {
           confirmed_at: new Date().toISOString(),
           victories: scoringVictories ?? 0,
           defeats: scoringDefeats ?? 0,
-          bbq_participated: scoringBbq ?? false,
+          bbq_participated: bbqParticipated,
           blowouts_received: blowouts,
           total_points: totalPoints,
           points_submitted: true,
@@ -1873,18 +1871,6 @@ const shouldShowScoringCard = (league: League): boolean => {
                                 <div className="flex items-center gap-2">
                                   <input
                                     type="checkbox"
-                                    id="bbq"
-                                    checked={scoringBbq}
-                                    onChange={(e) => setScoringBbq(e.target.checked)}
-                                    className="w-4 h-4 text-teal-600 border-teal-300 rounded focus:ring-teal-500"
-                                  />
-                                  <label htmlFor="bbq" className="text-sm font-medium text-teal-800">
-                                    Participei do churrasco
-                                  </label>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <input
-                                    type="checkbox"
                                     id="hasBlowouts"
                                     checked={hasBlowouts}
                                     onChange={(e) => {
@@ -1914,11 +1900,11 @@ const shouldShowScoringCard = (league: League): boolean => {
                                 <div className="bg-teal-100 rounded-lg p-3 text-sm text-teal-800">
                                   <p className="font-medium mb-1">Previa da pontuacao:</p>
                                   <p>Presenca: +2,5 pts</p>
-                                  {scoringBbq && <p>Churras: +2,5 pts</p>}
+                                  {(myLastEventAttendance?.status === 'play_and_bbq' || myLastEventAttendance?.status === 'bbq_only') && <p>Churras: +2,5 pts</p>}
                                   {scoringVictories > 0 && <p>Vitorias: +{scoringVictories * 2} pts</p>}
                                   {hasBlowouts && scoringBlowouts > 0 && <p className="text-red-700">Pneus: -{scoringBlowouts * 2} pts</p>}
                                   <p className="font-bold mt-1 pt-1 border-t border-teal-200">
-                                    Total: {(2.5 + (scoringBbq ? 2.5 : 0) + (scoringVictories * 2) + ((hasBlowouts ? scoringBlowouts : 0) * -2)).toFixed(1)} pts
+                                    Total: {(2.5 + ((myLastEventAttendance?.status === 'play_and_bbq' || myLastEventAttendance?.status === 'bbq_only') ? 2.5 : 0) + (scoringVictories * 2) + ((hasBlowouts ? scoringBlowouts : 0) * -2)).toFixed(1)} pts
                                   </p>
                                 </div>
                               </div>
