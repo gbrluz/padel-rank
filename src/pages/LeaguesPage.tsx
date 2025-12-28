@@ -39,6 +39,8 @@ interface LeagueRanking {
   wins: number;
   losses: number;
   win_rate: number;
+  blowouts: number;
+  blowout_rate: number;
   player: Profile;
 }
 
@@ -81,11 +83,14 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
   const [scoringVictories, setScoringVictories] = useState(0);
   const [scoringDefeats, setScoringDefeats] = useState(0);
   const [scoringBbq, setScoringBbq] = useState(false);
+  const [scoringBlowouts, setScoringBlowouts] = useState(0);
+  const [hasBlowouts, setHasBlowouts] = useState(false);
   const [submittingScore, setSubmittingScore] = useState(false);
   const [weeklyScore, setWeeklyScore] = useState<any>(null);
   const [allAttendances, setAllAttendances] = useState<Record<string, WeeklyAttendance>>({});
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resettingPoints, setResettingPoints] = useState(false);
+  const [showBlowoutRanking, setShowBlowoutRanking] = useState(false);
 
   useEffect(() => {
     loadLeagues();
@@ -382,6 +387,7 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
           .update({
             victories: 0,
             defeats: 0,
+            blowouts_received: 0,
             total_points: 0,
             points_submitted: false
           })
@@ -707,10 +713,12 @@ const shouldShowScoringCard = (league: League): boolean => {
 
     setSubmittingScore(true);
     try {
+      const blowouts = hasBlowouts ? (scoringBlowouts ?? 0) : 0;
       const totalPoints =
-        (scoringVictories ?? 0) +
-        (scoringDefeats ?? 0) +
-        (scoringBbq ? 1 : 0);
+        2.5 +
+        (scoringBbq ? 2.5 : 0) +
+        ((scoringVictories ?? 0) * 2) +
+        (blowouts * -2);
 
       const lastEvent = getLastEventDate(selectedLeague);
       if (!lastEvent) {
@@ -764,6 +772,7 @@ const shouldShowScoringCard = (league: League): boolean => {
           victories: scoringVictories ?? 0,
           defeats: scoringDefeats ?? 0,
           bbq_participated: scoringBbq ?? false,
+          blowouts_received: blowouts,
           total_points: totalPoints,
           points_submitted: true,
           points_submitted_at: new Date().toISOString(),
@@ -832,7 +841,7 @@ const shouldShowScoringCard = (league: League): boolean => {
       if (eventIds.length > 0) {
         const { data: attendance, error: attendanceError } = await supabase
           .from('weekly_event_attendance')
-          .select('player_id, victories, defeats, total_points, bbq_participated')
+          .select('player_id, victories, defeats, total_points, bbq_participated, blowouts_received')
           .in('event_id', eventIds)
           .eq('points_submitted', true);
 
@@ -840,18 +849,19 @@ const shouldShowScoringCard = (league: League): boolean => {
         attendanceData = attendance || [];
       }
 
-      const statsMap = new Map<string, { points: number; wins: number; losses: number }>();
+      const statsMap = new Map<string, { points: number; wins: number; losses: number; blowouts: number }>();
       attendanceData.forEach(att => {
-        const existing = statsMap.get(att.player_id) || { points: 0, wins: 0, losses: 0 };
+        const existing = statsMap.get(att.player_id) || { points: 0, wins: 0, losses: 0, blowouts: 0 };
         statsMap.set(att.player_id, {
           points: existing.points + (att.total_points || 0),
           wins: existing.wins + (att.victories || 0),
           losses: existing.losses + (att.defeats || 0),
+          blowouts: existing.blowouts + (att.blowouts_received || 0),
         });
       });
 
       const combinedRankings = (members || []).map(member => {
-        const stats = statsMap.get(member.player_id) || { points: 0, wins: 0, losses: 0 };
+        const stats = statsMap.get(member.player_id) || { points: 0, wins: 0, losses: 0, blowouts: 0 };
         const matchesPlayed = stats.wins + stats.losses;
         return {
           player_id: member.player_id,
@@ -861,6 +871,8 @@ const shouldShowScoringCard = (league: League): boolean => {
           wins: stats.wins,
           losses: stats.losses,
           win_rate: matchesPlayed > 0 ? (stats.wins / matchesPlayed) * 100 : 0,
+          blowouts: stats.blowouts,
+          blowout_rate: matchesPlayed > 0 ? (stats.blowouts / matchesPlayed) * 100 : 0,
           player: member.player,
         };
       });
@@ -1237,38 +1249,43 @@ const shouldShowScoringCard = (league: League): boolean => {
                               <p className="text-sm text-purple-800 font-medium">
                                 Pontuacao ja enviada
                               </p>
-                              <div className="mt-2 flex gap-4 text-sm text-purple-700">
+                              <div className="mt-2 flex flex-wrap gap-3 text-sm text-purple-700">
                                 <span>Vitorias: {weeklyScore.victories}</span>
                                 <span>Derrotas: {weeklyScore.defeats}</span>
-                                <span>Total: {weeklyScore.total_points} pts</span>
+                                {weeklyScore.blowouts_received > 0 && (
+                                  <span className="text-red-600">Pneus: {weeklyScore.blowouts_received}</span>
+                                )}
+                                <span className="font-medium">Total: {weeklyScore.total_points} pts</span>
                               </div>
                             </div>
                           ) : (
                             <>
                               <div className="mt-4 space-y-3">
-                                <div>
-                                  <label className="block text-sm font-medium text-purple-800 mb-1">
-                                    Vitorias
-                                  </label>
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    value={scoringVictories}
-                                    onChange={(e) => setScoringVictories(Math.max(0, parseInt(e.target.value) || 0))}
-                                    className="w-full px-3 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="block text-sm font-medium text-purple-800 mb-1">
-                                    Derrotas
-                                  </label>
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    value={scoringDefeats}
-                                    onChange={(e) => setScoringDefeats(Math.max(0, parseInt(e.target.value) || 0))}
-                                    className="w-full px-3 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                                  />
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div>
+                                    <label className="block text-sm font-medium text-purple-800 mb-1">
+                                      Vitorias
+                                    </label>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      value={scoringVictories}
+                                      onChange={(e) => setScoringVictories(Math.max(0, parseInt(e.target.value) || 0))}
+                                      className="w-full px-3 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-sm font-medium text-purple-800 mb-1">
+                                      Derrotas
+                                    </label>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      value={scoringDefeats}
+                                      onChange={(e) => setScoringDefeats(Math.max(0, parseInt(e.target.value) || 0))}
+                                      className="w-full px-3 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                    />
+                                  </div>
                                 </div>
                                 <div className="flex items-center gap-2">
                                   <input
@@ -1281,6 +1298,45 @@ const shouldShowScoringCard = (league: League): boolean => {
                                   <label htmlFor="bbq" className="text-sm font-medium text-purple-800">
                                     Participei do churrasco
                                   </label>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="checkbox"
+                                    id="hasBlowouts"
+                                    checked={hasBlowouts}
+                                    onChange={(e) => {
+                                      setHasBlowouts(e.target.checked);
+                                      if (!e.target.checked) setScoringBlowouts(0);
+                                    }}
+                                    className="w-4 h-4 text-red-600 border-red-300 rounded focus:ring-red-500"
+                                  />
+                                  <label htmlFor="hasBlowouts" className="text-sm font-medium text-purple-800">
+                                    Tomei pneu (6x0)
+                                  </label>
+                                </div>
+                                {hasBlowouts && (
+                                  <div>
+                                    <label className="block text-sm font-medium text-red-800 mb-1">
+                                      Quantos pneus (6x0)?
+                                    </label>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      value={scoringBlowouts}
+                                      onChange={(e) => setScoringBlowouts(Math.max(1, parseInt(e.target.value) || 1))}
+                                      className="w-full px-3 py-2 border border-red-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                                    />
+                                  </div>
+                                )}
+                                <div className="bg-purple-100 rounded-lg p-3 text-sm text-purple-800">
+                                  <p className="font-medium mb-1">Previa da pontuacao:</p>
+                                  <p>Presenca: +2,5 pts</p>
+                                  {scoringBbq && <p>Churras: +2,5 pts</p>}
+                                  {scoringVictories > 0 && <p>Vitorias: +{scoringVictories * 2} pts</p>}
+                                  {hasBlowouts && scoringBlowouts > 0 && <p className="text-red-700">Pneus: -{scoringBlowouts * 2} pts</p>}
+                                  <p className="font-bold mt-1 pt-1 border-t border-purple-200">
+                                    Total: {(2.5 + (scoringBbq ? 2.5 : 0) + (scoringVictories * 2) + ((hasBlowouts ? scoringBlowouts : 0) * -2)).toFixed(1)} pts
+                                  </p>
                                 </div>
                               </div>
 
@@ -1384,66 +1440,161 @@ const shouldShowScoringCard = (league: League): boolean => {
                     </div>
                   ) : (
                     <div>
-                      <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                        <Trophy className="w-5 h-5 text-emerald-600" />
-                        Ranking da Liga
-                      </h3>
-                      <div className="space-y-2">
-                        {leagueRankings.map((ranking, index) => {
-                          const isMe = ranking.player_id === profile?.id;
-                          const hasConfirmed = selectedLeague?.format === 'weekly' &&
-                            allAttendances[ranking.player_id]?.status === 'confirmed';
-                          return (
-                            <div
-                              key={ranking.player_id}
-                              className={`p-4 rounded-xl ${
-                                isMe
-                                  ? 'bg-emerald-100 border-2 border-emerald-500'
-                                  : index < 3
-                                  ? 'bg-yellow-50 border-2 border-yellow-300'
-                                  : 'bg-gray-50 border-2 border-gray-200'
-                              }`}
-                            >
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-4">
-                                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
-                                    index === 0 ? 'bg-yellow-500 text-white' :
-                                    index === 1 ? 'bg-gray-400 text-white' :
-                                    index === 2 ? 'bg-orange-600 text-white' :
-                                    'bg-gray-200 text-gray-700'
-                                  }`}>
-                                    {index + 1}
-                                  </div>
-                                  <div>
-                                    <div className="flex items-center gap-2">
-                                      <p className={`font-bold ${isMe ? 'text-emerald-900' : 'text-gray-900'}`}>
-                                        {ranking.player.full_name}
-                                        {isMe && ' (Você)'}
-                                      </p>
-                                      {hasConfirmed && (
-                                        <div className="flex items-center gap-1 px-2 py-0.5 bg-emerald-100 rounded-full" title="Presença confirmada">
-                                          <CheckCircle className="w-4 h-4 text-emerald-600" />
-                                          <span className="text-xs font-medium text-emerald-700">Confirmado</span>
+                      {selectedLeague?.format === 'weekly' && (
+                        <div className="flex gap-2 mb-4">
+                          <button
+                            onClick={() => setShowBlowoutRanking(false)}
+                            className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
+                              !showBlowoutRanking
+                                ? 'bg-emerald-600 text-white'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                          >
+                            Ranking de Pontos
+                          </button>
+                          <button
+                            onClick={() => setShowBlowoutRanking(true)}
+                            className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
+                              showBlowoutRanking
+                                ? 'bg-red-600 text-white'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                          >
+                            Ranking de Pneus
+                          </button>
+                        </div>
+                      )}
+
+                      {showBlowoutRanking && selectedLeague?.format === 'weekly' ? (
+                        <>
+                          <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                            <AlertTriangle className="w-5 h-5 text-red-600" />
+                            Ranking de Pneus (6x0)
+                          </h3>
+                          <div className="space-y-2">
+                            {[...leagueRankings]
+                              .filter(r => r.blowouts > 0)
+                              .sort((a, b) => {
+                                if (b.blowouts !== a.blowouts) return b.blowouts - a.blowouts;
+                                return b.blowout_rate - a.blowout_rate;
+                              })
+                              .map((ranking, index) => {
+                                const isMe = ranking.player_id === profile?.id;
+                                return (
+                                  <div
+                                    key={ranking.player_id}
+                                    className={`p-4 rounded-xl ${
+                                      isMe
+                                        ? 'bg-red-100 border-2 border-red-400'
+                                        : 'bg-gray-50 border-2 border-gray-200'
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-4">
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
+                                          index === 0 ? 'bg-red-500 text-white' :
+                                          index === 1 ? 'bg-red-400 text-white' :
+                                          index === 2 ? 'bg-red-300 text-white' :
+                                          'bg-gray-200 text-gray-700'
+                                        }`}>
+                                          {index + 1}
                                         </div>
-                                      )}
+                                        <div>
+                                          <p className={`font-bold ${isMe ? 'text-red-900' : 'text-gray-900'}`}>
+                                            {ranking.player.full_name}
+                                            {isMe && ' (Voce)'}
+                                          </p>
+                                          <p className="text-sm text-gray-600">
+                                            {ranking.matches_played} partidas jogadas
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <div className="text-right">
+                                        <p className={`text-2xl font-bold ${isMe ? 'text-red-600' : 'text-red-500'}`}>
+                                          {ranking.blowouts}
+                                        </p>
+                                        <p className="text-xs text-gray-600">
+                                          {ranking.blowout_rate.toFixed(0)}% dos jogos
+                                        </p>
+                                      </div>
                                     </div>
-                                    <p className="text-sm text-gray-600">
-                                      {ranking.matches_played} partidas • {ranking.wins}V / {ranking.losses}D
-                                      {ranking.win_rate > 0 && ` • ${ranking.win_rate.toFixed(0)}% vitórias`}
-                                    </p>
+                                  </div>
+                                );
+                              })}
+                            {leagueRankings.filter(r => r.blowouts > 0).length === 0 && (
+                              <p className="text-center text-gray-500 py-4">
+                                Nenhum pneu registrado ainda
+                              </p>
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                            <Trophy className="w-5 h-5 text-emerald-600" />
+                            Ranking da Liga
+                          </h3>
+                          <div className="space-y-2">
+                            {leagueRankings.map((ranking, index) => {
+                              const isMe = ranking.player_id === profile?.id;
+                              const hasConfirmed = selectedLeague?.format === 'weekly' &&
+                                allAttendances[ranking.player_id]?.status === 'confirmed';
+                              return (
+                                <div
+                                  key={ranking.player_id}
+                                  className={`p-4 rounded-xl ${
+                                    isMe
+                                      ? 'bg-emerald-100 border-2 border-emerald-500'
+                                      : index < 3
+                                      ? 'bg-yellow-50 border-2 border-yellow-300'
+                                      : 'bg-gray-50 border-2 border-gray-200'
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-4">
+                                      <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
+                                        index === 0 ? 'bg-yellow-500 text-white' :
+                                        index === 1 ? 'bg-gray-400 text-white' :
+                                        index === 2 ? 'bg-orange-600 text-white' :
+                                        'bg-gray-200 text-gray-700'
+                                      }`}>
+                                        {index + 1}
+                                      </div>
+                                      <div>
+                                        <div className="flex items-center gap-2">
+                                          <p className={`font-bold ${isMe ? 'text-emerald-900' : 'text-gray-900'}`}>
+                                            {ranking.player.full_name}
+                                            {isMe && ' (Voce)'}
+                                          </p>
+                                          {hasConfirmed && (
+                                            <div className="flex items-center gap-1 px-2 py-0.5 bg-emerald-100 rounded-full" title="Presenca confirmada">
+                                              <CheckCircle className="w-4 h-4 text-emerald-600" />
+                                              <span className="text-xs font-medium text-emerald-700">Confirmado</span>
+                                            </div>
+                                          )}
+                                        </div>
+                                        <p className="text-sm text-gray-600">
+                                          {ranking.matches_played} partidas • {ranking.wins}V / {ranking.losses}D
+                                          {ranking.win_rate > 0 && ` • ${ranking.win_rate.toFixed(0)}% vitorias`}
+                                          {ranking.blowouts > 0 && (
+                                            <span className="text-red-600"> • {ranking.blowouts} pneu{ranking.blowouts > 1 ? 's' : ''}</span>
+                                          )}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div className="text-right">
+                                      <p className={`text-2xl font-bold ${isMe ? 'text-emerald-600' : 'text-gray-900'}`}>
+                                        {ranking.points.toFixed(1)}
+                                      </p>
+                                      <p className="text-xs text-gray-600">pontos</p>
+                                    </div>
                                   </div>
                                 </div>
-                                <div className="text-right">
-                                  <p className={`text-2xl font-bold ${isMe ? 'text-emerald-600' : 'text-gray-900'}`}>
-                                    {ranking.points}
-                                  </p>
-                                  <p className="text-xs text-gray-600">pontos</p>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
+                              );
+                            })}
+                          </div>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
