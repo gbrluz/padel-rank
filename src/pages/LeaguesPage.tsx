@@ -504,6 +504,12 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
     return hoursUntilEvent <= maxHoursToShow && hoursUntilEvent > 0;
   };
 
+  const isAttendanceDeadlinePassed = (league: League): boolean => {
+    const deadline = getAttendanceDeadline(league);
+    if (!deadline) return false;
+    return new Date() >= deadline;
+  };
+
   const loadMyAttendance = async (leagueId: string) => {
     if (!profile || !selectedLeague) return;
 
@@ -1541,12 +1547,19 @@ const shouldShowScoringCard = (league: League): boolean => {
                             {selectedLeague.weekly_time && ` as ${selectedLeague.weekly_time.slice(0, 5)}`}
                           </p>
                           {getAttendanceDeadline(selectedLeague) && (
-                            <div className="mt-2 flex items-center gap-1.5 text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded-md w-fit">
-                              <Clock className="w-3.5 h-3.5 flex-shrink-0" />
-                              <span>
-                                Confirmacao disponivel ate {formatDeadlineTime(getAttendanceDeadline(selectedLeague)!)}
-                              </span>
-                            </div>
+                            isAttendanceDeadlinePassed(selectedLeague) ? (
+                              <div className="mt-2 flex items-center gap-1.5 text-xs text-red-600 bg-red-100 px-2 py-1 rounded-md w-fit">
+                                <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                                <span>Prazo de confirmacao encerrado</span>
+                              </div>
+                            ) : (
+                              <div className="mt-2 flex items-center gap-1.5 text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded-md w-fit">
+                                <Clock className="w-3.5 h-3.5 flex-shrink-0" />
+                                <span>
+                                  Confirmacao disponivel ate {formatDeadlineTime(getAttendanceDeadline(selectedLeague)!)}
+                                </span>
+                              </div>
+                            )
                           )}
 
                           {myAttendance?.status === 'confirmed' ? (
@@ -1564,62 +1577,69 @@ const shouldShowScoringCard = (league: League): boolean => {
                               <XCircle className="w-5 h-5 flex-shrink-0" />
                               <span className="font-medium">Voce indicou que nao podera comparecer</span>
                             </div>
+                          ) : isAttendanceDeadlinePassed(selectedLeague) ? (
+                            <div className="mt-3 flex items-center gap-2 text-gray-700 bg-gray-100 px-3 py-2 rounded-lg">
+                              <XCircle className="w-5 h-5 flex-shrink-0" />
+                              <span className="font-medium">Presenca nao confirmada</span>
+                            </div>
                           ) : (
                             <p className="text-sm text-blue-600 mt-2">
                               Confirme sua presenca para o proximo evento
                             </p>
                           )}
 
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3">
-                            <button
-                              onClick={() => handleUpdateAttendance('confirmed')}
-                              disabled={updatingAttendance || myAttendance?.status === 'confirmed'}
-                              className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg font-medium transition-colors disabled:opacity-50 ${
-                                myAttendance?.status === 'confirmed'
-                                  ? 'bg-emerald-600 text-white'
-                                  : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
-                              }`}
-                            >
-                              {updatingAttendance ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <CheckCircle className="w-4 h-4 flex-shrink-0" />
-                              )}
-                              <span className="truncate">Vou participar</span>
-                            </button>
-                            <button
-                              onClick={() => handleUpdateAttendance('bbq_only')}
-                              disabled={updatingAttendance || myAttendance?.status === 'bbq_only'}
-                              className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg font-medium transition-colors disabled:opacity-50 ${
-                                myAttendance?.status === 'bbq_only'
-                                  ? 'bg-amber-600 text-white'
-                                  : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-                              }`}
-                            >
-                              {updatingAttendance ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <CheckCircle className="w-4 h-4 flex-shrink-0" />
-                              )}
-                              <span className="truncate">Apenas churrasco</span>
-                            </button>
-                            <button
-                              onClick={() => handleUpdateAttendance('declined')}
-                              disabled={updatingAttendance || myAttendance?.status === 'declined'}
-                              className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg font-medium transition-colors disabled:opacity-50 ${
-                                myAttendance?.status === 'declined'
-                                  ? 'bg-red-600 text-white'
-                                  : 'bg-red-100 text-red-700 hover:bg-red-200'
-                              }`}
-                            >
-                              {updatingAttendance ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <XCircle className="w-4 h-4 flex-shrink-0" />
-                              )}
-                              <span className="truncate">Nao poderei ir</span>
-                            </button>
-                          </div>
+                          {!isAttendanceDeadlinePassed(selectedLeague) && (
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3">
+                              <button
+                                onClick={() => handleUpdateAttendance('confirmed')}
+                                disabled={updatingAttendance || myAttendance?.status === 'confirmed'}
+                                className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg font-medium transition-colors disabled:opacity-50 ${
+                                  myAttendance?.status === 'confirmed'
+                                    ? 'bg-emerald-600 text-white'
+                                    : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                                }`}
+                              >
+                                {updatingAttendance ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                                )}
+                                <span className="truncate">Vou participar</span>
+                              </button>
+                              <button
+                                onClick={() => handleUpdateAttendance('bbq_only')}
+                                disabled={updatingAttendance || myAttendance?.status === 'bbq_only'}
+                                className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg font-medium transition-colors disabled:opacity-50 ${
+                                  myAttendance?.status === 'bbq_only'
+                                    ? 'bg-amber-600 text-white'
+                                    : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                                }`}
+                              >
+                                {updatingAttendance ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                                )}
+                                <span className="truncate">Apenas churrasco</span>
+                              </button>
+                              <button
+                                onClick={() => handleUpdateAttendance('declined')}
+                                disabled={updatingAttendance || myAttendance?.status === 'declined'}
+                                className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg font-medium transition-colors disabled:opacity-50 ${
+                                  myAttendance?.status === 'declined'
+                                    ? 'bg-red-600 text-white'
+                                    : 'bg-red-100 text-red-700 hover:bg-red-200'
+                                }`}
+                              >
+                                {updatingAttendance ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <XCircle className="w-4 h-4 flex-shrink-0" />
+                                )}
+                                <span className="truncate">Nao poderei ir</span>
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
