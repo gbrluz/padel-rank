@@ -5,6 +5,7 @@ export type Category = 'Iniciante' | '7ª' | '6ª' | '5ª' | '4ª' | '3ª' | '2�
 export interface Player {
   id: string;
   full_name: string;
+  phone: string | null;
   gender: Gender;
   birth_date: string;
   state: string;

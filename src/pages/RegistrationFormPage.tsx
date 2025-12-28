@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { User, Calendar, MapPin, Target, Clock, ArrowRight, LogOut } from 'lucide-react';
+import { User, Calendar, MapPin, Target, Clock, ArrowRight, LogOut, Phone } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 
@@ -31,6 +31,7 @@ export default function RegistrationFormPage() {
 
   const [formData, setFormData] = useState({
     full_name: '',
+    phone: '',
     gender: '',
     birth_date: '',
     preferred_side: '',
@@ -52,6 +53,7 @@ export default function RegistrationFormPage() {
         if (data && !error) {
           setFormData({
             full_name: data.full_name || '',
+            phone: data.phone || '',
             gender: data.gender || '',
             birth_date: data.birth_date || '',
             preferred_side: data.preferred_side || '',
@@ -137,9 +139,15 @@ export default function RegistrationFormPage() {
     e.preventDefault();
     setError('');
 
-    if (!formData.full_name || !formData.gender || !formData.birth_date ||
+    if (!formData.full_name || !formData.phone || !formData.gender || !formData.birth_date ||
         !formData.preferred_side || !formData.category || !formData.state || !formData.city) {
-      setError('Por favor, preencha todos os campos obrigatórios');
+      setError('Por favor, preencha todos os campos obrigatorios');
+      return;
+    }
+
+    const phoneDigits = formData.phone.replace(/\D/g, '');
+    if (phoneDigits.length < 10 || phoneDigits.length > 11) {
+      setError('Telefone invalido. Use o formato (XX) XXXXX-XXXX');
       return;
     }
 
@@ -216,25 +224,55 @@ export default function RegistrationFormPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
-                <User className="w-4 h-4 mr-2" />
-                Nome Completo *
-              </label>
-              <input
-                type="text"
-                value={formData.full_name}
-                onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:outline-none transition-colors"
-                placeholder="Seu nome completo"
-                disabled={loading}
-              />
+            <div className="grid md:grid-cols-2 gap-6">
+              <div>
+                <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
+                  <User className="w-4 h-4 mr-2" />
+                  Nome Completo *
+                </label>
+                <input
+                  type="text"
+                  value={formData.full_name}
+                  onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:outline-none transition-colors"
+                  placeholder="Seu nome completo"
+                  disabled={loading}
+                />
+              </div>
+
+              <div>
+                <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
+                  <Phone className="w-4 h-4 mr-2" />
+                  Telefone com DDD *
+                </label>
+                <input
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => {
+                    let value = e.target.value.replace(/\D/g, '');
+                    if (value.length > 11) value = value.slice(0, 11);
+                    if (value.length > 0) {
+                      if (value.length <= 2) {
+                        value = `(${value}`;
+                      } else if (value.length <= 7) {
+                        value = `(${value.slice(0, 2)}) ${value.slice(2)}`;
+                      } else {
+                        value = `(${value.slice(0, 2)}) ${value.slice(2, 7)}-${value.slice(7)}`;
+                      }
+                    }
+                    setFormData({ ...formData, phone: value });
+                  }}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:outline-none transition-colors"
+                  placeholder="(XX) XXXXX-XXXX"
+                  disabled={loading}
+                />
+              </div>
             </div>
 
             <div className="grid md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Gênero *
+                  Genero *
                 </label>
                 <select
                   value={formData.gender}

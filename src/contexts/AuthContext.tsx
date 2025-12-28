@@ -20,24 +20,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [player, setPlayer] = useState<Player | null>(null);
   const [loading, setLoading] = useState(true);
+  const [playerLoading, setPlayerLoading] = useState(false);
 
   const fetchPlayer = async (userId: string) => {
+    setPlayerLoading(true);
     try {
-      console.log('Buscando jogador para usuário:', userId);
       const data = await profileService.getPlayer(userId);
 
       if (data) {
-        console.log('Jogador encontrado:', data);
         setPlayer(data);
-        setLoading(false);
       } else {
-        console.log('Nenhum jogador encontrado para o usuário:', userId);
         setPlayer(null);
-        setLoading(false);
       }
     } catch (err) {
       console.error('Erro inesperado ao buscar jogador:', err);
       setPlayer(null);
+    } finally {
+      setPlayerLoading(false);
       setLoading(false);
     }
   };
@@ -88,13 +87,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!mounted) return;
 
         try {
-          console.log('Auth state changed:', event, session?.user?.id);
-          setUser(session?.user ?? null);
-          if (session?.user) {
+          if (event === 'SIGNED_IN' && session?.user) {
+            setLoading(true);
+            setUser(session.user);
             await fetchPlayer(session.user.id);
-          } else {
+          } else if (event === 'SIGNED_OUT') {
+            setUser(null);
             setPlayer(null);
             setLoading(false);
+          } else if (session?.user) {
+            setUser(session.user);
+            if (!player && !playerLoading) {
+              await fetchPlayer(session.user.id);
+            }
           }
         } catch (err) {
           console.error('Erro no onAuthStateChange:', err);
