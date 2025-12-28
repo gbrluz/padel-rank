@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Medal, Users, Trophy, TrendingUp, UserPlus, Clock, Check, Loader2, Shield, CheckCircle, XCircle, Trash2, Calendar, CalendarCheck, RotateCcw, AlertTriangle, Shuffle, Beef } from 'lucide-react';
+import { Medal, Users, Trophy, TrendingUp, UserPlus, Clock, Check, Loader2, Shield, CheckCircle, XCircle, Trash2, Calendar, CalendarCheck, RotateCcw, AlertTriangle, Shuffle, Beef, Pencil, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Player as Profile } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -114,6 +114,13 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
   const [currentDraw, setCurrentDraw] = useState<EventDraw | null>(null);
   const [currentPairs, setCurrentPairs] = useState<EventPair[]>([]);
   const [performingDraw, setPerformingDraw] = useState(false);
+  const [scoreSubmissions, setScoreSubmissions] = useState<Record<string, boolean>>({});
+  const [editingPlayerScore, setEditingPlayerScore] = useState<{ playerId: string; playerName: string } | null>(null);
+  const [editVictories, setEditVictories] = useState(0);
+  const [editDefeats, setEditDefeats] = useState(0);
+  const [editBlowouts, setEditBlowouts] = useState(0);
+  const [editHasBlowouts, setEditHasBlowouts] = useState(false);
+  const [submittingPlayerScore, setSubmittingPlayerScore] = useState(false);
 
   useEffect(() => {
     loadLeagues();
@@ -135,6 +142,7 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
       if (selectedLeague.format === 'weekly') {
         loadAllAttendances(selectedLeague.id);
         loadEventDraw(selectedLeague.id);
+        loadScoreSubmissions(selectedLeague.id);
         if (myLeagues.includes(selectedLeague.id)) {
           loadMyAttendance(selectedLeague.id);
           loadMyLastEventAttendance(selectedLeague.id);
@@ -998,6 +1006,132 @@ const shouldShowScoringCard = (league: League): boolean => {
     }
   };
 
+  const loadScoreSubmissions = async (leagueId: string) => {
+    if (!selectedLeague) return;
+
+    try {
+      const lastEvent = getLastEventDate(selectedLeague);
+      if (!lastEvent) return;
+
+      const eventDate = lastEvent.toISOString().split('T')[0];
+
+      const { data: weeklyEvent } = await supabase
+        .from('weekly_events')
+        .select('id')
+        .eq('league_id', leagueId)
+        .eq('event_date', eventDate)
+        .maybeSingle();
+
+      if (!weeklyEvent) {
+        setScoreSubmissions({});
+        return;
+      }
+
+      const { data: attendances, error } = await supabase
+        .from('weekly_event_attendance')
+        .select('player_id, points_submitted')
+        .eq('event_id', weeklyEvent.id);
+
+      if (error) throw error;
+
+      const submissions: Record<string, boolean> = {};
+      attendances?.forEach(att => {
+        submissions[att.player_id] = att.points_submitted || false;
+      });
+
+      setScoreSubmissions(submissions);
+    } catch (error) {
+      console.error('Error loading score submissions:', error);
+    }
+  };
+
+  const handleOrganizerSubmitScore = async () => {
+    if (!selectedLeague || !editingPlayerScore) return;
+
+    setSubmittingPlayerScore(true);
+    try {
+      const blowouts = editHasBlowouts ? editBlowouts : 0;
+      const playerAttendance = lastEventAttendances[editingPlayerScore.playerId];
+      const bbqParticipated = playerAttendance?.status === 'play_and_bbq' || playerAttendance?.status === 'bbq_only';
+      const totalPoints =
+        2.5 +
+        (bbqParticipated ? 2.5 : 0) +
+        (editVictories * 2) +
+        (blowouts * -2);
+
+      const lastEvent = getLastEventDate(selectedLeague);
+      if (!lastEvent) {
+        alert('Nao foi possivel determinar a data do evento');
+        return;
+      }
+      const eventDate = lastEvent.toISOString().split('T')[0];
+
+      let { data: weeklyEvent } = await supabase
+        .from('weekly_events')
+        .select('id')
+        .eq('league_id', selectedLeague.id)
+        .eq('event_date', eventDate)
+        .maybeSingle();
+
+      if (!weeklyEvent) {
+        const { data: newEvent, error: eventError } = await supabase
+          .from('weekly_events')
+          .insert({
+            league_id: selectedLeague.id,
+            event_date: eventDate,
+          })
+          .select()
+          .single();
+
+        if (eventError) throw eventError;
+        weeklyEvent = newEvent;
+      }
+
+      const { error } = await supabase
+        .from('weekly_event_attendance')
+        .upsert({
+          event_id: weeklyEvent.id,
+          player_id: editingPlayerScore.playerId,
+          confirmed: true,
+          confirmed_at: new Date().toISOString(),
+          victories: editVictories,
+          defeats: editDefeats,
+          bbq_participated: bbqParticipated,
+          blowouts_received: blowouts,
+          total_points: totalPoints,
+          points_submitted: true,
+          points_submitted_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }, {
+          onConflict: 'event_id,player_id'
+        });
+
+      if (error) throw error;
+
+      alert(`Pontuacao de ${editingPlayerScore.playerName} enviada com sucesso!`);
+      setEditingPlayerScore(null);
+      setEditVictories(0);
+      setEditDefeats(0);
+      setEditBlowouts(0);
+      setEditHasBlowouts(false);
+      await loadScoreSubmissions(selectedLeague.id);
+      await loadLeagueRankings(selectedLeague.id);
+    } catch (error) {
+      console.error('Error submitting player score:', error);
+      alert('Erro ao enviar pontuacao');
+    } finally {
+      setSubmittingPlayerScore(false);
+    }
+  };
+
+  const openPlayerScoreModal = (playerId: string, playerName: string) => {
+    setEditingPlayerScore({ playerId, playerName });
+    setEditVictories(0);
+    setEditDefeats(0);
+    setEditBlowouts(0);
+    setEditHasBlowouts(false);
+  };
+
   const handleSubmitScore = async () => {
     if (!selectedLeague || !profile) return;
 
@@ -1062,6 +1196,9 @@ const shouldShowScoringCard = (league: League): boolean => {
 
       alert('Pontuacao enviada com sucesso!');
       await loadWeeklyScore();
+      if (selectedLeague) {
+        await loadScoreSubmissions(selectedLeague.id);
+      }
     } catch (error) {
       console.error('Error submitting score:', error);
       alert('Erro ao enviar pontuacao');
@@ -1126,6 +1263,9 @@ const shouldShowScoringCard = (league: League): boolean => {
 
       alert('Presenca no churrasco confirmada! +2,5 pontos');
       await loadWeeklyScore();
+      if (selectedLeague) {
+        await loadScoreSubmissions(selectedLeague.id);
+      }
     } catch (error) {
       console.error('Error submitting BBQ score:', error);
       alert('Erro ao confirmar presenca no churrasco');
@@ -2113,6 +2253,10 @@ const shouldShowScoringCard = (league: League): boolean => {
                                 : null;
                               const willPlay = attendanceStatus === 'confirmed' || attendanceStatus === 'play_and_bbq';
                               const willBbq = attendanceStatus === 'bbq_only' || attendanceStatus === 'play_and_bbq';
+                              const hasConfirmedAttendance = willPlay || willBbq;
+                              const hasSubmittedScore = scoreSubmissions[ranking.player_id] || false;
+                              const isOrganizer = selectedLeague && organizerLeagues.includes(selectedLeague.id);
+                              const canEditScore = inScoringWindow && isOrganizer && hasConfirmedAttendance;
                               return (
                                 <div
                                   key={ranking.player_id}
@@ -2151,6 +2295,22 @@ const shouldShowScoringCard = (league: League): boolean => {
                                             {willBbq && <Beef className="w-3.5 h-3.5 text-amber-600" />}
                                           </div>
                                         )}
+                                        {inScoringWindow && hasConfirmedAttendance && (
+                                          <div
+                                            className={`flex items-center justify-center w-4 h-4 rounded-full flex-shrink-0 ${
+                                              hasSubmittedScore
+                                                ? 'bg-emerald-500'
+                                                : 'bg-amber-400'
+                                            }`}
+                                            title={hasSubmittedScore ? 'Pontuacao enviada' : 'Pontuacao pendente'}
+                                          >
+                                            {hasSubmittedScore ? (
+                                              <Check className="w-2.5 h-2.5 text-white" />
+                                            ) : (
+                                              <Clock className="w-2.5 h-2.5 text-white" />
+                                            )}
+                                          </div>
+                                        )}
                                       </div>
                                       <p className="text-xs text-gray-600 truncate">
                                         {ranking.matches_played} partidas • {ranking.wins}V / {ranking.losses}D
@@ -2160,11 +2320,26 @@ const shouldShowScoringCard = (league: League): boolean => {
                                         )}
                                       </p>
                                     </div>
-                                    <div className="text-right flex-shrink-0">
-                                      <p className={`text-xl font-bold ${isMe ? 'text-emerald-600' : 'text-gray-900'}`}>
-                                        {ranking.points.toFixed(1)}
-                                      </p>
-                                      <p className="text-xs text-gray-600">pontos</p>
+                                    <div className="flex items-center gap-2 flex-shrink-0">
+                                      {canEditScore && (
+                                        <button
+                                          onClick={() => openPlayerScoreModal(ranking.player_id, ranking.player.full_name)}
+                                          className={`p-1.5 rounded-lg transition-colors ${
+                                            hasSubmittedScore
+                                              ? 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200'
+                                              : 'bg-amber-100 text-amber-600 hover:bg-amber-200'
+                                          }`}
+                                          title={hasSubmittedScore ? 'Editar pontuacao' : 'Inserir pontuacao'}
+                                        >
+                                          <Pencil className="w-4 h-4" />
+                                        </button>
+                                      )}
+                                      <div className="text-right">
+                                        <p className={`text-xl font-bold ${isMe ? 'text-emerald-600' : 'text-gray-900'}`}>
+                                          {ranking.points.toFixed(1)}
+                                        </p>
+                                        <p className="text-xs text-gray-600">pontos</p>
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
@@ -2214,6 +2389,140 @@ const shouldShowScoringCard = (league: League): boolean => {
                   </>
                 ) : (
                   'Confirmar Reset'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingPlayerScore && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-teal-100 rounded-full">
+                  <Trophy className="w-6 h-6 text-teal-600" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">Inserir Pontuacao</h3>
+                  <p className="text-sm text-gray-600">{editingPlayerScore.playerName}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditingPlayerScore(null)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Vitorias
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editVictories}
+                    onChange={(e) => setEditVictories(Math.max(0, parseInt(e.target.value) || 0))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Derrotas
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editDefeats}
+                    onChange={(e) => setEditDefeats(Math.max(0, parseInt(e.target.value) || 0))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="editHasBlowouts"
+                  checked={editHasBlowouts}
+                  onChange={(e) => {
+                    setEditHasBlowouts(e.target.checked);
+                    if (!e.target.checked) setEditBlowouts(0);
+                    else setEditBlowouts(1);
+                  }}
+                  className="w-4 h-4 text-red-600 border-red-300 rounded focus:ring-red-500"
+                />
+                <label htmlFor="editHasBlowouts" className="text-sm font-medium text-gray-700">
+                  Tomou pneu (6x0)
+                </label>
+              </div>
+
+              {editHasBlowouts && (
+                <div>
+                  <label className="block text-sm font-medium text-red-700 mb-1">
+                    Quantos pneus (6x0)?
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={editBlowouts}
+                    onChange={(e) => setEditBlowouts(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="w-full px-3 py-2 border border-red-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                  />
+                </div>
+              )}
+
+              <div className="bg-teal-50 rounded-lg p-3 text-sm text-teal-800">
+                <p className="font-medium mb-1">Previa da pontuacao:</p>
+                <p>Presenca: +2,5 pts</p>
+                {(lastEventAttendances[editingPlayerScore.playerId]?.status === 'play_and_bbq' ||
+                  lastEventAttendances[editingPlayerScore.playerId]?.status === 'bbq_only') && (
+                  <p>Churras: +2,5 pts</p>
+                )}
+                {editVictories > 0 && <p>Vitorias: +{editVictories * 2} pts</p>}
+                {editHasBlowouts && editBlowouts > 0 && (
+                  <p className="text-red-700">Pneus: -{editBlowouts * 2} pts</p>
+                )}
+                <p className="font-bold mt-1 pt-1 border-t border-teal-200">
+                  Total: {(
+                    2.5 +
+                    ((lastEventAttendances[editingPlayerScore.playerId]?.status === 'play_and_bbq' ||
+                      lastEventAttendances[editingPlayerScore.playerId]?.status === 'bbq_only') ? 2.5 : 0) +
+                    (editVictories * 2) +
+                    ((editHasBlowouts ? editBlowouts : 0) * -2)
+                  ).toFixed(1)} pts
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setEditingPlayerScore(null)}
+                disabled={submittingPlayerScore}
+                className="flex-1 py-2.5 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleOrganizerSubmitScore}
+                disabled={submittingPlayerScore}
+                className="flex-1 py-2.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {submittingPlayerScore ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Enviando...
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    Salvar Pontuacao
+                  </>
                 )}
               </button>
             </div>
