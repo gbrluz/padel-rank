@@ -79,6 +79,7 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
   const [showOrganizerPanel, setShowOrganizerPanel] = useState(false);
   const [cancellingRequest, setCancellingRequest] = useState(false);
   const [myAttendance, setMyAttendance] = useState<WeeklyAttendance | null>(null);
+  const [myLastEventAttendance, setMyLastEventAttendance] = useState<WeeklyAttendance | null>(null);
   const [updatingAttendance, setUpdatingAttendance] = useState(false);
   const [scoringVictories, setScoringVictories] = useState(0);
   const [scoringDefeats, setScoringDefeats] = useState(0);
@@ -113,16 +114,17 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
         loadAllAttendances(selectedLeague.id);
         if (myLeagues.includes(selectedLeague.id)) {
           loadMyAttendance(selectedLeague.id);
+          loadMyLastEventAttendance(selectedLeague.id);
         }
       }
     }
   }, [selectedLeague, organizerLeagues, myLeagues]);
 
   useEffect(() => {
-    if (selectedLeague && myAttendance && shouldShowScoringCard(selectedLeague)) {
+    if (selectedLeague && myLastEventAttendance && shouldShowScoringCard(selectedLeague)) {
       loadWeeklyScore();
     }
-  }, [selectedLeague, myAttendance]);
+  }, [selectedLeague, myLastEventAttendance]);
 
   const loadLeagues = async () => {
     setLoading(true);
@@ -503,6 +505,30 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
     }
   };
 
+  const loadMyLastEventAttendance = async (leagueId: string) => {
+    if (!profile || !selectedLeague) return;
+
+    const lastEvent = getLastEventDate(selectedLeague);
+    if (!lastEvent) return;
+
+    const weekDate = lastEvent.toISOString().split('T')[0];
+
+    try {
+      const { data, error } = await supabase
+        .from('league_attendance')
+        .select('*')
+        .eq('league_id', leagueId)
+        .eq('player_id', profile.id)
+        .eq('week_date', weekDate)
+        .maybeSingle();
+
+      if (error) throw error;
+      setMyLastEventAttendance(data);
+    } catch (error) {
+      console.error('Error loading last event attendance:', error);
+    }
+  };
+
   const loadAllAttendances = async (leagueId: string) => {
     if (!selectedLeague) return;
 
@@ -638,7 +664,7 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
 
 const shouldShowScoringCard = (league: League): boolean => {
   if (league.format !== 'weekly') return false;
-  if (!myAttendance || (myAttendance.status !== 'confirmed' && myAttendance.status !== 'bbq_only')) return false;
+  if (!myLastEventAttendance || (myLastEventAttendance.status !== 'confirmed' && myLastEventAttendance.status !== 'bbq_only')) return false;
 
   const now = Date.now();
   const lastEvent = getLastEventDate(league);
@@ -1302,7 +1328,7 @@ const shouldShowScoringCard = (league: League): boolean => {
                     </div>
                   )}
 
-                  {shouldShowScoringCard(selectedLeague) && myAttendance?.status === 'bbq_only' && (
+                  {shouldShowScoringCard(selectedLeague) && myLastEventAttendance?.status === 'bbq_only' && (
                     <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-4 mb-6">
                       <div className="flex items-start gap-3">
                         <Trophy className="w-6 h-6 text-amber-600 flex-shrink-0 mt-0.5" />
@@ -1355,7 +1381,7 @@ const shouldShowScoringCard = (league: League): boolean => {
                     </div>
                   )}
 
-                  {shouldShowScoringCard(selectedLeague) && myAttendance?.status === 'confirmed' && (
+                  {shouldShowScoringCard(selectedLeague) && myLastEventAttendance?.status === 'confirmed' && (
                     <div className="bg-teal-50 border-2 border-teal-200 rounded-xl p-4 mb-6">
                       <div className="flex items-start gap-3">
                         <Trophy className="w-6 h-6 text-teal-600 flex-shrink-0 mt-0.5" />
