@@ -74,7 +74,7 @@ function AppContent() {
   };
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen overflow-x-hidden">
       <Navigation currentPage={currentPage} onNavigate={setCurrentPage} />
       <div className="pt-20 md:pt-20">
         {renderPage()}

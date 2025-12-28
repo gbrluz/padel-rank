@@ -1260,8 +1260,8 @@ const shouldShowScoringCard = (league: League): boolean => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50 py-8 px-4 overflow-x-hidden">
-      <div className="container mx-auto max-w-6xl">
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50 py-6 sm:py-8 px-3 sm:px-4 overflow-x-hidden">
+      <div className="max-w-6xl mx-auto w-full">
         <div className="mb-8 text-center md:text-left">
           <h1 className="text-3xl font-bold text-gray-900 flex items-center justify-center md:justify-start">
             <Medal className="w-8 h-8 mr-3 text-emerald-600" />
@@ -1278,9 +1278,9 @@ const shouldShowScoringCard = (league: League): boolean => {
             </p>
           </div>
         ) : (
-          <div className="grid md:grid-cols-3 gap-6">
-            <div className="md:col-span-1">
-              <div className="bg-white rounded-2xl shadow-lg p-6">
+          <div className="grid md:grid-cols-3 gap-4 sm:gap-6 w-full">
+            <div className="md:col-span-1 min-w-0">
+              <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-6">
                 <h2 className="text-xl font-bold text-gray-900 mb-4">Ligas Disponíveis</h2>
                 <div className="space-y-3">
                   {leagues.map((league) => (
@@ -1334,9 +1334,9 @@ const shouldShowScoringCard = (league: League): boolean => {
               </div>
             </div>
 
-            <div className="md:col-span-2">
+            <div className="md:col-span-2 min-w-0">
               {selectedLeague && (
-                <div className="bg-white rounded-2xl shadow-lg p-6">
+                <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-6">
                   <div className="flex items-center justify-between mb-6">
                     <div>
                       <h2 className="text-2xl font-bold text-gray-900">{selectedLeague.name}</h2>
