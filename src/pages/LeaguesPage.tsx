@@ -2470,14 +2470,13 @@ const shouldShowEventLists = (league: League): boolean => {
                         <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
                           <div className="flex items-center gap-2 mb-2">
                             <div className="w-3 h-3 rounded-full bg-gradient-to-br from-yellow-300 to-yellow-500 border border-yellow-600"></div>
-                            <Beef className="w-3.5 h-3.5 text-amber-600" />
                             <p className="font-semibold text-emerald-900 text-sm">
-                              Vão jogar e participar do churrasco ({Object.entries(allAttendances).filter(([_, att]) => att.status === 'play_and_bbq').length})
+                              Jogo ({Object.entries(allAttendances).filter(([_, att]) => att.status === 'confirmed' || att.status === 'play_and_bbq').length})
                             </p>
                           </div>
                           <div className="flex flex-wrap gap-2">
                             {Object.entries(allAttendances)
-                              .filter(([_, att]) => att.status === 'play_and_bbq')
+                              .filter(([_, att]) => att.status === 'confirmed' || att.status === 'play_and_bbq')
                               .map(([playerId]) => {
                                 const member = leagueMembers.find(m => m.player_id === playerId);
                                 return member ? (
@@ -2486,31 +2485,7 @@ const shouldShowEventLists = (league: League): boolean => {
                                   </span>
                                 ) : null;
                               })}
-                            {Object.entries(allAttendances).filter(([_, att]) => att.status === 'play_and_bbq').length === 0 && (
-                              <span className="text-sm text-gray-500 italic">Ninguém confirmou ainda</span>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                          <div className="flex items-center gap-2 mb-2">
-                            <div className="w-3 h-3 rounded-full bg-gradient-to-br from-yellow-300 to-yellow-500 border border-yellow-600"></div>
-                            <p className="font-semibold text-yellow-900 text-sm">
-                              Vão apenas jogar ({Object.entries(allAttendances).filter(([_, att]) => att.status === 'confirmed').length})
-                            </p>
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            {Object.entries(allAttendances)
-                              .filter(([_, att]) => att.status === 'confirmed')
-                              .map(([playerId]) => {
-                                const member = leagueMembers.find(m => m.player_id === playerId);
-                                return member ? (
-                                  <span key={playerId} className="bg-white px-3 py-1 rounded-full text-sm text-gray-700 border border-yellow-200">
-                                    {member.player.full_name}
-                                  </span>
-                                ) : null;
-                              })}
-                            {Object.entries(allAttendances).filter(([_, att]) => att.status === 'confirmed').length === 0 && (
+                            {Object.entries(allAttendances).filter(([_, att]) => att.status === 'confirmed' || att.status === 'play_and_bbq').length === 0 && (
                               <span className="text-sm text-gray-500 italic">Ninguém confirmou ainda</span>
                             )}
                           </div>
@@ -2520,12 +2495,12 @@ const shouldShowEventLists = (league: League): boolean => {
                           <div className="flex items-center gap-2 mb-2">
                             <Beef className="w-3.5 h-3.5 text-amber-600" />
                             <p className="font-semibold text-amber-900 text-sm">
-                              Vão apenas ao churrasco ({Object.entries(allAttendances).filter(([_, att]) => att.status === 'bbq_only').length})
+                              Churrasco ({Object.entries(allAttendances).filter(([_, att]) => att.status === 'bbq_only' || att.status === 'play_and_bbq').length})
                             </p>
                           </div>
                           <div className="flex flex-wrap gap-2">
                             {Object.entries(allAttendances)
-                              .filter(([_, att]) => att.status === 'bbq_only')
+                              .filter(([_, att]) => att.status === 'bbq_only' || att.status === 'play_and_bbq')
                               .map(([playerId]) => {
                                 const member = leagueMembers.find(m => m.player_id === playerId);
                                 return member ? (
@@ -2534,7 +2509,7 @@ const shouldShowEventLists = (league: League): boolean => {
                                   </span>
                                 ) : null;
                               })}
-                            {Object.entries(allAttendances).filter(([_, att]) => att.status === 'bbq_only').length === 0 && (
+                            {Object.entries(allAttendances).filter(([_, att]) => att.status === 'bbq_only' || att.status === 'play_and_bbq').length === 0 && (
                               <span className="text-sm text-gray-500 italic">Ninguém confirmou ainda</span>
                             )}
                           </div>
@@ -2544,7 +2519,7 @@ const shouldShowEventLists = (league: League): boolean => {
                           <div className="flex items-center gap-2 mb-2">
                             <X className="w-4 h-4 text-red-600" />
                             <p className="font-semibold text-red-900 text-sm">
-                              Não vão participar ({Object.entries(allAttendances).filter(([_, att]) => att.status === 'declined').length})
+                              Não vai participar ({Object.entries(allAttendances).filter(([_, att]) => att.status === 'declined').length})
                             </p>
                           </div>
                           <div className="flex flex-wrap gap-2">
@@ -2568,7 +2543,7 @@ const shouldShowEventLists = (league: League): boolean => {
                           <div className="flex items-center gap-2 mb-2">
                             <HelpCircle className="w-4 h-4 text-gray-400" />
                             <p className="font-semibold text-gray-700 text-sm">
-                              Ainda não responderam ({leagueMembers.filter(m => !allAttendances[m.player_id]).length})
+                              Não respondeu ({leagueMembers.filter(m => !allAttendances[m.player_id]).length})
                             </p>
                           </div>
                           <div className="flex flex-wrap gap-2">
