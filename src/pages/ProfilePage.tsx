@@ -33,6 +33,8 @@ export default function ProfilePage() {
   const [formData, setFormData] = useState({
     full_name: '',
     preferred_side: '',
+    category: '',
+    birth_date: '',
     state: '',
     city: '',
     availability: {} as Record<string, string[]>,
@@ -46,6 +48,8 @@ export default function ProfilePage() {
       setFormData({
         full_name: profile.full_name,
         preferred_side: profile.preferred_side,
+        category: profile.category,
+        birth_date: profile.birth_date,
         state: profile.state,
         city: profile.city,
         availability: profile.availability,
@@ -127,16 +131,30 @@ export default function ProfilePage() {
     setLoading(true);
 
     try {
+      const updateData: any = {
+        full_name: formData.full_name,
+        preferred_side: formData.preferred_side,
+        birth_date: formData.birth_date,
+        state: formData.state,
+        city: formData.city,
+        availability: formData.availability,
+        photo_url: formData.photo_url
+      };
+
+      if (profile.total_matches === 0 && formData.category !== profile.category) {
+        const { data: initialPoints, error: rpcError } = await supabase.rpc('get_initial_points_for_category', {
+          category_name: formData.category
+        });
+
+        if (rpcError) throw rpcError;
+
+        updateData.category = formData.category;
+        updateData.ranking_points = initialPoints || 100;
+      }
+
       const { error: updateError } = await supabase
         .from('players')
-        .update({
-          full_name: formData.full_name,
-          preferred_side: formData.preferred_side,
-          state: formData.state,
-          city: formData.city,
-          availability: formData.availability,
-          photo_url: formData.photo_url
-        })
+        .update(updateData)
         .eq('id', profile.id);
 
       if (updateError) throw updateError;
@@ -155,6 +173,8 @@ export default function ProfilePage() {
       setFormData({
         full_name: profile.full_name,
         preferred_side: profile.preferred_side,
+        category: profile.category,
+        birth_date: profile.birth_date,
         state: profile.state,
         city: profile.city,
         availability: profile.availability,
@@ -321,6 +341,51 @@ export default function ProfilePage() {
                     <option value="right">Direita</option>
                     <option value="both">Ambos</option>
                   </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Categoria
+                  </label>
+                  <select
+                    value={formData.category}
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    disabled={loading || profile.total_matches > 0}
+                  >
+                    <option value="Iniciante">Iniciante</option>
+                    <option value="7ª">7ª</option>
+                    <option value="6ª">6ª</option>
+                    <option value="5ª">5ª</option>
+                    <option value="4ª">4ª</option>
+                    <option value="3ª">3ª</option>
+                    <option value="2ª">2ª</option>
+                    <option value="1ª">1ª</option>
+                  </select>
+                  {profile.total_matches > 0 ? (
+                    <p className="text-xs text-amber-600 mt-2 flex items-start gap-1">
+                      <Award className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                      Categoria não pode ser alterada após jogar partidas. Sua categoria é ajustada automaticamente pelos seus pontos.
+                    </p>
+                  ) : (
+                    <p className="text-xs text-blue-600 mt-2 flex items-start gap-1">
+                      <Award className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                      Ao alterar a categoria, seus pontos serão ajustados para o valor inicial dessa categoria.
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Data de Nascimento
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.birth_date}
+                    onChange={(e) => setFormData({ ...formData, birth_date: e.target.value })}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:outline-none"
+                    disabled={loading}
+                  />
                 </div>
 
                 <div>
