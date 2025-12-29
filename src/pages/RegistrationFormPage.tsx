@@ -160,13 +160,9 @@ export default function RegistrationFormPage() {
         .eq('id', user!.id)
         .maybeSingle();
 
-      console.log('RegistrationForm - Perfil existente:', existingProfile);
-
       const { data: initialPoints } = await supabase.rpc('get_initial_points_for_category', {
         category_name: formData.category
       });
-
-      console.log('RegistrationForm - Pontos iniciais:', initialPoints);
 
       if (existingProfile) {
         const updateData: any = { ...formData };
@@ -178,22 +174,13 @@ export default function RegistrationFormPage() {
           updateData.can_join_leagues = false;
         }
 
-        console.log('RegistrationForm - Atualizando perfil com:', updateData);
-
         const { error: updateError } = await supabase
           .from('players')
           .update(updateData)
           .eq('id', user!.id);
 
-        if (updateError) {
-          console.error('RegistrationForm - Erro ao atualizar:', updateError);
-          throw updateError;
-        }
-
-        console.log('RegistrationForm - Perfil atualizado com sucesso');
+        if (updateError) throw updateError;
       } else {
-        console.log('RegistrationForm - Inserindo novo perfil');
-
         const { error: insertError } = await supabase
           .from('players')
           .insert([{
@@ -205,17 +192,10 @@ export default function RegistrationFormPage() {
             can_join_leagues: false
           }]);
 
-        if (insertError) {
-          console.error('RegistrationForm - Erro ao inserir:', insertError);
-          throw insertError;
-        }
-
-        console.log('RegistrationForm - Perfil inserido com sucesso');
+        if (insertError) throw insertError;
       }
 
-      console.log('RegistrationForm - Chamando refreshPlayer...');
       await refreshPlayer();
-      console.log('RegistrationForm - refreshPlayer concluído');
     } catch (err: any) {
       setError(err.message || 'Erro ao salvar perfil');
     } finally {

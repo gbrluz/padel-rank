@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import { profileService, Player } from '../services';
+import { Player } from '../types';
 
 type AuthContextType = {
   user: User | null;
@@ -23,26 +23,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [playerLoading, setPlayerLoading] = useState(false);
 
   const fetchPlayer = async (userId: string) => {
-    console.log('AuthContext - fetchPlayer iniciado para:', userId);
     setPlayerLoading(true);
     try {
-      const data = await profileService.getPlayer(userId);
-      console.log('AuthContext - Player retornado:', data);
+      const { data, error } = await supabase
+        .from('players')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
 
-      if (data) {
+      if (error) {
+        console.error('Erro ao buscar jogador:', error);
+        setPlayer(null);
+      } else if (data) {
         setPlayer(data);
-        console.log('AuthContext - Player setado com sucesso');
       } else {
         setPlayer(null);
-        console.log('AuthContext - Player não encontrado, setando null');
       }
     } catch (err) {
-      console.error('AuthContext - Erro inesperado ao buscar jogador:', err);
+      console.error('Erro inesperado ao buscar jogador:', err);
       setPlayer(null);
     } finally {
       setPlayerLoading(false);
       setLoading(false);
-      console.log('AuthContext - fetchPlayer concluído, loading:', false);
     }
   };
 
