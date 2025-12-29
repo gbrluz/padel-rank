@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { RegionalRanking, GlobalRanking, RankingHistory } from 'climb-types';
 import { AuthRequest } from '../middleware/auth';
 import { supabase } from '../config/supabase';
 import { AppError } from '../middleware/errorHandler';

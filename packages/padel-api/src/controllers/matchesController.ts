@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { Match } from 'climb-types';
 import { AuthRequest } from '../middleware/auth';
 import { supabase } from '../config/supabase';
 import { AppError } from '../middleware/errorHandler';

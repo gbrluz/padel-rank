@@ -17,7 +17,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@padel/types": "file:../padel-types",
+    "climb-types": "file:../padel-types",
     "@supabase/supabase-js": "^2.57.4",
     "express": "^4.18.2",
     "cors": "^2.8.5",

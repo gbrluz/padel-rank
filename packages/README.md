@@ -4,12 +4,13 @@ This directory contains 3 separate packages that will become independent reposit
 
 ## 📦 Packages
 
-### 1. padel-types
+### 1. climb-types (padel-types)
 **Shared TypeScript types package**
 
 Contains all domain types and API contract types shared between frontend and backend.
 
 - Location: `packages/padel-types/`
+- Package Name: `climb-types`
 - Deploy: NPM or GitHub Packages
 - Purpose: Ensure type safety across all repositories
 
@@ -78,8 +79,7 @@ npm link  # For local development
 2. **Start Backend API**
 ```bash
 cd packages/padel-api
-npm install
-npm link @padel/types  # Use local types
+npm install  # climb-types is linked via file:../padel-types
 cp .env.example .env
 # Configure .env with your Supabase credentials
 npm run dev  # Runs on http://localhost:3000
@@ -88,8 +88,7 @@ npm run dev  # Runs on http://localhost:3000
 3. **Start Frontend**
 ```bash
 cd packages/padel-frontend
-npm install
-npm link @padel/types  # Use local types
+npm install  # climb-types is linked via file:../padel-types
 cp .env.example .env.local
 # Configure .env.local with API URL and Supabase
 npm run dev  # Runs on http://localhost:5173
@@ -178,7 +177,7 @@ vercel --prod
 ```bash
 cd packages/padel-types
 npm version patch
-npm publish
+npm publish  # Publishes as climb-types
 ```
 
 ## 🔒 Security
@@ -194,7 +193,7 @@ npm publish
 
 ### Shared Between Packages
 - TypeScript 5.5+
-- @padel/types (custom package)
+- climb-types (custom package)
 
 ### Backend Only
 - Express

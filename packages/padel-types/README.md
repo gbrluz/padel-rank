@@ -1,17 +1,17 @@
-# @padel/types
+# climb-types
 
 Shared TypeScript types for Padel Management System.
 
 ## Installation
 
 ```bash
-npm install @padel/types
+npm install climb-types
 ```
 
 ## Usage
 
 ```typescript
-import { Player, Match, League, APIResponse } from '@padel/types';
+import { Player, Match, League, APIResponse } from 'climb-types';
 
 // Use types in your code
 const player: Player = {

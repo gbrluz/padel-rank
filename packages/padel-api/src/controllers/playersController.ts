@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { Player } from 'climb-types';
 import { AuthRequest } from '../middleware/auth';
 import { supabase } from '../config/supabase';
 import { AppError } from '../middleware/errorHandler';
@@ -46,7 +47,7 @@ export async function getPlayer(req: AuthRequest, res: Response) {
     throw new AppError(404, 'Player not found');
   }
 
-  res.json({ player });
+  res.json({ player } as { player: Player });
 }
 
 export async function updatePlayer(req: AuthRequest, res: Response) {
@@ -88,5 +89,5 @@ export async function updatePlayer(req: AuthRequest, res: Response) {
     throw new AppError(500, 'Failed to update player');
   }
 
-  res.json({ player });
+  res.json({ player } as { player: Player });
 }
