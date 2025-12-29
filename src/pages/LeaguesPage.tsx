@@ -956,6 +956,22 @@ const shouldShowScoringCard = (league: League): boolean => {
   return now >= scoringStart && now < scoringEnd;
 };
 
+const shouldShowEventLists = (league: League): boolean => {
+  if (league.format !== 'weekly') return false;
+
+  const deadline = getAttendanceDeadline(league);
+  if (!deadline) return false;
+
+  const now = Date.now();
+  const lastEvent = getLastEventDate(league);
+
+  if (!lastEvent) return false;
+
+  const scoringEnd = lastEvent.getTime() + (48 * 60 * 60 * 1000);
+
+  return now >= deadline.getTime() && now < scoringEnd;
+};
+
   const loadWeeklyScore = async () => {
     if (!profile || !selectedLeague) return;
 
@@ -1900,7 +1916,7 @@ const shouldShowScoringCard = (league: League): boolean => {
                     </div>
                   )}
 
-                  {shouldShowScoringCard(selectedLeague) && (
+                  {myLeagues.includes(selectedLeague.id) && shouldShowEventLists(selectedLeague) && (
                     <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 mb-6">
                       <div className="flex items-start gap-3">
                         <Users className="w-6 h-6 text-blue-600 flex-shrink-0 mt-0.5" />
