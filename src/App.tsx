@@ -19,13 +19,17 @@ function AppContent() {
   const previousPlayerRef = useRef<typeof player>(null);
 
   useEffect(() => {
+    console.log('App - Estado atualizado:', { user: !!user, player: !!player, loading });
     if (player && !previousPlayerRef.current) {
       setCurrentPage('dashboard');
+      console.log('App - Redirecionando para dashboard');
     }
     previousPlayerRef.current = player;
-  }, [player]);
+  }, [player, user, loading]);
 
   if (loading) {
+    console.log('App - Mostrando loading...');
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50 flex items-center justify-center">
         <div className="text-center">
@@ -37,6 +41,7 @@ function AppContent() {
   }
 
   if (!user) {
+    console.log('App - Usuário não autenticado');
     if (showAuth) {
       return (
         <AuthPage
@@ -49,8 +54,11 @@ function AppContent() {
   }
 
   if (!player) {
+    console.log('App - Usuário autenticado mas sem perfil, mostrando RegistrationForm');
     return <RegistrationFormPage />;
   }
+
+  console.log('App - Usuário autenticado com perfil, mostrando página:', currentPage);
 
   const renderPage = () => {
     switch (currentPage) {
