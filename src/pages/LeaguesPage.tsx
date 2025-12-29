@@ -2375,7 +2375,7 @@ const shouldShowEventLists = (league: League): boolean => {
                                           {ranking.player.full_name}
                                           {isMe && ' (Voce)'}
                                         </p>
-                                        {selectedLeague?.format === 'weekly' && attendanceStatus && (
+                                        {selectedLeague?.format === 'weekly' && (
                                           <div className="flex items-center gap-0.5 flex-shrink-0">
                                             {(willPlay || willBbq) && (
                                               <div className="flex items-center gap-0.5" title={
@@ -2392,7 +2392,7 @@ const shouldShowEventLists = (league: League): boolean => {
                                             {attendanceStatus === 'declined' && (
                                               <X className="w-3.5 h-3.5 text-red-600" title="Nao vai participar" />
                                             )}
-                                            {attendanceStatus === 'no_response' && (
+                                            {(attendanceStatus === 'no_response' || !attendanceStatus) && (
                                               <HelpCircle className="w-3.5 h-3.5 text-gray-400" title="Ainda nao respondeu" />
                                             )}
                                           </div>
