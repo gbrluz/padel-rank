@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2";
-import { handleCors, jsonResponse, Errors, authenticateAdmin } from "../_shared/index.ts";
+import { handleCors, jsonResponse, Errors, authenticateAdmin, authenticateRequest } from "../_shared/index.ts";
 
 const MAX_POINT_DIFFERENCE = 350;
 const MAX_TEAM_BALANCE_DIFF = 200;
