@@ -369,7 +369,7 @@ Deno.serve(async (req: Request) => {
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
 
-  const authResult = await authenticateAdmin(req);
+  const authResult = await authenticateRequest(req);
   if (!authResult.success) {
     return authResult.response;
   }
