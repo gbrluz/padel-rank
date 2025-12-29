@@ -2452,6 +2452,158 @@ const shouldShowEventLists = (league: League): boolean => {
                       )}
                     </div>
                   )}
+
+                  {selectedLeague.format === 'weekly' && shouldShowAttendanceCard(selectedLeague) && (
+                    <div className="bg-white border-2 border-gray-200 rounded-xl p-6 mt-6">
+                      <div className="flex items-center gap-3 mb-4">
+                        <CalendarCheck className="w-6 h-6 text-blue-600" />
+                        <h3 className="text-xl font-bold text-gray-900">
+                          Lista de Presença
+                        </h3>
+                      </div>
+                      <p className="text-sm text-gray-600 mb-4">
+                        Confirmações para {getDayName(selectedLeague.weekly_day || 0)}, {getNextWeeklyEventDate(selectedLeague)?.toLocaleDateString('pt-BR')}
+                        {selectedLeague.weekly_time && ` às ${selectedLeague.weekly_time.slice(0, 5)}`}
+                      </p>
+
+                      <div className="space-y-3">
+                        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="w-3 h-3 rounded-full bg-gradient-to-br from-yellow-300 to-yellow-500 border border-yellow-600"></div>
+                            <Beef className="w-3.5 h-3.5 text-amber-600" />
+                            <p className="font-semibold text-emerald-900 text-sm">
+                              Vão jogar e participar do churrasco ({Object.entries(allAttendances).filter(([_, att]) => att.status === 'play_and_bbq').length})
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {Object.entries(allAttendances)
+                              .filter(([_, att]) => att.status === 'play_and_bbq')
+                              .map(([playerId]) => {
+                                const member = leagueMembers.find(m => m.player_id === playerId);
+                                return member ? (
+                                  <span key={playerId} className="bg-white px-3 py-1 rounded-full text-sm text-gray-700 border border-emerald-200">
+                                    {member.player.full_name}
+                                  </span>
+                                ) : null;
+                              })}
+                            {Object.entries(allAttendances).filter(([_, att]) => att.status === 'play_and_bbq').length === 0 && (
+                              <span className="text-sm text-gray-500 italic">Ninguém confirmou ainda</span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="w-3 h-3 rounded-full bg-gradient-to-br from-yellow-300 to-yellow-500 border border-yellow-600"></div>
+                            <p className="font-semibold text-yellow-900 text-sm">
+                              Vão apenas jogar ({Object.entries(allAttendances).filter(([_, att]) => att.status === 'confirmed').length})
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {Object.entries(allAttendances)
+                              .filter(([_, att]) => att.status === 'confirmed')
+                              .map(([playerId]) => {
+                                const member = leagueMembers.find(m => m.player_id === playerId);
+                                return member ? (
+                                  <span key={playerId} className="bg-white px-3 py-1 rounded-full text-sm text-gray-700 border border-yellow-200">
+                                    {member.player.full_name}
+                                  </span>
+                                ) : null;
+                              })}
+                            {Object.entries(allAttendances).filter(([_, att]) => att.status === 'confirmed').length === 0 && (
+                              <span className="text-sm text-gray-500 italic">Ninguém confirmou ainda</span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Beef className="w-3.5 h-3.5 text-amber-600" />
+                            <p className="font-semibold text-amber-900 text-sm">
+                              Vão apenas ao churrasco ({Object.entries(allAttendances).filter(([_, att]) => att.status === 'bbq_only').length})
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {Object.entries(allAttendances)
+                              .filter(([_, att]) => att.status === 'bbq_only')
+                              .map(([playerId]) => {
+                                const member = leagueMembers.find(m => m.player_id === playerId);
+                                return member ? (
+                                  <span key={playerId} className="bg-white px-3 py-1 rounded-full text-sm text-gray-700 border border-amber-200">
+                                    {member.player.full_name}
+                                  </span>
+                                ) : null;
+                              })}
+                            {Object.entries(allAttendances).filter(([_, att]) => att.status === 'bbq_only').length === 0 && (
+                              <span className="text-sm text-gray-500 italic">Ninguém confirmou ainda</span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <X className="w-4 h-4 text-red-600" />
+                            <p className="font-semibold text-red-900 text-sm">
+                              Não vão participar ({Object.entries(allAttendances).filter(([_, att]) => att.status === 'declined').length})
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {Object.entries(allAttendances)
+                              .filter(([_, att]) => att.status === 'declined')
+                              .map(([playerId]) => {
+                                const member = leagueMembers.find(m => m.player_id === playerId);
+                                return member ? (
+                                  <span key={playerId} className="bg-white px-3 py-1 rounded-full text-sm text-gray-700 border border-red-200">
+                                    {member.player.full_name}
+                                  </span>
+                                ) : null;
+                              })}
+                            {Object.entries(allAttendances).filter(([_, att]) => att.status === 'declined').length === 0 && (
+                              <span className="text-sm text-gray-500 italic">Ninguém declinou ainda</span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <HelpCircle className="w-4 h-4 text-gray-400" />
+                            <p className="font-semibold text-gray-700 text-sm">
+                              Ainda não responderam ({leagueMembers.filter(m => !allAttendances[m.player_id]).length})
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {leagueMembers
+                              .filter(m => !allAttendances[m.player_id])
+                              .map((member) => (
+                                <span key={member.player_id} className="bg-white px-3 py-1 rounded-full text-sm text-gray-500 border border-gray-300">
+                                  {member.player.full_name}
+                                </span>
+                              ))}
+                            {leagueMembers.filter(m => !allAttendances[m.player_id]).length === 0 && (
+                              <span className="text-sm text-gray-500 italic">Todos responderam</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 pt-4 border-t border-gray-200">
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div className="text-center">
+                            <p className="text-2xl font-bold text-emerald-600">
+                              {Object.entries(allAttendances).filter(([_, att]) => att.status === 'confirmed' || att.status === 'play_and_bbq').length}
+                            </p>
+                            <p className="text-gray-600">Jogadores confirmados</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-2xl font-bold text-amber-600">
+                              {Object.entries(allAttendances).filter(([_, att]) => att.status === 'bbq_only' || att.status === 'play_and_bbq').length}
+                            </p>
+                            <p className="text-gray-600">No churrasco</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
