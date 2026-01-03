@@ -650,22 +650,20 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
       if (drawData) {
         setCurrentDraw(drawData);
 
+        // Load pairs with player data using Supabase joins (more reliable than local allPlayers)
         const { data: pairsData, error: pairsError } = await supabase
           .from('weekly_event_pairs')
-          .select('*')
+          .select(`
+            *,
+            player1:player1_id(id, full_name, category, regional_points, national_points),
+            player2:player2_id(id, full_name, category, regional_points, national_points)
+          `)
           .eq('draw_id', drawData.id)
           .order('pair_number');
 
         if (pairsError) throw pairsError;
 
-        const playersMap = new Map((allPlayers || []).map(p => [p.id, p]));
-        const pairsWithPlayers = (pairsData || []).map(pair => ({
-          ...pair,
-          player1: playersMap.get(pair.player1_id),
-          player2: pair.player2_id ? playersMap.get(pair.player2_id) : undefined,
-        }));
-
-        setCurrentPairs(pairsWithPlayers);
+        setCurrentPairs(pairsData || []);
       } else {
         setCurrentDraw(null);
         setCurrentPairs([]);
@@ -1021,8 +1019,11 @@ const shouldShowEventLists = (league: League): boolean => {
           .eq('event_date', eventDate)
           .maybeSingle();
 
+        console.log('[loadWeeklyScore] Draw data:', drawData);
+
         if (drawData) {
-          const { data: pairsData } = await supabase
+          // Load pairs with player data using Supabase joins (avoids race conditions with allPlayers)
+          const { data: pairsData, error: pairsError } = await supabase
             .from('weekly_event_pairs')
             .select(`
               *,
@@ -1032,10 +1033,15 @@ const shouldShowEventLists = (league: League): boolean => {
             .eq('draw_id', drawData.id)
             .order('pair_number');
 
+          if (pairsError) {
+            console.error('[loadWeeklyScore] Error loading pairs:', pairsError);
+          }
+
           const eventPairs = pairsData || [];
-          console.log('Event Pairs loaded:', eventPairs);
+          console.log('[loadWeeklyScore] Event Pairs loaded:', eventPairs.length, 'pairs');
+
           const myPair = eventPairs.find(p => p.player1_id === profile.id || p.player2_id === profile.id);
-          console.log('My Pair:', myPair);
+          console.log('[loadWeeklyScore] My Pair:', myPair ? `Pair #${myPair.pair_number}` : 'NOT FOUND');
           setMyCurrentPair(myPair || null);
 
           if (myPair) {
@@ -1048,20 +1054,23 @@ const shouldShowEventLists = (league: League): boolean => {
             if (blowouts && blowouts.length > 0) {
               setAppliedBlowouts(true);
               setBlowoutVictims(blowouts.map(b => b.victim_player_id));
+              console.log('[loadWeeklyScore] Loaded existing blowouts:', blowouts.length);
             } else {
               setAppliedBlowouts(false);
               setBlowoutVictims([]);
             }
 
             const otherPairs = eventPairs.filter(p => p.id !== myPair.id);
-            console.log('Victim Pairs:', otherPairs);
+            console.log('[loadWeeklyScore] Victim Pairs (other pairs):', otherPairs.length, 'pairs');
             setVictimPairs(otherPairs);
           } else {
+            console.warn('[loadWeeklyScore] User not in any pair - cannot select victims');
             setAppliedBlowouts(false);
             setBlowoutVictims([]);
             setVictimPairs([]);
           }
         } else {
+          console.warn('[loadWeeklyScore] No draw found for this event');
           setAppliedBlowouts(false);
           setBlowoutVictims([]);
           setVictimPairs([]);
@@ -2324,7 +2333,14 @@ const shouldShowEventLists = (league: League): boolean => {
                                       Selecione qual dupla tomou pneu:
                                     </label>
                                     {victimPairs.length === 0 && (
-                                      <p className="text-sm text-gray-500 mb-2">Carregando duplas... (Debug: {victimPairs.length} duplas)</p>
+                                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-2">
+                                        <p className="text-sm text-amber-800 font-medium">Nenhuma dupla disponível</p>
+                                        <p className="text-xs text-amber-600 mt-1">
+                                          {!myCurrentPair
+                                            ? 'Você não está em nenhuma dupla no sorteio deste evento.'
+                                            : 'Não há outras duplas além da sua neste evento.'}
+                                        </p>
+                                      </div>
                                     )}
                                     <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-2 space-y-1">
                                       {victimPairs.map((pair) => {
