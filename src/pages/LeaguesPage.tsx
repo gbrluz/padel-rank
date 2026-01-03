@@ -1282,14 +1282,38 @@ const shouldShowEventLists = (league: League): boolean => {
 
       // CRITICAL: Recalculate blowout counts (same logic as handleSubmitScore)
 
-      // 1. Count blowouts APPLIED by this player
+      // 1. Count blowouts APPLIED by this player (deduplicate by victim pair)
       const { data: appliedBlowoutsData } = await supabase
         .from('weekly_event_blowouts')
-        .select('id')
+        .select('victim_player_id')
         .eq('event_id', weeklyEvent.id)
         .eq('applier_player_id', editingPlayerScore.playerId);
 
-      const blowoutsApplied = appliedBlowoutsData?.length || 0;
+      // Get draw to find victim pairs
+      const { data: drawData } = await supabase
+        .from('weekly_event_draws')
+        .select('id')
+        .eq('league_id', selectedLeague.id)
+        .eq('event_date', eventDate)
+        .maybeSingle();
+
+      let blowoutsApplied = 0;
+      if (drawData && appliedBlowoutsData && appliedBlowoutsData.length > 0) {
+        const { data: pairsData } = await supabase
+          .from('weekly_event_pairs')
+          .select('id, player1_id, player2_id')
+          .eq('draw_id', drawData.id);
+
+        const victimPairIds = appliedBlowoutsData.map(b => {
+          const victimPair = pairsData?.find(p =>
+            p.player1_id === b.victim_player_id || p.player2_id === b.victim_player_id
+          );
+          return victimPair?.id;
+        }).filter(id => id !== undefined);
+
+        const uniqueVictimPairs = new Set(victimPairIds);
+        blowoutsApplied = uniqueVictimPairs.size;
+      }
 
       // 2. Count blowouts RECEIVED (deduplicate by applier_pair_id)
       const { data: receivedBlowoutsData } = await supabase
@@ -1517,14 +1541,43 @@ const shouldShowEventLists = (league: League): boolean => {
       // CRITICAL: Recalculate blowout counts for all affected players
       // After saving/deleting blowouts, we need to update the aggregated counts in attendance table
 
-      // 1. Count blowouts APPLIED by current player (as individual, not pair)
+      // 1. Count blowouts APPLIED by current player
+      // CRITICAL: Must deduplicate by victim PAIR, not individual victims
+      // When player marks "Dupla 2" (2 victims), it creates 2 records but should count as 1 blowout applied
       const { data: appliedBlowoutsData } = await supabase
         .from('weekly_event_blowouts')
-        .select('id')
+        .select('victim_player_id')
         .eq('event_id', weeklyEvent.id)
         .eq('applier_player_id', profile.id);
 
-      const blowoutsAppliedCount = appliedBlowoutsData?.length || 0;
+      // Get draw to find victim pairs
+      const { data: drawData } = await supabase
+        .from('weekly_event_draws')
+        .select('id')
+        .eq('league_id', selectedLeague.id)
+        .eq('event_date', eventDate)
+        .maybeSingle();
+
+      let blowoutsAppliedCount = 0;
+      if (drawData && appliedBlowoutsData && appliedBlowoutsData.length > 0) {
+        // Get all pairs for this draw to map victims to their pairs
+        const { data: pairsData } = await supabase
+          .from('weekly_event_pairs')
+          .select('id, player1_id, player2_id')
+          .eq('draw_id', drawData.id);
+
+        // Map each victim to their pair_id
+        const victimPairIds = appliedBlowoutsData.map(b => {
+          const victimPair = pairsData?.find(p =>
+            p.player1_id === b.victim_player_id || p.player2_id === b.victim_player_id
+          );
+          return victimPair?.id;
+        }).filter(id => id !== undefined);
+
+        // Count unique victim pairs
+        const uniqueVictimPairs = new Set(victimPairIds);
+        blowoutsAppliedCount = uniqueVictimPairs.size;
+      }
 
       // 2. Count blowouts RECEIVED by current player
       // CRITICAL: Deduplicate by applier_pair_id to avoid double-counting
