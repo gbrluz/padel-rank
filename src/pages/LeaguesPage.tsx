@@ -1461,15 +1461,26 @@ const shouldShowEventLists = (league: League): boolean => {
           .eq('applier_pair_id', myCurrentPair.id);
       }
 
-      const { data: attendanceData } = await supabase
-        .from('weekly_event_attendance')
-        .select('blowouts_received, blowouts_applied')
-        .eq('event_id', weeklyEvent.id)
-        .eq('player_id', profile.id)
-        .maybeSingle();
+      // CRITICAL: Recalculate blowout counts for all affected players
+      // After saving/deleting blowouts, we need to update the aggregated counts in attendance table
 
-      const blowoutsReceived = attendanceData?.blowouts_received || 0;
-      const blowoutsAppliedCount = attendanceData?.blowouts_applied || 0;
+      // 1. Count blowouts APPLIED by current player (as individual, not pair)
+      const { data: appliedBlowoutsData } = await supabase
+        .from('weekly_event_blowouts')
+        .select('id')
+        .eq('event_id', weeklyEvent.id)
+        .eq('applier_player_id', profile.id);
+
+      const blowoutsAppliedCount = appliedBlowoutsData?.length || 0;
+
+      // 2. Count blowouts RECEIVED by current player
+      const { data: receivedBlowoutsData } = await supabase
+        .from('weekly_event_blowouts')
+        .select('id')
+        .eq('event_id', weeklyEvent.id)
+        .eq('victim_player_id', profile.id);
+
+      const blowoutsReceived = receivedBlowoutsData?.length || 0;
 
       const bbqParticipated = myLastEventAttendance?.status === 'play_and_bbq' || myLastEventAttendance?.status === 'bbq_only';
       const totalPoints =
@@ -1489,6 +1500,8 @@ const shouldShowEventLists = (league: League): boolean => {
           victories: scoringVictories ?? 0,
           defeats: scoringDefeats ?? 0,
           bbq_participated: bbqParticipated,
+          blowouts_received: blowoutsReceived,
+          blowouts_applied: blowoutsAppliedCount,
           total_points: totalPoints,
           points_submitted: true,
           points_submitted_at: new Date().toISOString(),
@@ -1498,6 +1511,50 @@ const shouldShowEventLists = (league: League): boolean => {
         });
 
       if (error) throw error;
+
+      // 3. Update blowout counts for victim players
+      // When player applies blowouts to others, victims' blowouts_received counts must also be updated
+      if (blowoutVictims.length > 0) {
+        for (const victimId of blowoutVictims) {
+          // Count how many blowouts this victim received
+          const { data: victimBlowoutsData } = await supabase
+            .from('weekly_event_blowouts')
+            .select('id')
+            .eq('event_id', weeklyEvent.id)
+            .eq('victim_player_id', victimId);
+
+          const victimBlowoutsCount = victimBlowoutsData?.length || 0;
+
+          // Get victim's current attendance data
+          const { data: victimAttendance } = await supabase
+            .from('weekly_event_attendance')
+            .select('*')
+            .eq('event_id', weeklyEvent.id)
+            .eq('player_id', victimId)
+            .maybeSingle();
+
+          if (victimAttendance) {
+            // Recalculate victim's total points with updated blowout count
+            const victimTotalPoints =
+              2.5 +
+              (victimAttendance.bbq_participated ? 2.5 : 0) +
+              (victimAttendance.victories * 2) +
+              (victimBlowoutsCount * -3) +
+              (victimAttendance.blowouts_applied * 3);
+
+            // Update victim's attendance with new blowout count and total points
+            await supabase
+              .from('weekly_event_attendance')
+              .update({
+                blowouts_received: victimBlowoutsCount,
+                total_points: victimTotalPoints,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('event_id', weeklyEvent.id)
+              .eq('player_id', victimId);
+          }
+        }
+      }
 
       alert('Pontuacao enviada com sucesso!');
       await loadWeeklyScore();
