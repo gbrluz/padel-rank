@@ -984,6 +984,8 @@ const shouldShowEventLists = (league: League): boolean => {
 };
 
   const loadWeeklyScore = async () => {
+    console.log('🔵 CODE VERSION: 2026-01-03-v2 - SIMPLIFIED QUERIES');
+
     if (!profile || !selectedLeague) return;
 
     // Use same logic as loadEventDraw: try next event first, then last event
