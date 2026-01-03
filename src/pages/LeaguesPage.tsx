@@ -984,25 +984,25 @@ const shouldShowEventLists = (league: League): boolean => {
 };
 
   const loadWeeklyScore = async () => {
-    console.log('🔵 CODE VERSION: 2026-01-03-v2 - SIMPLIFIED QUERIES');
+    console.log('🔵 CODE VERSION: 2026-01-03-v3 - FIXED: USE LAST EVENT FOR SCORING');
 
     if (!profile || !selectedLeague) return;
 
-    // Use same logic as loadEventDraw: try next event first, then last event
-    // This handles both cases: before event (draw exists for next) and after event (scoring for last)
+    // IMPORTANT: Score submission is for the CURRENT/PAST event, not the next one
+    // So we prioritize lastEvent (which could be today or past) over nextEvent
     const nextEvent = getNextWeeklyEventDate(selectedLeague);
     const lastEvent = getLastEventDate(selectedLeague);
 
-    const eventDate = nextEvent?.toISOString().split('T')[0] || lastEvent?.toISOString().split('T')[0];
+    const eventDate = lastEvent?.toISOString().split('T')[0] || nextEvent?.toISOString().split('T')[0];
     if (!eventDate) {
-      console.warn('[loadWeeklyScore] No event date available (neither next nor last)');
+      console.warn('[loadWeeklyScore] No event date available (neither last nor next)');
       return;
     }
 
     console.log('[loadWeeklyScore] Looking for event on date:', eventDate, {
       nextEvent: nextEvent?.toISOString().split('T')[0],
       lastEvent: lastEvent?.toISOString().split('T')[0],
-      using: nextEvent ? 'next event' : 'last event'
+      using: lastEvent ? 'LAST EVENT (scoring for past/current)' : 'NEXT EVENT (fallback)'
     });
 
     try {
@@ -1150,7 +1150,7 @@ const shouldShowEventLists = (league: League): boolean => {
     try {
       const nextEvent = getNextWeeklyEventDate(selectedLeague);
       const lastEvent = getLastEventDate(selectedLeague);
-      const eventDate = nextEvent?.toISOString().split('T')[0] || lastEvent?.toISOString().split('T')[0];
+      const eventDate = lastEvent?.toISOString().split('T')[0] || nextEvent?.toISOString().split('T')[0];
       if (!eventDate) return;
 
       const { data: weeklyEvent } = await supabase
@@ -1190,7 +1190,7 @@ const shouldShowEventLists = (league: League): boolean => {
     try {
       const nextEvent = getNextWeeklyEventDate(selectedLeague);
       const lastEvent = getLastEventDate(selectedLeague);
-      const eventDate = nextEvent?.toISOString().split('T')[0] || lastEvent?.toISOString().split('T')[0];
+      const eventDate = lastEvent?.toISOString().split('T')[0] || nextEvent?.toISOString().split('T')[0];
       if (!eventDate) {
         alert('Nao foi possivel determinar a data do evento');
         return;
@@ -1313,7 +1313,7 @@ const shouldShowEventLists = (league: League): boolean => {
     try {
       const nextEvent = getNextWeeklyEventDate(selectedLeague);
       const lastEvent = getLastEventDate(selectedLeague);
-      const eventDate = nextEvent?.toISOString().split('T')[0] || lastEvent?.toISOString().split('T')[0];
+      const eventDate = lastEvent?.toISOString().split('T')[0] || nextEvent?.toISOString().split('T')[0];
       if (!eventDate) return;
 
       const { data: weeklyEvent } = await supabase
@@ -1373,7 +1373,7 @@ const shouldShowEventLists = (league: League): boolean => {
     try {
       const nextEvent = getNextWeeklyEventDate(selectedLeague);
       const lastEvent = getLastEventDate(selectedLeague);
-      const eventDate = nextEvent?.toISOString().split('T')[0] || lastEvent?.toISOString().split('T')[0];
+      const eventDate = lastEvent?.toISOString().split('T')[0] || nextEvent?.toISOString().split('T')[0];
       if (!eventDate) {
         alert('Nao foi possivel determinar a data do evento');
         return;
@@ -1486,7 +1486,7 @@ const shouldShowEventLists = (league: League): boolean => {
     try {
       const nextEvent = getNextWeeklyEventDate(selectedLeague);
       const lastEvent = getLastEventDate(selectedLeague);
-      const eventDate = nextEvent?.toISOString().split('T')[0] || lastEvent?.toISOString().split('T')[0];
+      const eventDate = lastEvent?.toISOString().split('T')[0] || nextEvent?.toISOString().split('T')[0];
       if (!eventDate) {
         alert('Nao foi possivel determinar a data do evento');
         return;
