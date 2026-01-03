@@ -41,6 +41,8 @@ interface LeagueRanking {
   win_rate: number;
   blowouts: number;
   blowout_rate: number;
+  blowouts_applied: number;
+  blowout_applied_rate: number;
   player: Profile;
 }
 
@@ -102,8 +104,8 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
   const [updatingAttendance, setUpdatingAttendance] = useState(false);
   const [scoringVictories, setScoringVictories] = useState(0);
   const [scoringDefeats, setScoringDefeats] = useState(0);
-  const [scoringBlowouts, setScoringBlowouts] = useState(0);
-  const [hasBlowouts, setHasBlowouts] = useState(false);
+  const [appliedBlowouts, setAppliedBlowouts] = useState(false);
+  const [blowoutVictims, setBlowoutVictims] = useState<string[]>([]);
   const [submittingScore, setSubmittingScore] = useState(false);
   const [weeklyScore, setWeeklyScore] = useState<any>(null);
   const [allAttendances, setAllAttendances] = useState<Record<string, WeeklyAttendance>>({});
@@ -111,6 +113,7 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resettingPoints, setResettingPoints] = useState(false);
   const [showBlowoutRanking, setShowBlowoutRanking] = useState(false);
+  const [blowoutRankingType, setBlowoutRankingType] = useState<'received' | 'applied'>('received');
   const [currentDraw, setCurrentDraw] = useState<EventDraw | null>(null);
   const [currentPairs, setCurrentPairs] = useState<EventPair[]>([]);
   const [performingDraw, setPerformingDraw] = useState(false);
@@ -118,8 +121,8 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
   const [editingPlayerScore, setEditingPlayerScore] = useState<{ playerId: string; playerName: string } | null>(null);
   const [editVictories, setEditVictories] = useState(0);
   const [editDefeats, setEditDefeats] = useState(0);
-  const [editBlowouts, setEditBlowouts] = useState(0);
-  const [editHasBlowouts, setEditHasBlowouts] = useState(false);
+  const [editAppliedBlowouts, setEditAppliedBlowouts] = useState(false);
+  const [editBlowoutVictims, setEditBlowoutVictims] = useState<string[]>([]);
   const [submittingPlayerScore, setSubmittingPlayerScore] = useState(false);
 
   useEffect(() => {
@@ -416,11 +419,17 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
         const eventIds = events.map(e => e.id);
 
         await supabase
+          .from('weekly_event_blowouts')
+          .delete()
+          .in('event_id', eventIds);
+
+        await supabase
           .from('weekly_event_attendance')
           .update({
             victories: 0,
             defeats: 0,
             blowouts_received: 0,
+            blowouts_applied: 0,
             total_points: 0,
             points_submitted: false
           })
@@ -1004,14 +1013,26 @@ const shouldShowEventLists = (league: League): boolean => {
           setWeeklyScore(attendance);
           setScoringVictories(attendance.victories || 0);
           setScoringDefeats(attendance.defeats || 0);
-          setHasBlowouts((attendance.blowouts_received || 0) > 0);
-          setScoringBlowouts(attendance.blowouts_received || 0);
+
+          const { data: blowouts } = await supabase
+            .from('weekly_event_blowouts')
+            .select('victim_player_id')
+            .eq('event_id', weeklyEvent.id)
+            .eq('applier_player_id', profile.id);
+
+          if (blowouts && blowouts.length > 0) {
+            setAppliedBlowouts(true);
+            setBlowoutVictims(blowouts.map(b => b.victim_player_id));
+          } else {
+            setAppliedBlowouts(false);
+            setBlowoutVictims([]);
+          }
         } else {
           setWeeklyScore(null);
           setScoringVictories(0);
           setScoringDefeats(0);
-          setHasBlowouts(false);
-          setScoringBlowouts(0);
+          setAppliedBlowouts(false);
+          setBlowoutVictims([]);
         }
       } else {
         setWeeklyScore(null);
@@ -1066,15 +1087,6 @@ const shouldShowEventLists = (league: League): boolean => {
 
     setSubmittingPlayerScore(true);
     try {
-      const blowouts = editHasBlowouts ? editBlowouts : 0;
-      const playerAttendance = lastEventAttendances[editingPlayerScore.playerId];
-      const bbqParticipated = playerAttendance?.status === 'play_and_bbq' || playerAttendance?.status === 'bbq_only';
-      const totalPoints =
-        2.5 +
-        (bbqParticipated ? 2.5 : 0) +
-        (editVictories * 2) +
-        (blowouts * -2);
-
       const lastEvent = getLastEventDate(selectedLeague);
       if (!lastEvent) {
         alert('Nao foi possivel determinar a data do evento');
@@ -1103,6 +1115,56 @@ const shouldShowEventLists = (league: League): boolean => {
         weeklyEvent = newEvent;
       }
 
+      if (editAppliedBlowouts && editBlowoutVictims.length > 0) {
+        await supabase
+          .from('weekly_event_blowouts')
+          .delete()
+          .eq('event_id', weeklyEvent.id)
+          .eq('applier_player_id', editingPlayerScore.playerId);
+
+        const blowoutRecords = editBlowoutVictims.map(victimId => ({
+          event_id: weeklyEvent.id,
+          applier_player_id: editingPlayerScore.playerId,
+          victim_player_id: victimId,
+        }));
+
+        const { error: blowoutError } = await supabase
+          .from('weekly_event_blowouts')
+          .insert(blowoutRecords);
+
+        if (blowoutError) throw blowoutError;
+      } else {
+        await supabase
+          .from('weekly_event_blowouts')
+          .delete()
+          .eq('event_id', weeklyEvent.id)
+          .eq('applier_player_id', editingPlayerScore.playerId);
+      }
+
+      const { data: receivedBlowouts } = await supabase
+        .from('weekly_event_blowouts')
+        .select('id')
+        .eq('event_id', weeklyEvent.id)
+        .eq('victim_player_id', editingPlayerScore.playerId);
+
+      const { data: appliedBlowouts } = await supabase
+        .from('weekly_event_blowouts')
+        .select('id')
+        .eq('event_id', weeklyEvent.id)
+        .eq('applier_player_id', editingPlayerScore.playerId);
+
+      const blowoutsReceived = receivedBlowouts?.length || 0;
+      const blowoutsApplied = appliedBlowouts?.length || 0;
+
+      const playerAttendance = lastEventAttendances[editingPlayerScore.playerId];
+      const bbqParticipated = playerAttendance?.status === 'play_and_bbq' || playerAttendance?.status === 'bbq_only';
+      const totalPoints =
+        2.5 +
+        (bbqParticipated ? 2.5 : 0) +
+        (editVictories * 2) +
+        (blowoutsReceived * -3) +
+        (blowoutsApplied * 3);
+
       const { error } = await supabase
         .from('weekly_event_attendance')
         .upsert({
@@ -1113,7 +1175,8 @@ const shouldShowEventLists = (league: League): boolean => {
           victories: editVictories,
           defeats: editDefeats,
           bbq_participated: bbqParticipated,
-          blowouts_received: blowouts,
+          blowouts_received: blowoutsReceived,
+          blowouts_applied: blowoutsApplied,
           total_points: totalPoints,
           points_submitted: true,
           points_submitted_at: new Date().toISOString(),
@@ -1128,8 +1191,8 @@ const shouldShowEventLists = (league: League): boolean => {
       setEditingPlayerScore(null);
       setEditVictories(0);
       setEditDefeats(0);
-      setEditBlowouts(0);
-      setEditHasBlowouts(false);
+      setEditAppliedBlowouts(false);
+      setEditBlowoutVictims([]);
       await loadScoreSubmissions(selectedLeague.id);
       await loadLeagueRankings(selectedLeague.id);
     } catch (error) {
@@ -1144,8 +1207,8 @@ const shouldShowEventLists = (league: League): boolean => {
     setEditingPlayerScore({ playerId, playerName });
     setEditVictories(0);
     setEditDefeats(0);
-    setEditBlowouts(0);
-    setEditHasBlowouts(false);
+    setEditAppliedBlowouts(false);
+    setEditBlowoutVictims([]);
   };
 
   const handleSubmitScore = async () => {
@@ -1153,14 +1216,6 @@ const shouldShowEventLists = (league: League): boolean => {
 
     setSubmittingScore(true);
     try {
-      const blowouts = hasBlowouts ? (scoringBlowouts ?? 0) : 0;
-      const bbqParticipated = myLastEventAttendance?.status === 'play_and_bbq' || myLastEventAttendance?.status === 'bbq_only';
-      const totalPoints =
-        2.5 +
-        (bbqParticipated ? 2.5 : 0) +
-        ((scoringVictories ?? 0) * 2) +
-        (blowouts * -2);
-
       const lastEvent = getLastEventDate(selectedLeague);
       if (!lastEvent) {
         alert('Nao foi possivel determinar a data do evento');
@@ -1189,6 +1244,55 @@ const shouldShowEventLists = (league: League): boolean => {
         weeklyEvent = newEvent;
       }
 
+      if (appliedBlowouts && blowoutVictims.length > 0) {
+        await supabase
+          .from('weekly_event_blowouts')
+          .delete()
+          .eq('event_id', weeklyEvent.id)
+          .eq('applier_player_id', profile.id);
+
+        const blowoutRecords = blowoutVictims.map(victimId => ({
+          event_id: weeklyEvent.id,
+          applier_player_id: profile.id,
+          victim_player_id: victimId,
+        }));
+
+        const { error: blowoutError } = await supabase
+          .from('weekly_event_blowouts')
+          .insert(blowoutRecords);
+
+        if (blowoutError) throw blowoutError;
+      } else {
+        await supabase
+          .from('weekly_event_blowouts')
+          .delete()
+          .eq('event_id', weeklyEvent.id)
+          .eq('applier_player_id', profile.id);
+      }
+
+      const { data: receivedBlowouts } = await supabase
+        .from('weekly_event_blowouts')
+        .select('id')
+        .eq('event_id', weeklyEvent.id)
+        .eq('victim_player_id', profile.id);
+
+      const { data: appliedBlowoutsCount } = await supabase
+        .from('weekly_event_blowouts')
+        .select('id')
+        .eq('event_id', weeklyEvent.id)
+        .eq('applier_player_id', profile.id);
+
+      const blowoutsReceived = receivedBlowouts?.length || 0;
+      const blowoutsAppliedCount = appliedBlowoutsCount?.length || 0;
+
+      const bbqParticipated = myLastEventAttendance?.status === 'play_and_bbq' || myLastEventAttendance?.status === 'bbq_only';
+      const totalPoints =
+        2.5 +
+        (bbqParticipated ? 2.5 : 0) +
+        ((scoringVictories ?? 0) * 2) +
+        (blowoutsReceived * -3) +
+        (blowoutsAppliedCount * 3);
+
       const { error } = await supabase
         .from('weekly_event_attendance')
         .upsert({
@@ -1199,7 +1303,8 @@ const shouldShowEventLists = (league: League): boolean => {
           victories: scoringVictories ?? 0,
           defeats: scoringDefeats ?? 0,
           bbq_participated: bbqParticipated,
-          blowouts_received: blowouts,
+          blowouts_received: blowoutsReceived,
+          blowouts_applied: blowoutsAppliedCount,
           total_points: totalPoints,
           points_submitted: true,
           points_submitted_at: new Date().toISOString(),
@@ -1214,6 +1319,7 @@ const shouldShowEventLists = (league: League): boolean => {
       await loadWeeklyScore();
       if (selectedLeague) {
         await loadScoreSubmissions(selectedLeague.id);
+        await loadLeagueRankings(selectedLeague.id);
       }
     } catch (error) {
       console.error('Error submitting score:', error);
@@ -1267,6 +1373,7 @@ const shouldShowEventLists = (league: League): boolean => {
           defeats: 0,
           bbq_participated: true,
           blowouts_received: 0,
+          blowouts_applied: 0,
           total_points: 2.5,
           points_submitted: true,
           points_submitted_at: new Date().toISOString(),
@@ -1339,7 +1446,7 @@ const shouldShowEventLists = (league: League): boolean => {
       if (eventIds.length > 0) {
         const { data: attendance, error: attendanceError } = await supabase
           .from('weekly_event_attendance')
-          .select('player_id, victories, defeats, total_points, bbq_participated, blowouts_received')
+          .select('player_id, victories, defeats, total_points, bbq_participated, blowouts_received, blowouts_applied')
           .in('event_id', eventIds)
           .eq('points_submitted', true);
 
@@ -1347,19 +1454,20 @@ const shouldShowEventLists = (league: League): boolean => {
         attendanceData = attendance || [];
       }
 
-      const statsMap = new Map<string, { points: number; wins: number; losses: number; blowouts: number }>();
+      const statsMap = new Map<string, { points: number; wins: number; losses: number; blowouts: number; blowoutsApplied: number }>();
       attendanceData.forEach(att => {
-        const existing = statsMap.get(att.player_id) || { points: 0, wins: 0, losses: 0, blowouts: 0 };
+        const existing = statsMap.get(att.player_id) || { points: 0, wins: 0, losses: 0, blowouts: 0, blowoutsApplied: 0 };
         statsMap.set(att.player_id, {
           points: existing.points + (att.total_points || 0),
           wins: existing.wins + (att.victories || 0),
           losses: existing.losses + (att.defeats || 0),
           blowouts: existing.blowouts + (att.blowouts_received || 0),
+          blowoutsApplied: existing.blowoutsApplied + (att.blowouts_applied || 0),
         });
       });
 
       const combinedRankings = (members || []).map(member => {
-        const stats = statsMap.get(member.player_id) || { points: 0, wins: 0, losses: 0, blowouts: 0 };
+        const stats = statsMap.get(member.player_id) || { points: 0, wins: 0, losses: 0, blowouts: 0, blowoutsApplied: 0 };
         const matchesPlayed = stats.wins + stats.losses;
         return {
           player_id: member.player_id,
@@ -1371,6 +1479,8 @@ const shouldShowEventLists = (league: League): boolean => {
           win_rate: matchesPlayed > 0 ? (stats.wins / matchesPlayed) * 100 : 0,
           blowouts: stats.blowouts,
           blowout_rate: matchesPlayed > 0 ? (stats.blowouts / matchesPlayed) * 100 : 0,
+          blowouts_applied: stats.blowoutsApplied,
+          blowout_applied_rate: matchesPlayed > 0 ? (stats.blowoutsApplied / matchesPlayed) * 100 : 0,
           player: member.player,
         };
       });
@@ -2065,8 +2175,11 @@ const shouldShowEventLists = (league: League): boolean => {
                               <div className="mt-2 flex flex-wrap gap-3 text-sm text-teal-700">
                                 <span>Vitorias: {weeklyScore.victories}</span>
                                 <span>Derrotas: {weeklyScore.defeats}</span>
+                                {weeklyScore.blowouts_applied > 0 && (
+                                  <span className="text-green-600">Pneus aplicados: {weeklyScore.blowouts_applied}</span>
+                                )}
                                 {weeklyScore.blowouts_received > 0 && (
-                                  <span className="text-red-600">Pneus: {weeklyScore.blowouts_received}</span>
+                                  <span className="text-red-600">Pneus recebidos: {weeklyScore.blowouts_received}</span>
                                 )}
                                 <span className="font-medium">Total: {weeklyScore.total_points} pts</span>
                               </div>
@@ -2103,30 +2216,48 @@ const shouldShowEventLists = (league: League): boolean => {
                                 <div className="flex items-center gap-2">
                                   <input
                                     type="checkbox"
-                                    id="hasBlowouts"
-                                    checked={hasBlowouts}
+                                    id="appliedBlowouts"
+                                    checked={appliedBlowouts}
                                     onChange={(e) => {
-                                      setHasBlowouts(e.target.checked);
-                                      if (!e.target.checked) setScoringBlowouts(0);
+                                      setAppliedBlowouts(e.target.checked);
+                                      if (!e.target.checked) setBlowoutVictims([]);
                                     }}
-                                    className="w-4 h-4 text-red-600 border-red-300 rounded focus:ring-red-500"
+                                    className="w-4 h-4 text-green-600 border-green-300 rounded focus:ring-green-500"
                                   />
-                                  <label htmlFor="hasBlowouts" className="text-sm font-medium text-teal-800">
-                                    Tomei pneu (6x0)
+                                  <label htmlFor="appliedBlowouts" className="text-sm font-medium text-teal-800">
+                                    Apliquei pneu (6x0)
                                   </label>
                                 </div>
-                                {hasBlowouts && (
+                                {appliedBlowouts && (
                                   <div>
-                                    <label className="block text-sm font-medium text-red-800 mb-1">
-                                      Quantos pneus (6x0)?
+                                    <label className="block text-sm font-medium text-gray-800 mb-2">
+                                      Selecione quem tomou pneu:
                                     </label>
-                                    <input
-                                      type="number"
-                                      min="1"
-                                      value={scoringBlowouts}
-                                      onChange={(e) => setScoringBlowouts(Math.max(1, parseInt(e.target.value) || 1))}
-                                      className="w-full px-3 py-2 border border-red-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
-                                    />
+                                    <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-2 space-y-1">
+                                      {Object.entries(lastEventAttendances)
+                                        .filter(([playerId]) => playerId !== profile?.id)
+                                        .map(([playerId, attendance]) => {
+                                          const player = leagueMembers.find(m => m.player_id === playerId)?.player;
+                                          if (!player) return null;
+                                          return (
+                                            <label key={playerId} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                                              <input
+                                                type="checkbox"
+                                                checked={blowoutVictims.includes(playerId)}
+                                                onChange={(e) => {
+                                                  if (e.target.checked) {
+                                                    setBlowoutVictims([...blowoutVictims, playerId]);
+                                                  } else {
+                                                    setBlowoutVictims(blowoutVictims.filter(id => id !== playerId));
+                                                  }
+                                                }}
+                                                className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                                              />
+                                              <span className="text-sm">{player.full_name}</span>
+                                            </label>
+                                          );
+                                        })}
+                                    </div>
                                   </div>
                                 )}
                                 <div className="bg-teal-100 rounded-lg p-3 text-sm text-teal-800">
@@ -2134,9 +2265,9 @@ const shouldShowEventLists = (league: League): boolean => {
                                   <p>Presenca: +2,5 pts</p>
                                   {(myLastEventAttendance?.status === 'play_and_bbq' || myLastEventAttendance?.status === 'bbq_only') && <p>Churras: +2,5 pts</p>}
                                   {scoringVictories > 0 && <p>Vitorias: +{scoringVictories * 2} pts</p>}
-                                  {hasBlowouts && scoringBlowouts > 0 && <p className="text-red-700">Pneus: -{scoringBlowouts * 2} pts</p>}
+                                  {appliedBlowouts && blowoutVictims.length > 0 && <p className="text-green-700">Pneus aplicados: +{blowoutVictims.length * 3} pts</p>}
                                   <p className="font-bold mt-1 pt-1 border-t border-teal-200">
-                                    Total: {(2.5 + ((myLastEventAttendance?.status === 'play_and_bbq' || myLastEventAttendance?.status === 'bbq_only') ? 2.5 : 0) + (scoringVictories * 2) + ((hasBlowouts ? scoringBlowouts : 0) * -2)).toFixed(1)} pts
+                                    Total: {(2.5 + ((myLastEventAttendance?.status === 'play_and_bbq' || myLastEventAttendance?.status === 'bbq_only') ? 2.5 : 0) + (scoringVictories * 2) + (appliedBlowouts ? blowoutVictims.length * 3 : 0)).toFixed(1)} pts
                                   </p>
                                 </div>
                               </div>
@@ -2268,66 +2399,156 @@ const shouldShowEventLists = (league: League): boolean => {
 
                       {showBlowoutRanking && selectedLeague?.format === 'weekly' ? (
                         <>
-                          <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                            <AlertTriangle className="w-5 h-5 text-red-600" />
-                            Ranking de Pneus (6x0)
-                          </h3>
-                          <div className="space-y-2">
-                            {[...leagueRankings]
-                              .filter(r => r.blowouts > 0)
-                              .sort((a, b) => {
-                                if (b.blowout_rate !== a.blowout_rate) return b.blowout_rate - a.blowout_rate;
-                                return b.blowouts - a.blowouts;
-                              })
-                              .map((ranking, index) => {
-                                const isMe = ranking.player_id === profile?.id;
-                                return (
-                                  <div
-                                    key={ranking.player_id}
-                                    className={`p-4 rounded-xl ${
-                                      isMe
-                                        ? 'bg-red-100 border-2 border-red-400'
-                                        : 'bg-gray-50 border-2 border-gray-200'
-                                    }`}
-                                  >
-                                    <div className="flex items-center justify-between">
-                                      <div className="flex items-center gap-4">
-                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
-                                          index === 0 ? 'bg-red-500 text-white' :
-                                          index === 1 ? 'bg-red-400 text-white' :
-                                          index === 2 ? 'bg-red-300 text-white' :
-                                          'bg-gray-200 text-gray-700'
-                                        }`}>
-                                          {index + 1}
-                                        </div>
-                                        <div>
-                                          <p className={`font-bold ${isMe ? 'text-red-900' : 'text-gray-900'}`}>
-                                            {ranking.player.full_name}
-                                            {isMe && ' (Voce)'}
-                                          </p>
-                                          <p className="text-sm text-gray-600">
-                                            {ranking.matches_played} partidas jogadas
-                                          </p>
-                                        </div>
-                                      </div>
-                                      <div className="text-right">
-                                        <p className={`text-2xl font-bold ${isMe ? 'text-red-600' : 'text-red-500'}`}>
-                                          {ranking.blowouts}
-                                        </p>
-                                        <p className="text-xs text-gray-600">
-                                          {ranking.blowout_rate.toFixed(0)}% dos jogos
-                                        </p>
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            {leagueRankings.filter(r => r.blowouts > 0).length === 0 && (
-                              <p className="text-center text-gray-500 py-4">
-                                Nenhum pneu registrado ainda
-                              </p>
-                            )}
+                          <div className="flex gap-2 mb-4">
+                            <button
+                              onClick={() => setBlowoutRankingType('received')}
+                              className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+                                blowoutRankingType === 'received'
+                                  ? 'bg-red-600 text-white'
+                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              }`}
+                            >
+                              Pneus Recebidos
+                            </button>
+                            <button
+                              onClick={() => setBlowoutRankingType('applied')}
+                              className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+                                blowoutRankingType === 'applied'
+                                  ? 'bg-green-600 text-white'
+                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              }`}
+                            >
+                              Pneus Aplicados
+                            </button>
                           </div>
+
+                          {blowoutRankingType === 'received' ? (
+                            <>
+                              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                <AlertTriangle className="w-5 h-5 text-red-600" />
+                                Ranking de Pneus Recebidos (6x0)
+                              </h3>
+                              <div className="space-y-2">
+                                {[...leagueRankings]
+                                  .filter(r => r.blowouts > 0)
+                                  .sort((a, b) => {
+                                    if (b.blowout_rate !== a.blowout_rate) return b.blowout_rate - a.blowout_rate;
+                                    return b.blowouts - a.blowouts;
+                                  })
+                                  .map((ranking, index) => {
+                                    const isMe = ranking.player_id === profile?.id;
+                                    return (
+                                      <div
+                                        key={ranking.player_id}
+                                        className={`p-4 rounded-xl ${
+                                          isMe
+                                            ? 'bg-red-100 border-2 border-red-400'
+                                            : 'bg-gray-50 border-2 border-gray-200'
+                                        }`}
+                                      >
+                                        <div className="flex items-center justify-between">
+                                          <div className="flex items-center gap-4">
+                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
+                                              index === 0 ? 'bg-red-500 text-white' :
+                                              index === 1 ? 'bg-red-400 text-white' :
+                                              index === 2 ? 'bg-red-300 text-white' :
+                                              'bg-gray-200 text-gray-700'
+                                            }`}>
+                                              {index + 1}
+                                            </div>
+                                            <div>
+                                              <p className={`font-bold ${isMe ? 'text-red-900' : 'text-gray-900'}`}>
+                                                {ranking.player.full_name}
+                                                {isMe && ' (Voce)'}
+                                              </p>
+                                              <p className="text-sm text-gray-600">
+                                                {ranking.matches_played} partidas jogadas
+                                              </p>
+                                            </div>
+                                          </div>
+                                          <div className="text-right">
+                                            <p className={`text-2xl font-bold ${isMe ? 'text-red-600' : 'text-red-500'}`}>
+                                              {ranking.blowouts}
+                                            </p>
+                                            <p className="text-xs text-gray-600">
+                                              {ranking.blowout_rate.toFixed(0)}% dos jogos
+                                            </p>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                {leagueRankings.filter(r => r.blowouts > 0).length === 0 && (
+                                  <p className="text-center text-gray-500 py-4">
+                                    Nenhum pneu recebido ainda
+                                  </p>
+                                )}
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                <Trophy className="w-5 h-5 text-green-600" />
+                                Ranking de Pneus Aplicados (6x0)
+                              </h3>
+                              <div className="space-y-2">
+                                {[...leagueRankings]
+                                  .filter(r => r.blowouts_applied > 0)
+                                  .sort((a, b) => {
+                                    if (b.blowout_applied_rate !== a.blowout_applied_rate) return b.blowout_applied_rate - a.blowout_applied_rate;
+                                    return b.blowouts_applied - a.blowouts_applied;
+                                  })
+                                  .map((ranking, index) => {
+                                    const isMe = ranking.player_id === profile?.id;
+                                    return (
+                                      <div
+                                        key={ranking.player_id}
+                                        className={`p-4 rounded-xl ${
+                                          isMe
+                                            ? 'bg-green-100 border-2 border-green-400'
+                                            : 'bg-gray-50 border-2 border-gray-200'
+                                        }`}
+                                      >
+                                        <div className="flex items-center justify-between">
+                                          <div className="flex items-center gap-4">
+                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
+                                              index === 0 ? 'bg-green-500 text-white' :
+                                              index === 1 ? 'bg-green-400 text-white' :
+                                              index === 2 ? 'bg-green-300 text-white' :
+                                              'bg-gray-200 text-gray-700'
+                                            }`}>
+                                              {index + 1}
+                                            </div>
+                                            <div>
+                                              <p className={`font-bold ${isMe ? 'text-green-900' : 'text-gray-900'}`}>
+                                                {ranking.player.full_name}
+                                                {isMe && ' (Voce)'}
+                                              </p>
+                                              <p className="text-sm text-gray-600">
+                                                {ranking.matches_played} partidas jogadas
+                                              </p>
+                                            </div>
+                                          </div>
+                                          <div className="text-right">
+                                            <p className={`text-2xl font-bold ${isMe ? 'text-green-600' : 'text-green-500'}`}>
+                                              {ranking.blowouts_applied}
+                                            </p>
+                                            <p className="text-xs text-gray-600">
+                                              {ranking.blowout_applied_rate.toFixed(0)}% dos jogos
+                                            </p>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                {leagueRankings.filter(r => r.blowouts_applied > 0).length === 0 && (
+                                  <p className="text-center text-gray-500 py-4">
+                                    Nenhum pneu aplicado ainda
+                                  </p>
+                                )}
+                              </div>
+                            </>
+                          )}
                         </>
                       ) : (
                         <>
@@ -2677,32 +2898,49 @@ const shouldShowEventLists = (league: League): boolean => {
               <div className="flex items-center gap-2">
                 <input
                   type="checkbox"
-                  id="editHasBlowouts"
-                  checked={editHasBlowouts}
+                  id="editAppliedBlowouts"
+                  checked={editAppliedBlowouts}
                   onChange={(e) => {
-                    setEditHasBlowouts(e.target.checked);
-                    if (!e.target.checked) setEditBlowouts(0);
-                    else setEditBlowouts(1);
+                    setEditAppliedBlowouts(e.target.checked);
+                    if (!e.target.checked) setEditBlowoutVictims([]);
                   }}
-                  className="w-4 h-4 text-red-600 border-red-300 rounded focus:ring-red-500"
+                  className="w-4 h-4 text-green-600 border-green-300 rounded focus:ring-green-500"
                 />
-                <label htmlFor="editHasBlowouts" className="text-sm font-medium text-gray-700">
-                  Tomou pneu (6x0)
+                <label htmlFor="editAppliedBlowouts" className="text-sm font-medium text-gray-700">
+                  Apliquei pneu (6x0)
                 </label>
               </div>
 
-              {editHasBlowouts && (
+              {editAppliedBlowouts && (
                 <div>
-                  <label className="block text-sm font-medium text-red-700 mb-1">
-                    Quantos pneus (6x0)?
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Selecione quem tomou pneu:
                   </label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={editBlowouts}
-                    onChange={(e) => setEditBlowouts(Math.max(1, parseInt(e.target.value) || 1))}
-                    className="w-full px-3 py-2 border border-red-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
-                  />
+                  <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-2 space-y-1">
+                    {Object.entries(lastEventAttendances)
+                      .filter(([playerId]) => playerId !== editingPlayerScore?.playerId)
+                      .map(([playerId, attendance]) => {
+                        const player = leagueMembers.find(m => m.player_id === playerId)?.player;
+                        if (!player) return null;
+                        return (
+                          <label key={playerId} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={editBlowoutVictims.includes(playerId)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setEditBlowoutVictims([...editBlowoutVictims, playerId]);
+                                } else {
+                                  setEditBlowoutVictims(editBlowoutVictims.filter(id => id !== playerId));
+                                }
+                              }}
+                              className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                            />
+                            <span className="text-sm">{player.full_name}</span>
+                          </label>
+                        );
+                      })}
+                  </div>
                 </div>
               )}
 
@@ -2714,8 +2952,8 @@ const shouldShowEventLists = (league: League): boolean => {
                   <p>Churras: +2,5 pts</p>
                 )}
                 {editVictories > 0 && <p>Vitorias: +{editVictories * 2} pts</p>}
-                {editHasBlowouts && editBlowouts > 0 && (
-                  <p className="text-red-700">Pneus: -{editBlowouts * 2} pts</p>
+                {editAppliedBlowouts && editBlowoutVictims.length > 0 && (
+                  <p className="text-green-700">Pneus aplicados: +{editBlowoutVictims.length * 3} pts</p>
                 )}
                 <p className="font-bold mt-1 pt-1 border-t border-teal-200">
                   Total: {(
@@ -2723,7 +2961,7 @@ const shouldShowEventLists = (league: League): boolean => {
                     ((lastEventAttendances[editingPlayerScore.playerId]?.status === 'play_and_bbq' ||
                       lastEventAttendances[editingPlayerScore.playerId]?.status === 'bbq_only') ? 2.5 : 0) +
                     (editVictories * 2) +
-                    ((editHasBlowouts ? editBlowouts : 0) * -2)
+                    (editAppliedBlowouts ? editBlowoutVictims.length * 3 : 0)
                   ).toFixed(1)} pts
                 </p>
               </div>
