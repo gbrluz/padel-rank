@@ -1024,14 +1024,37 @@ const shouldShowEventLists = (league: League): boolean => {
         if (attendanceError) throw attendanceError;
 
         // Load pairs regardless of attendance status (needed for first-time score submission)
-        const { data: drawData } = await supabase
+        const { data: drawData, error: drawError } = await supabase
           .from('weekly_event_draws')
-          .select('id')
+          .select('id, event_date')
           .eq('league_id', selectedLeague.id)
           .eq('event_date', eventDate)
           .maybeSingle();
 
+        if (drawError) {
+          console.error('[loadWeeklyScore] Error fetching draw:', drawError);
+        }
+
         console.log('[loadWeeklyScore] Draw data:', drawData);
+
+        // If no draw found for calculated date, try to find ANY draw for this league
+        if (!drawData) {
+          console.warn('[loadWeeklyScore] No draw found for date', eventDate, '- searching for any draw for this league');
+          const { data: anyDraw } = await supabase
+            .from('weekly_event_draws')
+            .select('id, event_date')
+            .eq('league_id', selectedLeague.id)
+            .order('event_date', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (anyDraw) {
+            console.warn('[loadWeeklyScore] Found draw for different date:', anyDraw.event_date, '(expected:', eventDate, ')');
+            console.warn('[loadWeeklyScore] This indicates a date calculation mismatch!');
+          } else {
+            console.error('[loadWeeklyScore] No draws found for this league at all');
+          }
+        }
 
         if (drawData) {
           // Load pairs with player data using Supabase joins (avoids race conditions with allPlayers)
@@ -1049,11 +1072,23 @@ const shouldShowEventLists = (league: League): boolean => {
             console.error('[loadWeeklyScore] Error loading pairs:', pairsError);
           }
 
+          console.log('[loadWeeklyScore] Raw pairs data from Supabase:', pairsData);
+
           const eventPairs = pairsData || [];
           console.log('[loadWeeklyScore] Event Pairs loaded:', eventPairs.length, 'pairs');
+          console.log('[loadWeeklyScore] Current user profile.id:', profile.id);
 
           const myPair = eventPairs.find(p => p.player1_id === profile.id || p.player2_id === profile.id);
           console.log('[loadWeeklyScore] My Pair:', myPair ? `Pair #${myPair.pair_number}` : 'NOT FOUND');
+
+          if (!myPair && eventPairs.length > 0) {
+            console.warn('[loadWeeklyScore] User not found in pairs. Pairs player IDs:', eventPairs.map(p => ({
+              pair_number: p.pair_number,
+              player1_id: p.player1_id,
+              player2_id: p.player2_id
+            })));
+          }
+
           setMyCurrentPair(myPair || null);
 
           if (myPair) {
