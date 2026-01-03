@@ -1013,69 +1013,69 @@ const shouldShowEventLists = (league: League): boolean => {
 
         if (attendanceError) throw attendanceError;
 
-        if (attendance) {
-          setWeeklyScore(attendance);
-          setScoringVictories(attendance.victories || 0);
-          setScoringDefeats(attendance.defeats || 0);
+        // Load pairs regardless of attendance status (needed for first-time score submission)
+        const { data: drawData } = await supabase
+          .from('weekly_event_draws')
+          .select('id')
+          .eq('league_id', selectedLeague.id)
+          .eq('event_date', eventDate)
+          .maybeSingle();
 
-          const { data: drawData } = await supabase
-            .from('weekly_event_draws')
-            .select('id')
-            .eq('league_id', selectedLeague.id)
-            .eq('event_date', eventDate)
-            .maybeSingle();
+        if (drawData) {
+          const { data: pairsData } = await supabase
+            .from('weekly_event_pairs')
+            .select(`
+              *,
+              player1:player1_id(id, full_name, category, regional_points, national_points),
+              player2:player2_id(id, full_name, category, regional_points, national_points)
+            `)
+            .eq('draw_id', drawData.id)
+            .order('pair_number');
 
-          if (drawData) {
-            const { data: pairsData } = await supabase
-              .from('weekly_event_pairs')
-              .select(`
-                *,
-                player1:player1_id(id, full_name, category, regional_points, national_points),
-                player2:player2_id(id, full_name, category, regional_points, national_points)
-              `)
-              .eq('draw_id', drawData.id)
-              .order('pair_number');
+          const eventPairs = pairsData || [];
+          console.log('Event Pairs loaded:', eventPairs);
+          const myPair = eventPairs.find(p => p.player1_id === profile.id || p.player2_id === profile.id);
+          console.log('My Pair:', myPair);
+          setMyCurrentPair(myPair || null);
 
-            const eventPairs = pairsData || [];
-            console.log('Event Pairs loaded:', eventPairs);
-            const myPair = eventPairs.find(p => p.player1_id === profile.id || p.player2_id === profile.id);
-            console.log('My Pair:', myPair);
-            setMyCurrentPair(myPair || null);
+          if (myPair) {
+            const { data: blowouts } = await supabase
+              .from('weekly_event_blowouts')
+              .select('victim_player_id')
+              .eq('event_id', weeklyEvent.id)
+              .eq('applier_pair_id', myPair.id);
 
-            if (myPair) {
-              const { data: blowouts } = await supabase
-                .from('weekly_event_blowouts')
-                .select('victim_player_id')
-                .eq('event_id', weeklyEvent.id)
-                .eq('applier_pair_id', myPair.id);
-
-              if (blowouts && blowouts.length > 0) {
-                setAppliedBlowouts(true);
-                setBlowoutVictims(blowouts.map(b => b.victim_player_id));
-              } else {
-                setAppliedBlowouts(false);
-                setBlowoutVictims([]);
-              }
-
-              const otherPairs = eventPairs.filter(p => p.id !== myPair.id);
-              console.log('Victim Pairs:', otherPairs);
-              setVictimPairs(otherPairs);
+            if (blowouts && blowouts.length > 0) {
+              setAppliedBlowouts(true);
+              setBlowoutVictims(blowouts.map(b => b.victim_player_id));
             } else {
               setAppliedBlowouts(false);
               setBlowoutVictims([]);
-              setVictimPairs([]);
             }
+
+            const otherPairs = eventPairs.filter(p => p.id !== myPair.id);
+            console.log('Victim Pairs:', otherPairs);
+            setVictimPairs(otherPairs);
           } else {
             setAppliedBlowouts(false);
             setBlowoutVictims([]);
             setVictimPairs([]);
           }
         } else {
+          setAppliedBlowouts(false);
+          setBlowoutVictims([]);
+          setVictimPairs([]);
+        }
+
+        // Set attendance data if exists
+        if (attendance) {
+          setWeeklyScore(attendance);
+          setScoringVictories(attendance.victories || 0);
+          setScoringDefeats(attendance.defeats || 0);
+        } else {
           setWeeklyScore(null);
           setScoringVictories(0);
           setScoringDefeats(0);
-          setAppliedBlowouts(false);
-          setBlowoutVictims([]);
         }
       } else {
         setWeeklyScore(null);
