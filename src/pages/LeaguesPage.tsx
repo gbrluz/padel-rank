@@ -1015,6 +1015,8 @@ const shouldShowEventLists = (league: League): boolean => {
 
       if (eventError) throw eventError;
 
+      console.log('[loadWeeklyScore] Weekly Event found:', weeklyEvent ? `Yes (id: ${weeklyEvent.id})` : 'NO - event does not exist in database!');
+
       if (weeklyEvent) {
         const { data: attendance, error: attendanceError } = await supabase
           .from('weekly_event_attendance')
@@ -1136,7 +1138,13 @@ const shouldShowEventLists = (league: League): boolean => {
           setScoringDefeats(0);
         }
       } else {
+        console.warn('[loadWeeklyScore] ❌ No weekly_event found for this date - cannot load pairs!');
+        console.warn('[loadWeeklyScore] The event may not have been created yet. Expected event_date:', eventDate);
         setWeeklyScore(null);
+        setMyCurrentPair(null);
+        setVictimPairs([]);
+        setAppliedBlowouts(false);
+        setBlowoutVictims([]);
       }
     } catch (error) {
       console.error('Error loading weekly score:', error);
