@@ -720,6 +720,32 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
 
     setPerformingDraw(true);
     try {
+      // CRITICAL: Create the weekly_event record first (if it doesn't exist)
+      // This is required because attendance, draws, and scores all reference weekly_events.id
+      const { data: existingEvent } = await supabase
+        .from('weekly_events')
+        .select('id')
+        .eq('league_id', selectedLeague.id)
+        .eq('event_date', eventDate)
+        .maybeSingle();
+
+      if (!existingEvent) {
+        const { error: eventError } = await supabase
+          .from('weekly_events')
+          .insert({
+            league_id: selectedLeague.id,
+            event_date: eventDate,
+          });
+
+        if (eventError) {
+          console.error('Error creating weekly_event:', eventError);
+          throw new Error('Erro ao criar evento semanal: ' + eventError.message);
+        }
+        console.log('✅ Created weekly_event for', eventDate);
+      } else {
+        console.log('✅ Weekly_event already exists for', eventDate);
+      }
+
       const playingStatuses = ['confirmed', 'play_and_bbq'];
       const confirmedPlayers = Object.entries(allAttendances)
         .filter(([_, att]) => playingStatuses.includes(att.status))
