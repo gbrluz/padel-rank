@@ -920,11 +920,99 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
         is_top_12: pair.isTop12,
       }));
 
-      const { error: pairsError } = await supabase
+      const { data: insertedPairs, error: pairsError } = await supabase
         .from('weekly_event_pairs')
-        .insert(pairsToInsert);
+        .insert(pairsToInsert)
+        .select('id');
 
       if (pairsError) throw pairsError;
+
+      // Generate match pairings (confrontos) - each pair plays 4 matches
+      if (insertedPairs && insertedPairs.length >= 2) {
+        console.log(`🎲 Generating matches for ${insertedPairs.length} pairs...`);
+
+        const pairIds = insertedPairs.map(p => p.id);
+        const matchesPerPair = 4;
+        const matches: { pair1_id: string; pair2_id: string }[] = [];
+        const pairMatchCounts = new Map<string, number>();
+
+        // Initialize match counts
+        pairIds.forEach(id => pairMatchCounts.set(id, 0));
+
+        // Shuffle pairs for randomness
+        const shuffledPairIds = [...pairIds].sort(() => Math.random() - 0.5);
+
+        // Greedy algorithm: assign matches to pairs that need them most
+        let attempts = 0;
+        const maxAttempts = 1000;
+
+        while (attempts < maxAttempts) {
+          attempts++;
+          let madeProgress = false;
+
+          for (const pair1Id of shuffledPairIds) {
+            const pair1Count = pairMatchCounts.get(pair1Id) || 0;
+            if (pair1Count >= matchesPerPair) continue;
+
+            // Find a suitable opponent
+            for (const pair2Id of shuffledPairIds) {
+              if (pair1Id === pair2Id) continue;
+
+              const pair2Count = pairMatchCounts.get(pair2Id) || 0;
+              if (pair2Count >= matchesPerPair) continue;
+
+              // Check if these pairs already have a match
+              const matchExists = matches.some(m =>
+                (m.pair1_id === pair1Id && m.pair2_id === pair2Id) ||
+                (m.pair1_id === pair2Id && m.pair2_id === pair1Id)
+              );
+
+              if (!matchExists) {
+                // Create match with consistent ordering (smaller ID first)
+                const [sortedPair1, sortedPair2] = [pair1Id, pair2Id].sort();
+                matches.push({ pair1_id: sortedPair1, pair2_id: sortedPair2 });
+                pairMatchCounts.set(pair1Id, pair1Count + 1);
+                pairMatchCounts.set(pair2Id, pair2Count + 1);
+                madeProgress = true;
+                break;
+              }
+            }
+          }
+
+          // Check if all pairs have enough matches
+          const allPairsSatisfied = Array.from(pairMatchCounts.values()).every(count => count >= matchesPerPair);
+          if (allPairsSatisfied || !madeProgress) break;
+        }
+
+        // Log results
+        console.log(`✅ Generated ${matches.length} matches`);
+        pairMatchCounts.forEach((count, pairId) => {
+          if (count < matchesPerPair) {
+            console.warn(`⚠️ Pair ${pairId} only has ${count}/${matchesPerPair} matches`);
+          }
+        });
+
+        // Insert matches into database
+        if (matches.length > 0) {
+          const matchesToInsert = matches.map((match, index) => ({
+            draw_id: newDraw.id,
+            pair1_id: match.pair1_id,
+            pair2_id: match.pair2_id,
+            match_number: index + 1,
+          }));
+
+          const { error: matchesError } = await supabase
+            .from('weekly_event_matches')
+            .insert(matchesToInsert);
+
+          if (matchesError) {
+            console.error('Error creating matches:', matchesError);
+            // Don't fail the whole draw if matches fail
+          } else {
+            console.log(`💾 Saved ${matchesToInsert.length} matches to database`);
+          }
+        }
+      }
 
       await loadEventDraw(selectedLeague.id);
       alert('Sorteio realizado com sucesso!');
