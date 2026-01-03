@@ -1143,20 +1143,15 @@ const shouldShowEventLists = (league: League): boolean => {
           .eq('applier_player_id', editingPlayerScore.playerId);
       }
 
-      const { data: receivedBlowouts } = await supabase
-        .from('weekly_event_blowouts')
-        .select('id')
+      const { data: attendanceData } = await supabase
+        .from('weekly_event_attendance')
+        .select('blowouts_received, blowouts_applied')
         .eq('event_id', weeklyEvent.id)
-        .eq('victim_player_id', editingPlayerScore.playerId);
+        .eq('player_id', editingPlayerScore.playerId)
+        .maybeSingle();
 
-      const { data: appliedBlowouts } = await supabase
-        .from('weekly_event_blowouts')
-        .select('id')
-        .eq('event_id', weeklyEvent.id)
-        .eq('applier_player_id', editingPlayerScore.playerId);
-
-      const blowoutsReceived = receivedBlowouts?.length || 0;
-      const blowoutsApplied = appliedBlowouts?.length || 0;
+      const blowoutsReceived = attendanceData?.blowouts_received || 0;
+      const blowoutsApplied = attendanceData?.blowouts_applied || 0;
 
       const playerAttendance = lastEventAttendances[editingPlayerScore.playerId];
       const bbqParticipated = playerAttendance?.status === 'play_and_bbq' || playerAttendance?.status === 'bbq_only';
@@ -1177,8 +1172,6 @@ const shouldShowEventLists = (league: League): boolean => {
           victories: editVictories,
           defeats: editDefeats,
           bbq_participated: bbqParticipated,
-          blowouts_received: blowoutsReceived,
-          blowouts_applied: blowoutsApplied,
           total_points: totalPoints,
           points_submitted: true,
           points_submitted_at: new Date().toISOString(),
@@ -1272,20 +1265,15 @@ const shouldShowEventLists = (league: League): boolean => {
           .eq('applier_player_id', profile.id);
       }
 
-      const { data: receivedBlowouts } = await supabase
-        .from('weekly_event_blowouts')
-        .select('id')
+      const { data: attendanceData } = await supabase
+        .from('weekly_event_attendance')
+        .select('blowouts_received, blowouts_applied')
         .eq('event_id', weeklyEvent.id)
-        .eq('victim_player_id', profile.id);
+        .eq('player_id', profile.id)
+        .maybeSingle();
 
-      const { data: appliedBlowoutsCount } = await supabase
-        .from('weekly_event_blowouts')
-        .select('id')
-        .eq('event_id', weeklyEvent.id)
-        .eq('applier_player_id', profile.id);
-
-      const blowoutsReceived = receivedBlowouts?.length || 0;
-      const blowoutsAppliedCount = appliedBlowoutsCount?.length || 0;
+      const blowoutsReceived = attendanceData?.blowouts_received || 0;
+      const blowoutsAppliedCount = attendanceData?.blowouts_applied || 0;
 
       const bbqParticipated = myLastEventAttendance?.status === 'play_and_bbq' || myLastEventAttendance?.status === 'bbq_only';
       const totalPoints =
@@ -1305,8 +1293,6 @@ const shouldShowEventLists = (league: League): boolean => {
           victories: scoringVictories ?? 0,
           defeats: scoringDefeats ?? 0,
           bbq_participated: bbqParticipated,
-          blowouts_received: blowoutsReceived,
-          blowouts_applied: blowoutsAppliedCount,
           total_points: totalPoints,
           points_submitted: true,
           points_submitted_at: new Date().toISOString(),
