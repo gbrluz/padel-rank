@@ -140,7 +140,6 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
       loadLeagueRankings(selectedLeague.id);
       if (organizerLeagues.includes(selectedLeague.id)) {
         loadJoinRequests(selectedLeague.id);
-        loadLeagueMembers(selectedLeague.id);
       }
       if (selectedLeague.format === 'weekly') {
         loadAllAttendances(selectedLeague.id);
@@ -149,7 +148,10 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
         if (myLeagues.includes(selectedLeague.id)) {
           loadMyAttendance(selectedLeague.id);
           loadMyLastEventAttendance(selectedLeague.id);
+          loadLeagueMembers(selectedLeague.id);
         }
+      } else if (organizerLeagues.includes(selectedLeague.id)) {
+        loadLeagueMembers(selectedLeague.id);
       }
     }
   }, [selectedLeague, organizerLeagues, myLeagues]);
