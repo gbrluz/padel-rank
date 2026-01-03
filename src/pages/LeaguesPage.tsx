@@ -778,6 +778,42 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
         remainingPlayers = playersWithPoints.slice(12).map(p => p.playerId);
       }
 
+      // Fetch previous event's pairs to avoid repeating them
+      let previousPairs: Set<string> = new Set();
+      try {
+        const previousEventDate = getLastEventDate(selectedLeague);
+        if (previousEventDate) {
+          const prevDate = previousEventDate.toISOString().split('T')[0];
+
+          const { data: prevDraw } = await supabase
+            .from('weekly_event_draws')
+            .select('id')
+            .eq('league_id', selectedLeague.id)
+            .eq('event_date', prevDate)
+            .maybeSingle();
+
+          if (prevDraw) {
+            const { data: prevPairsData } = await supabase
+              .from('weekly_event_pairs')
+              .select('player1_id, player2_id')
+              .eq('draw_id', prevDraw.id);
+
+            if (prevPairsData) {
+              prevPairsData.forEach(pair => {
+                if (pair.player1_id && pair.player2_id) {
+                  // Store both orderings to catch any combination
+                  const key1 = [pair.player1_id, pair.player2_id].sort().join('-');
+                  previousPairs.add(key1);
+                }
+              });
+              console.log(`📋 Found ${previousPairs.size} pairs from previous event to avoid`);
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('Could not fetch previous pairs:', error);
+      }
+
       const shuffleArray = (arr: string[]) => {
         const shuffled = [...arr];
         for (let i = shuffled.length - 1; i > 0; i--) {
@@ -787,28 +823,74 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
         return shuffled;
       };
 
-      const shuffledTop12 = shuffleArray(top12Players);
-      const shuffledRemaining = shuffleArray(remainingPlayers);
+      // Function to create pairs while avoiding previous event's pairs
+      const createPairsAvoidingRepeats = (players: string[], isTop12: boolean): { player1: string; player2: string | null; isTop12: boolean }[] => {
+        const pairs: { player1: string; player2: string | null; isTop12: boolean }[] = [];
+        const used = new Set<string>();
+        const available = [...players];
+        let attempts = 0;
+        const maxAttempts = 100;
 
-      const pairs: { player1: string; player2: string | null; isTop12: boolean }[] = [];
+        while (available.length >= 2 && attempts < maxAttempts) {
+          attempts++;
+          let foundValidPair = false;
 
-      for (let i = 0; i < shuffledTop12.length; i += 2) {
-        if (i + 1 < shuffledTop12.length) {
-          pairs.push({ player1: shuffledTop12[i], player2: shuffledTop12[i + 1], isTop12: true });
-        } else {
-          pairs.push({ player1: shuffledTop12[i], player2: null, isTop12: true });
-        }
-      }
+          for (let i = 0; i < available.length - 1; i++) {
+            for (let j = i + 1; j < available.length; j++) {
+              const player1 = available[i];
+              const player2 = available[j];
+              const pairKey = [player1, player2].sort().join('-');
 
-      for (let i = 0; i < shuffledRemaining.length; i += 2) {
-        if (i + 1 < shuffledRemaining.length) {
-          pairs.push({ player1: shuffledRemaining[i], player2: shuffledRemaining[i + 1], isTop12: false });
-        } else {
-          if (pairs.length > 0 && pairs[pairs.length - 1].player2 === null) {
-            pairs[pairs.length - 1].player2 = shuffledRemaining[i];
-          } else {
-            pairs.push({ player1: shuffledRemaining[i], player2: null, isTop12: false });
+              if (!previousPairs.has(pairKey) && !used.has(player1) && !used.has(player2)) {
+                pairs.push({ player1, player2, isTop12 });
+                used.add(player1);
+                used.add(player2);
+                available.splice(j, 1); // Remove j first (higher index)
+                available.splice(i, 1);
+                foundValidPair = true;
+                break;
+              }
+            }
+            if (foundValidPair) break;
           }
+
+          // If no valid pair found, just take first two available
+          if (!foundValidPair && available.length >= 2) {
+            const player1 = available.shift()!;
+            const player2 = available.shift()!;
+            pairs.push({ player1, player2, isTop12 });
+            used.add(player1);
+            used.add(player2);
+            console.warn('⚠️ Had to create a repeated pair due to constraints');
+          }
+        }
+
+        // Handle remaining single player (wildcard)
+        if (available.length === 1) {
+          pairs.push({ player1: available[0], player2: null, isTop12 });
+        }
+
+        return pairs;
+      };
+
+      // Create pairs for top 12
+      const top12Pairs = top12Players.length > 0 ? createPairsAvoidingRepeats(top12Players, true) : [];
+
+      // Create pairs for remaining players
+      const remainingPairs = remainingPlayers.length > 0 ? createPairsAvoidingRepeats(remainingPlayers, false) : [];
+
+      // Combine all pairs
+      const pairs = [...top12Pairs, ...remainingPairs];
+
+      // Handle edge case: if last top12 pair is wildcard and first remaining pair exists,
+      // try to complete the wildcard pair
+      if (top12Pairs.length > 0 && top12Pairs[top12Pairs.length - 1].player2 === null && remainingPairs.length > 0) {
+        top12Pairs[top12Pairs.length - 1].player2 = remainingPairs[0].player1;
+        if (remainingPairs[0].player2 === null) {
+          remainingPairs.shift(); // Remove the now-completed pair
+        } else {
+          // Convert the remaining pair to a single wildcard
+          remainingPairs[0] = { player1: remainingPairs[0].player2!, player2: null, isTop12: false };
         }
       }
 
