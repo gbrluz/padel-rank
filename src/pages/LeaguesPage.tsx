@@ -2374,9 +2374,24 @@ const shouldShowEventLists = (league: League): boolean => {
                                   <p>Presenca: +2,5 pts</p>
                                   {(myLastEventAttendance?.status === 'play_and_bbq' || myLastEventAttendance?.status === 'bbq_only') && <p>Churras: +2,5 pts</p>}
                                   {scoringVictories > 0 && <p>Vitorias: +{scoringVictories * 2} pts</p>}
-                                  {appliedBlowouts && blowoutVictims.length > 0 && <p className="text-green-700">Pneus aplicados: +{blowoutVictims.length * 3} pts</p>}
+                                  {appliedBlowouts && blowoutVictims.length > 0 && (() => {
+                                    // Count how many pairs were selected (not individual players)
+                                    const selectedPairsCount = victimPairs.filter(pair => {
+                                      const hasPlayer1 = pair.player1 && blowoutVictims.includes(pair.player1.id);
+                                      const hasPlayer2 = pair.player2 && blowoutVictims.includes(pair.player2.id);
+                                      return hasPlayer1 || hasPlayer2;
+                                    }).length;
+                                    return <p className="text-green-700">Pneus aplicados ({selectedPairsCount} {selectedPairsCount === 1 ? 'dupla' : 'duplas'}): +{selectedPairsCount * 3} pts</p>;
+                                  })()}
                                   <p className="font-bold mt-1 pt-1 border-t border-teal-200">
-                                    Total: {(2.5 + ((myLastEventAttendance?.status === 'play_and_bbq' || myLastEventAttendance?.status === 'bbq_only') ? 2.5 : 0) + (scoringVictories * 2) + (appliedBlowouts ? blowoutVictims.length * 3 : 0)).toFixed(1)} pts
+                                    Total: {(() => {
+                                      const selectedPairsCount = victimPairs.filter(pair => {
+                                        const hasPlayer1 = pair.player1 && blowoutVictims.includes(pair.player1.id);
+                                        const hasPlayer2 = pair.player2 && blowoutVictims.includes(pair.player2.id);
+                                        return hasPlayer1 || hasPlayer2;
+                                      }).length;
+                                      return (2.5 + ((myLastEventAttendance?.status === 'play_and_bbq' || myLastEventAttendance?.status === 'bbq_only') ? 2.5 : 0) + (scoringVictories * 2) + (appliedBlowouts ? selectedPairsCount * 3 : 0)).toFixed(1);
+                                    })()} pts
                                   </p>
                                 </div>
                               </div>
