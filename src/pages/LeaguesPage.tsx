@@ -986,10 +986,22 @@ const shouldShowEventLists = (league: League): boolean => {
   const loadWeeklyScore = async () => {
     if (!profile || !selectedLeague) return;
 
+    // Use same logic as loadEventDraw: try next event first, then last event
+    // This handles both cases: before event (draw exists for next) and after event (scoring for last)
+    const nextEvent = getNextWeeklyEventDate(selectedLeague);
     const lastEvent = getLastEventDate(selectedLeague);
-    if (!lastEvent) return;
 
-    const eventDate = lastEvent.toISOString().split('T')[0];
+    const eventDate = nextEvent?.toISOString().split('T')[0] || lastEvent?.toISOString().split('T')[0];
+    if (!eventDate) {
+      console.warn('[loadWeeklyScore] No event date available (neither next nor last)');
+      return;
+    }
+
+    console.log('[loadWeeklyScore] Looking for event on date:', eventDate, {
+      nextEvent: nextEvent?.toISOString().split('T')[0],
+      lastEvent: lastEvent?.toISOString().split('T')[0],
+      using: nextEvent ? 'next event' : 'last event'
+    });
 
     try {
       const { data: weeklyEvent, error: eventError } = await supabase
@@ -1099,10 +1111,10 @@ const shouldShowEventLists = (league: League): boolean => {
     if (!selectedLeague) return;
 
     try {
+      const nextEvent = getNextWeeklyEventDate(selectedLeague);
       const lastEvent = getLastEventDate(selectedLeague);
-      if (!lastEvent) return;
-
-      const eventDate = lastEvent.toISOString().split('T')[0];
+      const eventDate = nextEvent?.toISOString().split('T')[0] || lastEvent?.toISOString().split('T')[0];
+      if (!eventDate) return;
 
       const { data: weeklyEvent } = await supabase
         .from('weekly_events')
@@ -1139,12 +1151,13 @@ const shouldShowEventLists = (league: League): boolean => {
 
     setSubmittingPlayerScore(true);
     try {
+      const nextEvent = getNextWeeklyEventDate(selectedLeague);
       const lastEvent = getLastEventDate(selectedLeague);
-      if (!lastEvent) {
+      const eventDate = nextEvent?.toISOString().split('T')[0] || lastEvent?.toISOString().split('T')[0];
+      if (!eventDate) {
         alert('Nao foi possivel determinar a data do evento');
         return;
       }
-      const eventDate = lastEvent.toISOString().split('T')[0];
 
       let { data: weeklyEvent } = await supabase
         .from('weekly_events')
@@ -1261,10 +1274,10 @@ const shouldShowEventLists = (league: League): boolean => {
     if (!selectedLeague) return;
 
     try {
+      const nextEvent = getNextWeeklyEventDate(selectedLeague);
       const lastEvent = getLastEventDate(selectedLeague);
-      if (!lastEvent) return;
-
-      const eventDate = lastEvent.toISOString().split('T')[0];
+      const eventDate = nextEvent?.toISOString().split('T')[0] || lastEvent?.toISOString().split('T')[0];
+      if (!eventDate) return;
 
       const { data: weeklyEvent } = await supabase
         .from('weekly_events')
@@ -1321,12 +1334,13 @@ const shouldShowEventLists = (league: League): boolean => {
 
     setSubmittingScore(true);
     try {
+      const nextEvent = getNextWeeklyEventDate(selectedLeague);
       const lastEvent = getLastEventDate(selectedLeague);
-      if (!lastEvent) {
+      const eventDate = nextEvent?.toISOString().split('T')[0] || lastEvent?.toISOString().split('T')[0];
+      if (!eventDate) {
         alert('Nao foi possivel determinar a data do evento');
         return;
       }
-      const eventDate = lastEvent.toISOString().split('T')[0];
 
       let { data: weeklyEvent } = await supabase
         .from('weekly_events')
@@ -1433,12 +1447,13 @@ const shouldShowEventLists = (league: League): boolean => {
 
     setSubmittingScore(true);
     try {
+      const nextEvent = getNextWeeklyEventDate(selectedLeague);
       const lastEvent = getLastEventDate(selectedLeague);
-      if (!lastEvent) {
+      const eventDate = nextEvent?.toISOString().split('T')[0] || lastEvent?.toISOString().split('T')[0];
+      if (!eventDate) {
         alert('Nao foi possivel determinar a data do evento');
         return;
       }
-      const eventDate = lastEvent.toISOString().split('T')[0];
 
       let { data: weeklyEvent } = await supabase
         .from('weekly_events')
