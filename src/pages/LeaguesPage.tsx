@@ -106,6 +106,8 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
   const [scoringDefeats, setScoringDefeats] = useState(0);
   const [appliedBlowouts, setAppliedBlowouts] = useState(false);
   const [blowoutVictims, setBlowoutVictims] = useState<string[]>([]);
+  const [myCurrentPair, setMyCurrentPair] = useState<EventPair | null>(null);
+  const [victimPairs, setVictimPairs] = useState<EventPair[]>([]);
   const [submittingScore, setSubmittingScore] = useState(false);
   const [weeklyScore, setWeeklyScore] = useState<any>(null);
   const [allAttendances, setAllAttendances] = useState<Record<string, WeeklyAttendance>>({});
@@ -1016,18 +1018,30 @@ const shouldShowEventLists = (league: League): boolean => {
           setScoringVictories(attendance.victories || 0);
           setScoringDefeats(attendance.defeats || 0);
 
-          const { data: blowouts } = await supabase
-            .from('weekly_event_blowouts')
-            .select('victim_player_id')
-            .eq('event_id', weeklyEvent.id)
-            .eq('applier_player_id', profile.id);
+          const myPair = currentPairs.find(p => p.player1_id === profile.id || p.player2_id === profile.id);
+          setMyCurrentPair(myPair || null);
 
-          if (blowouts && blowouts.length > 0) {
-            setAppliedBlowouts(true);
-            setBlowoutVictims(blowouts.map(b => b.victim_player_id));
+          if (myPair) {
+            const { data: blowouts } = await supabase
+              .from('weekly_event_blowouts')
+              .select('victim_player_id')
+              .eq('event_id', weeklyEvent.id)
+              .eq('applier_pair_id', myPair.id);
+
+            if (blowouts && blowouts.length > 0) {
+              setAppliedBlowouts(true);
+              setBlowoutVictims(blowouts.map(b => b.victim_player_id));
+            } else {
+              setAppliedBlowouts(false);
+              setBlowoutVictims([]);
+            }
+
+            const otherPairs = currentPairs.filter(p => p.id !== myPair.id);
+            setVictimPairs(otherPairs);
           } else {
             setAppliedBlowouts(false);
             setBlowoutVictims([]);
+            setVictimPairs([]);
           }
         } else {
           setWeeklyScore(null);
@@ -1117,15 +1131,18 @@ const shouldShowEventLists = (league: League): boolean => {
         weeklyEvent = newEvent;
       }
 
-      if (editAppliedBlowouts && editBlowoutVictims.length > 0) {
+      const editorPair = currentPairs.find(p => p.player1_id === editingPlayerScore.playerId || p.player2_id === editingPlayerScore.playerId);
+
+      if (editAppliedBlowouts && editBlowoutVictims.length > 0 && editorPair) {
         await supabase
           .from('weekly_event_blowouts')
           .delete()
           .eq('event_id', weeklyEvent.id)
-          .eq('applier_player_id', editingPlayerScore.playerId);
+          .eq('applier_pair_id', editorPair.id);
 
         const blowoutRecords = editBlowoutVictims.map(victimId => ({
           event_id: weeklyEvent.id,
+          applier_pair_id: editorPair.id,
           applier_player_id: editingPlayerScore.playerId,
           victim_player_id: victimId,
         }));
@@ -1135,12 +1152,12 @@ const shouldShowEventLists = (league: League): boolean => {
           .insert(blowoutRecords);
 
         if (blowoutError) throw blowoutError;
-      } else {
+      } else if (editorPair) {
         await supabase
           .from('weekly_event_blowouts')
           .delete()
           .eq('event_id', weeklyEvent.id)
-          .eq('applier_player_id', editingPlayerScore.playerId);
+          .eq('applier_pair_id', editorPair.id);
       }
 
       const { data: attendanceData } = await supabase
@@ -1198,12 +1215,45 @@ const shouldShowEventLists = (league: League): boolean => {
     }
   };
 
-  const openPlayerScoreModal = (playerId: string, playerName: string) => {
+  const openPlayerScoreModal = async (playerId: string, playerName: string) => {
     setEditingPlayerScore({ playerId, playerName });
     setEditVictories(0);
     setEditDefeats(0);
     setEditAppliedBlowouts(false);
     setEditBlowoutVictims([]);
+
+    if (!selectedLeague) return;
+
+    try {
+      const lastEvent = getLastEventDate(selectedLeague);
+      if (!lastEvent) return;
+
+      const { data: weeklyEvent } = await supabase
+        .from('weekly_events')
+        .select('id')
+        .eq('league_id', selectedLeague.id)
+        .eq('event_date', lastEvent)
+        .maybeSingle();
+
+      if (!weeklyEvent) return;
+
+      const playerPair = currentPairs.find(p => p.player1_id === playerId || p.player2_id === playerId);
+
+      if (playerPair) {
+        const { data: blowouts } = await supabase
+          .from('weekly_event_blowouts')
+          .select('victim_player_id')
+          .eq('event_id', weeklyEvent.id)
+          .eq('applier_pair_id', playerPair.id);
+
+        if (blowouts && blowouts.length > 0) {
+          setEditAppliedBlowouts(true);
+          setEditBlowoutVictims(blowouts.map(b => b.victim_player_id));
+        }
+      }
+    } catch (error) {
+      console.error('Error loading blowouts:', error);
+    }
   };
 
   const handleSubmitScore = async () => {
@@ -1239,15 +1289,16 @@ const shouldShowEventLists = (league: League): boolean => {
         weeklyEvent = newEvent;
       }
 
-      if (appliedBlowouts && blowoutVictims.length > 0) {
+      if (appliedBlowouts && blowoutVictims.length > 0 && myCurrentPair) {
         await supabase
           .from('weekly_event_blowouts')
           .delete()
           .eq('event_id', weeklyEvent.id)
-          .eq('applier_player_id', profile.id);
+          .eq('applier_pair_id', myCurrentPair.id);
 
         const blowoutRecords = blowoutVictims.map(victimId => ({
           event_id: weeklyEvent.id,
+          applier_pair_id: myCurrentPair.id,
           applier_player_id: profile.id,
           victim_player_id: victimId,
         }));
@@ -1257,12 +1308,12 @@ const shouldShowEventLists = (league: League): boolean => {
           .insert(blowoutRecords);
 
         if (blowoutError) throw blowoutError;
-      } else {
+      } else if (myCurrentPair) {
         await supabase
           .from('weekly_event_blowouts')
           .delete()
           .eq('event_id', weeklyEvent.id)
-          .eq('applier_player_id', profile.id);
+          .eq('applier_pair_id', myCurrentPair.id);
       }
 
       const { data: attendanceData } = await supabase
@@ -2219,32 +2270,48 @@ const shouldShowEventLists = (league: League): boolean => {
                                 {appliedBlowouts && (
                                   <div>
                                     <label className="block text-sm font-medium text-gray-800 mb-2">
-                                      Selecione quem tomou pneu:
+                                      Selecione qual dupla tomou pneu:
                                     </label>
                                     <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-2 space-y-1">
-                                      {Object.entries(lastEventAttendances)
-                                        .filter(([playerId]) => playerId !== profile?.id)
-                                        .map(([playerId, attendance]) => {
-                                          const player = leagueMembers.find(m => m.player_id === playerId)?.player;
-                                          if (!player) return null;
-                                          return (
-                                            <label key={playerId} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
-                                              <input
-                                                type="checkbox"
-                                                checked={blowoutVictims.includes(playerId)}
-                                                onChange={(e) => {
-                                                  if (e.target.checked) {
-                                                    setBlowoutVictims([...blowoutVictims, playerId]);
-                                                  } else {
-                                                    setBlowoutVictims(blowoutVictims.filter(id => id !== playerId));
+                                      {victimPairs.map((pair) => {
+                                        const player1 = pair.player1;
+                                        const player2 = pair.player2;
+                                        const pairLabel = player2
+                                          ? `${player1?.full_name || 'Jogador 1'} + ${player2?.full_name || 'Jogador 2'}`
+                                          : `${player1?.full_name || 'Jogador 1'} (Wildcard)`;
+
+                                        const hasPlayer1 = player1 && blowoutVictims.includes(player1.id);
+                                        const hasPlayer2 = player2 && blowoutVictims.includes(player2.id);
+                                        const isPairSelected = hasPlayer1 || hasPlayer2;
+
+                                        return (
+                                          <label key={pair.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                                            <input
+                                              type="checkbox"
+                                              checked={isPairSelected}
+                                              onChange={(e) => {
+                                                if (e.target.checked) {
+                                                  const newVictims = [...blowoutVictims];
+                                                  if (player1 && !newVictims.includes(player1.id)) {
+                                                    newVictims.push(player1.id);
                                                   }
-                                                }}
-                                                className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
-                                              />
-                                              <span className="text-sm">{player.full_name}</span>
-                                            </label>
-                                          );
-                                        })}
+                                                  if (player2 && !newVictims.includes(player2.id)) {
+                                                    newVictims.push(player2.id);
+                                                  }
+                                                  setBlowoutVictims(newVictims);
+                                                } else {
+                                                  const newVictims = blowoutVictims.filter(id =>
+                                                    id !== player1?.id && id !== player2?.id
+                                                  );
+                                                  setBlowoutVictims(newVictims);
+                                                }
+                                              }}
+                                              className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                                            />
+                                            <span className="text-sm">{pairLabel}</span>
+                                          </label>
+                                        );
+                                      })}
                                     </div>
                                   </div>
                                 )}
@@ -2902,29 +2969,47 @@ const shouldShowEventLists = (league: League): boolean => {
               {editAppliedBlowouts && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Selecione quem tomou pneu:
+                    Selecione qual dupla tomou pneu:
                   </label>
                   <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-2 space-y-1">
-                    {Object.entries(lastEventAttendances)
-                      .filter(([playerId]) => playerId !== editingPlayerScore?.playerId)
-                      .map(([playerId, attendance]) => {
-                        const player = leagueMembers.find(m => m.player_id === playerId)?.player;
-                        if (!player) return null;
+                    {currentPairs
+                      .filter(pair => pair.player1_id !== editingPlayerScore?.playerId && pair.player2_id !== editingPlayerScore?.playerId)
+                      .map((pair) => {
+                        const player1 = pair.player1;
+                        const player2 = pair.player2;
+                        const pairLabel = player2
+                          ? `${player1?.full_name || 'Jogador 1'} + ${player2?.full_name || 'Jogador 2'}`
+                          : `${player1?.full_name || 'Jogador 1'} (Wildcard)`;
+
+                        const hasPlayer1 = player1 && editBlowoutVictims.includes(player1.id);
+                        const hasPlayer2 = player2 && editBlowoutVictims.includes(player2.id);
+                        const isPairSelected = hasPlayer1 || hasPlayer2;
+
                         return (
-                          <label key={playerId} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                          <label key={pair.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
                             <input
                               type="checkbox"
-                              checked={editBlowoutVictims.includes(playerId)}
+                              checked={isPairSelected}
                               onChange={(e) => {
                                 if (e.target.checked) {
-                                  setEditBlowoutVictims([...editBlowoutVictims, playerId]);
+                                  const newVictims = [...editBlowoutVictims];
+                                  if (player1 && !newVictims.includes(player1.id)) {
+                                    newVictims.push(player1.id);
+                                  }
+                                  if (player2 && !newVictims.includes(player2.id)) {
+                                    newVictims.push(player2.id);
+                                  }
+                                  setEditBlowoutVictims(newVictims);
                                 } else {
-                                  setEditBlowoutVictims(editBlowoutVictims.filter(id => id !== playerId));
+                                  const newVictims = editBlowoutVictims.filter(id =>
+                                    id !== player1?.id && id !== player2?.id
+                                  );
+                                  setEditBlowoutVictims(newVictims);
                                 }
                               }}
                               className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
                             />
-                            <span className="text-sm">{player.full_name}</span>
+                            <span className="text-sm">{pairLabel}</span>
                           </label>
                         );
                       })}
