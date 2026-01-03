@@ -82,6 +82,15 @@ interface EventPair {
   player2?: Profile;
 }
 
+interface EventMatch {
+  id: string;
+  draw_id: string;
+  pair1_id: string;
+  pair2_id: string;
+  match_number: number;
+  created_at: string;
+}
+
 export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
   const { player: profile } = useAuth();
   const [leagues, setLeagues] = useState<League[]>([]);
@@ -118,6 +127,7 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
   const [blowoutRankingType, setBlowoutRankingType] = useState<'received' | 'applied'>('received');
   const [currentDraw, setCurrentDraw] = useState<EventDraw | null>(null);
   const [currentPairs, setCurrentPairs] = useState<EventPair[]>([]);
+  const [currentMatches, setCurrentMatches] = useState<EventMatch[]>([]);
   const [performingDraw, setPerformingDraw] = useState(false);
   const [scoreSubmissions, setScoreSubmissions] = useState<Record<string, boolean>>({});
   const [editingPlayerScore, setEditingPlayerScore] = useState<{ playerId: string; playerName: string } | null>(null);
@@ -664,9 +674,24 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
         if (pairsError) throw pairsError;
 
         setCurrentPairs(pairsData || []);
+
+        // Load matches (confrontos) for this draw
+        const { data: matchesData, error: matchesError } = await supabase
+          .from('weekly_event_matches')
+          .select('*')
+          .eq('draw_id', drawData.id)
+          .order('match_number');
+
+        if (matchesError) {
+          console.error('Error loading matches:', matchesError);
+          setCurrentMatches([]);
+        } else {
+          setCurrentMatches(matchesData || []);
+        }
       } else {
         setCurrentDraw(null);
         setCurrentPairs([]);
+        setCurrentMatches([]);
       }
     } catch (error) {
       console.error('Error loading event draw:', error);
@@ -2551,6 +2576,116 @@ const shouldShowEventLists = (league: League): boolean => {
                               Top 12 colocados
                             </p>
                           )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {myLeagues.includes(selectedLeague.id) && shouldShowDrawResults(selectedLeague) && currentMatches.length > 0 && (
+                    <div className="bg-purple-50 border-2 border-purple-200 rounded-xl p-4 mb-6">
+                      <div className="flex items-start gap-3">
+                        <div className="w-6 h-6 flex items-center justify-center bg-purple-600 rounded-full flex-shrink-0 mt-0.5">
+                          <span className="text-white text-sm font-bold">vs</span>
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-semibold text-purple-900">
+                            Confrontos (Jogos)
+                          </p>
+                          <p className="text-sm text-purple-700 mt-1">
+                            {currentDraw?.event_date && new Date(currentDraw.event_date + 'T00:00:00').toLocaleDateString('pt-BR')}
+                          </p>
+
+                          <div className="mt-4 space-y-3">
+                            {currentMatches.map((match) => {
+                              // Find the pairs involved in this match
+                              const pair1 = currentPairs.find(p => p.id === match.pair1_id);
+                              const pair2 = currentPairs.find(p => p.id === match.pair2_id);
+
+                              if (!pair1 || !pair2) return null;
+
+                              const isMyMatch =
+                                pair1.player1_id === profile?.id ||
+                                pair1.player2_id === profile?.id ||
+                                pair2.player1_id === profile?.id ||
+                                pair2.player2_id === profile?.id;
+
+                              return (
+                                <div
+                                  key={match.id}
+                                  className={`p-3 rounded-lg border ${
+                                    isMyMatch
+                                      ? 'bg-purple-100 border-purple-300'
+                                      : 'bg-white border-purple-200'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2 text-xs text-purple-600 mb-2">
+                                    <span className="font-bold">Jogo #{match.match_number}</span>
+                                  </div>
+
+                                  <div className="flex items-center gap-3">
+                                    {/* Pair 1 */}
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-2">
+                                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                                          pair1.is_top_12 ? 'bg-amber-500 text-white' : 'bg-gray-300 text-gray-700'
+                                        }`}>
+                                          {pair1.pair_number}
+                                        </span>
+                                        <div className="flex-1">
+                                          <div className="text-sm font-medium text-gray-900">
+                                            {pair1.player1?.full_name || 'Jogador'}
+                                            {pair1.player1_id === profile?.id && ' (Você)'}
+                                          </div>
+                                          {pair1.player2 ? (
+                                            <div className="text-sm font-medium text-gray-900">
+                                              {pair1.player2?.full_name || 'Jogador'}
+                                              {pair1.player2_id === profile?.id && ' (Você)'}
+                                            </div>
+                                          ) : (
+                                            <div className="text-xs text-amber-600">(Coringa)</div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* VS indicator */}
+                                    <div className="px-2">
+                                      <span className="text-purple-600 font-bold text-sm">VS</span>
+                                    </div>
+
+                                    {/* Pair 2 */}
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-2">
+                                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                                          pair2.is_top_12 ? 'bg-amber-500 text-white' : 'bg-gray-300 text-gray-700'
+                                        }`}>
+                                          {pair2.pair_number}
+                                        </span>
+                                        <div className="flex-1">
+                                          <div className="text-sm font-medium text-gray-900">
+                                            {pair2.player1?.full_name || 'Jogador'}
+                                            {pair2.player1_id === profile?.id && ' (Você)'}
+                                          </div>
+                                          {pair2.player2 ? (
+                                            <div className="text-sm font-medium text-gray-900">
+                                              {pair2.player2?.full_name || 'Jogador'}
+                                              {pair2.player2_id === profile?.id && ' (Você)'}
+                                            </div>
+                                          ) : (
+                                            <div className="text-xs text-amber-600">(Coringa)</div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          <p className="text-xs text-purple-600 mt-3">
+                            {currentMatches.length} confrontos gerados
+                          </p>
                         </div>
                       </div>
                     </div>
