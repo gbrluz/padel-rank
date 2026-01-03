@@ -1280,15 +1280,26 @@ const shouldShowEventLists = (league: League): boolean => {
           .eq('applier_pair_id', editorPair.id);
       }
 
-      const { data: attendanceData } = await supabase
-        .from('weekly_event_attendance')
-        .select('blowouts_received, blowouts_applied')
-        .eq('event_id', weeklyEvent.id)
-        .eq('player_id', editingPlayerScore.playerId)
-        .maybeSingle();
+      // CRITICAL: Recalculate blowout counts (same logic as handleSubmitScore)
 
-      const blowoutsReceived = attendanceData?.blowouts_received || 0;
-      const blowoutsApplied = attendanceData?.blowouts_applied || 0;
+      // 1. Count blowouts APPLIED by this player
+      const { data: appliedBlowoutsData } = await supabase
+        .from('weekly_event_blowouts')
+        .select('id')
+        .eq('event_id', weeklyEvent.id)
+        .eq('applier_player_id', editingPlayerScore.playerId);
+
+      const blowoutsApplied = appliedBlowoutsData?.length || 0;
+
+      // 2. Count blowouts RECEIVED (deduplicate by applier_pair_id)
+      const { data: receivedBlowoutsData } = await supabase
+        .from('weekly_event_blowouts')
+        .select('applier_pair_id')
+        .eq('event_id', weeklyEvent.id)
+        .eq('victim_player_id', editingPlayerScore.playerId);
+
+      const uniqueApplierPairs = new Set(receivedBlowoutsData?.map(b => b.applier_pair_id) || []);
+      const blowoutsReceived = uniqueApplierPairs.size;
 
       const playerAttendance = lastEventAttendances[editingPlayerScore.playerId];
       const bbqParticipated = playerAttendance?.status === 'play_and_bbq' || playerAttendance?.status === 'bbq_only';
@@ -1309,6 +1320,8 @@ const shouldShowEventLists = (league: League): boolean => {
           victories: editVictories,
           defeats: editDefeats,
           bbq_participated: bbqParticipated,
+          blowouts_received: blowoutsReceived,
+          blowouts_applied: blowoutsApplied,
           total_points: totalPoints,
           points_submitted: true,
           points_submitted_at: new Date().toISOString(),
@@ -1318,6 +1331,46 @@ const shouldShowEventLists = (league: League): boolean => {
         });
 
       if (error) throw error;
+
+      // 3. Update victims' blowout counts (same as handleSubmitScore)
+      if (editBlowoutVictims.length > 0) {
+        for (const victimId of editBlowoutVictims) {
+          const { data: victimBlowoutsData } = await supabase
+            .from('weekly_event_blowouts')
+            .select('applier_pair_id')
+            .eq('event_id', weeklyEvent.id)
+            .eq('victim_player_id', victimId);
+
+          const uniqueVictimApplierPairs = new Set(victimBlowoutsData?.map(b => b.applier_pair_id) || []);
+          const victimBlowoutsCount = uniqueVictimApplierPairs.size;
+
+          const { data: victimAttendance } = await supabase
+            .from('weekly_event_attendance')
+            .select('*')
+            .eq('event_id', weeklyEvent.id)
+            .eq('player_id', victimId)
+            .maybeSingle();
+
+          if (victimAttendance) {
+            const victimTotalPoints =
+              2.5 +
+              (victimAttendance.bbq_participated ? 2.5 : 0) +
+              (victimAttendance.victories * 2) +
+              (victimBlowoutsCount * -3) +
+              (victimAttendance.blowouts_applied * 3);
+
+            await supabase
+              .from('weekly_event_attendance')
+              .update({
+                blowouts_received: victimBlowoutsCount,
+                total_points: victimTotalPoints,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('event_id', weeklyEvent.id)
+              .eq('player_id', victimId);
+          }
+        }
+      }
 
       alert(`Pontuacao de ${editingPlayerScore.playerName} enviada com sucesso!`);
       setEditingPlayerScore(null);
@@ -1474,13 +1527,17 @@ const shouldShowEventLists = (league: League): boolean => {
       const blowoutsAppliedCount = appliedBlowoutsData?.length || 0;
 
       // 2. Count blowouts RECEIVED by current player
+      // CRITICAL: Deduplicate by applier_pair_id to avoid double-counting
+      // When both partners mark the same victim, it should count as 1 blowout, not 2
       const { data: receivedBlowoutsData } = await supabase
         .from('weekly_event_blowouts')
-        .select('id')
+        .select('applier_pair_id')
         .eq('event_id', weeklyEvent.id)
         .eq('victim_player_id', profile.id);
 
-      const blowoutsReceived = receivedBlowoutsData?.length || 0;
+      // Count unique applier pairs (deduplicate)
+      const uniqueApplierPairs = new Set(receivedBlowoutsData?.map(b => b.applier_pair_id) || []);
+      const blowoutsReceived = uniqueApplierPairs.size;
 
       const bbqParticipated = myLastEventAttendance?.status === 'play_and_bbq' || myLastEventAttendance?.status === 'bbq_only';
       const totalPoints =
@@ -1517,13 +1574,16 @@ const shouldShowEventLists = (league: League): boolean => {
       if (blowoutVictims.length > 0) {
         for (const victimId of blowoutVictims) {
           // Count how many blowouts this victim received
+          // CRITICAL: Deduplicate by applier_pair_id
           const { data: victimBlowoutsData } = await supabase
             .from('weekly_event_blowouts')
-            .select('id')
+            .select('applier_pair_id')
             .eq('event_id', weeklyEvent.id)
             .eq('victim_player_id', victimId);
 
-          const victimBlowoutsCount = victimBlowoutsData?.length || 0;
+          // Deduplicate - if both partners from same pair marked this victim, count as 1
+          const uniqueVictimApplierPairs = new Set(victimBlowoutsData?.map(b => b.applier_pair_id) || []);
+          const victimBlowoutsCount = uniqueVictimApplierPairs.size;
 
           // Get victim's current attendance data
           const { data: victimAttendance } = await supabase
