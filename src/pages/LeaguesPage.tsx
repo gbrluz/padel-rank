@@ -1254,11 +1254,12 @@ const shouldShowEventLists = (league: League): boolean => {
       const editorPair = currentPairs.find(p => p.player1_id === editingPlayerScore.playerId || p.player2_id === editingPlayerScore.playerId);
 
       if (editAppliedBlowouts && editBlowoutVictims.length > 0 && editorPair) {
+        // CRITICAL: Delete only THIS PLAYER's blowouts, not the entire pair's
         await supabase
           .from('weekly_event_blowouts')
           .delete()
           .eq('event_id', weeklyEvent.id)
-          .eq('applier_pair_id', editorPair.id);
+          .eq('applier_player_id', editingPlayerScore.playerId);
 
         const blowoutRecords = editBlowoutVictims.map(victimId => ({
           event_id: weeklyEvent.id,
@@ -1272,12 +1273,13 @@ const shouldShowEventLists = (league: League): boolean => {
           .insert(blowoutRecords);
 
         if (blowoutError) throw blowoutError;
-      } else if (editorPair) {
+      } else {
+        // If unchecking blowouts, delete only this player's records
         await supabase
           .from('weekly_event_blowouts')
           .delete()
           .eq('event_id', weeklyEvent.id)
-          .eq('applier_pair_id', editorPair.id);
+          .eq('applier_player_id', editingPlayerScore.playerId);
       }
 
       // CRITICAL: Recalculate blowout counts (same logic as handleSubmitScore)
@@ -1512,11 +1514,13 @@ const shouldShowEventLists = (league: League): boolean => {
       }
 
       if (appliedBlowouts && blowoutVictims.length > 0 && myCurrentPair) {
+        // CRITICAL: Delete only THIS PLAYER's blowouts, not the entire pair's
+        // This allows both partners to independently mark their blowouts
         await supabase
           .from('weekly_event_blowouts')
           .delete()
           .eq('event_id', weeklyEvent.id)
-          .eq('applier_pair_id', myCurrentPair.id);
+          .eq('applier_player_id', profile.id);
 
         const blowoutRecords = blowoutVictims.map(victimId => ({
           event_id: weeklyEvent.id,
@@ -1530,12 +1534,13 @@ const shouldShowEventLists = (league: League): boolean => {
           .insert(blowoutRecords);
 
         if (blowoutError) throw blowoutError;
-      } else if (myCurrentPair) {
+      } else {
+        // If unchecking blowouts, delete only this player's records
         await supabase
           .from('weekly_event_blowouts')
           .delete()
           .eq('event_id', weeklyEvent.id)
-          .eq('applier_pair_id', myCurrentPair.id);
+          .eq('applier_player_id', profile.id);
       }
 
       // CRITICAL: Recalculate blowout counts for all affected players
