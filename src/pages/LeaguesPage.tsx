@@ -655,8 +655,8 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
           .from('weekly_event_pairs')
           .select(`
             *,
-            player1:player1_id(id, full_name, category, regional_points, national_points),
-            player2:player2_id(id, full_name, category, regional_points, national_points)
+            player1:player1_id(id, full_name, category, ranking_points, global_ranking_points),
+            player2:player2_id(id, full_name, category, ranking_points, global_ranking_points)
           `)
           .eq('draw_id', drawData.id)
           .order('pair_number');
