@@ -29,6 +29,38 @@
 -- Drop the blocking trigger
 DROP TRIGGER IF EXISTS prevent_duplicate_pair_blowouts ON weekly_event_blowouts;
 
+-- Helper function to get a player's partner for a given event
+CREATE OR REPLACE FUNCTION get_pair_partner(
+  p_event_id uuid,
+  p_player_id uuid
+)
+RETURNS uuid
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_partner_id uuid;
+BEGIN
+  -- Find the pair this player is in for this event
+  SELECT
+    CASE
+      WHEN wep.player1_id = p_player_id THEN wep.player2_id
+      WHEN wep.player2_id = p_player_id THEN wep.player1_id
+      ELSE NULL
+    END INTO v_partner_id
+  FROM weekly_event_pairs wep
+  JOIN weekly_event_draws wed ON wed.id = wep.draw_id
+  JOIN weekly_events we ON we.league_id = wed.league_id AND we.event_date = wed.event_date
+  WHERE we.id = p_event_id
+  AND (wep.player1_id = p_player_id OR wep.player2_id = p_player_id)
+  LIMIT 1;
+
+  RETURN v_partner_id;
+END;
+$$;
+
 -- Function to count unique blowouts received (deduplicated by pair)
 CREATE OR REPLACE FUNCTION count_blowouts_received(
   p_event_id uuid,

@@ -658,7 +658,7 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
 
         if (pairsError) throw pairsError;
 
-        const playersMap = new Map(allPlayers.map(p => [p.id, p]));
+        const playersMap = new Map((allPlayers || []).map(p => [p.id, p]));
         const pairsWithPlayers = (pairsData || []).map(pair => ({
           ...pair,
           player1: playersMap.get(pair.player1_id),
