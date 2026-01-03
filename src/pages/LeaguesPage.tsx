@@ -1018,26 +1018,53 @@ const shouldShowEventLists = (league: League): boolean => {
           setScoringVictories(attendance.victories || 0);
           setScoringDefeats(attendance.defeats || 0);
 
-          const myPair = currentPairs.find(p => p.player1_id === profile.id || p.player2_id === profile.id);
-          setMyCurrentPair(myPair || null);
+          const { data: drawData } = await supabase
+            .from('weekly_event_draws')
+            .select('id')
+            .eq('league_id', selectedLeague.id)
+            .eq('event_date', eventDate)
+            .maybeSingle();
 
-          if (myPair) {
-            const { data: blowouts } = await supabase
-              .from('weekly_event_blowouts')
-              .select('victim_player_id')
-              .eq('event_id', weeklyEvent.id)
-              .eq('applier_pair_id', myPair.id);
+          if (drawData) {
+            const { data: pairsData } = await supabase
+              .from('weekly_event_pairs')
+              .select(`
+                *,
+                player1:player1_id(id, full_name, category, regional_points, national_points),
+                player2:player2_id(id, full_name, category, regional_points, national_points)
+              `)
+              .eq('draw_id', drawData.id)
+              .order('pair_number');
 
-            if (blowouts && blowouts.length > 0) {
-              setAppliedBlowouts(true);
-              setBlowoutVictims(blowouts.map(b => b.victim_player_id));
+            const eventPairs = pairsData || [];
+            console.log('Event Pairs loaded:', eventPairs);
+            const myPair = eventPairs.find(p => p.player1_id === profile.id || p.player2_id === profile.id);
+            console.log('My Pair:', myPair);
+            setMyCurrentPair(myPair || null);
+
+            if (myPair) {
+              const { data: blowouts } = await supabase
+                .from('weekly_event_blowouts')
+                .select('victim_player_id')
+                .eq('event_id', weeklyEvent.id)
+                .eq('applier_pair_id', myPair.id);
+
+              if (blowouts && blowouts.length > 0) {
+                setAppliedBlowouts(true);
+                setBlowoutVictims(blowouts.map(b => b.victim_player_id));
+              } else {
+                setAppliedBlowouts(false);
+                setBlowoutVictims([]);
+              }
+
+              const otherPairs = eventPairs.filter(p => p.id !== myPair.id);
+              console.log('Victim Pairs:', otherPairs);
+              setVictimPairs(otherPairs);
             } else {
               setAppliedBlowouts(false);
               setBlowoutVictims([]);
+              setVictimPairs([]);
             }
-
-            const otherPairs = currentPairs.filter(p => p.id !== myPair.id);
-            setVictimPairs(otherPairs);
           } else {
             setAppliedBlowouts(false);
             setBlowoutVictims([]);
@@ -1228,16 +1255,40 @@ const shouldShowEventLists = (league: League): boolean => {
       const lastEvent = getLastEventDate(selectedLeague);
       if (!lastEvent) return;
 
+      const eventDate = lastEvent.toISOString().split('T')[0];
+
       const { data: weeklyEvent } = await supabase
         .from('weekly_events')
         .select('id')
         .eq('league_id', selectedLeague.id)
-        .eq('event_date', lastEvent)
+        .eq('event_date', eventDate)
         .maybeSingle();
 
       if (!weeklyEvent) return;
 
-      const playerPair = currentPairs.find(p => p.player1_id === playerId || p.player2_id === playerId);
+      const { data: drawData } = await supabase
+        .from('weekly_event_draws')
+        .select('id')
+        .eq('league_id', selectedLeague.id)
+        .eq('event_date', eventDate)
+        .maybeSingle();
+
+      if (!drawData) return;
+
+      const { data: pairsData } = await supabase
+        .from('weekly_event_pairs')
+        .select(`
+          *,
+          player1:player1_id(id, full_name, category, regional_points, national_points),
+          player2:player2_id(id, full_name, category, regional_points, national_points)
+        `)
+        .eq('draw_id', drawData.id)
+        .order('pair_number');
+
+      const eventPairs = pairsData || [];
+      setCurrentPairs(eventPairs);
+
+      const playerPair = eventPairs.find(p => p.player1_id === playerId || p.player2_id === playerId);
 
       if (playerPair) {
         const { data: blowouts } = await supabase
@@ -2272,6 +2323,9 @@ const shouldShowEventLists = (league: League): boolean => {
                                     <label className="block text-sm font-medium text-gray-800 mb-2">
                                       Selecione qual dupla tomou pneu:
                                     </label>
+                                    {victimPairs.length === 0 && (
+                                      <p className="text-sm text-gray-500 mb-2">Carregando duplas... (Debug: {victimPairs.length} duplas)</p>
+                                    )}
                                     <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-2 space-y-1">
                                       {victimPairs.map((pair) => {
                                         const player1 = pair.player1;
