@@ -249,6 +249,26 @@ export default function LeaguesManagement() {
   const handleCreateLeague = async () => {
     if (!leagueFormData.name || !profile) return;
 
+    // Validate weekly format required fields
+    if (leagueFormData.format === 'weekly') {
+      if (leagueFormData.weekly_day === null || leagueFormData.weekly_day === undefined) {
+        alert('Por favor, selecione o dia da semana para a liga semanal');
+        return;
+      }
+      if (!leagueFormData.weekly_time) {
+        alert('Por favor, informe o horário para a liga semanal');
+        return;
+      }
+    }
+
+    // Validate monthly format required fields
+    if (leagueFormData.format === 'monthly') {
+      if (!leagueFormData.monthly_min_matches) {
+        alert('Por favor, informe o número mínimo de partidas por mês');
+        return;
+      }
+    }
+
     try {
       const { error } = await supabase
         .from('leagues')
@@ -274,6 +294,26 @@ export default function LeaguesManagement() {
 
   const handleUpdateLeague = async () => {
     if (!editingLeague) return;
+
+    // Validate weekly format required fields
+    if (leagueFormData.format === 'weekly') {
+      if (leagueFormData.weekly_day === null || leagueFormData.weekly_day === undefined) {
+        alert('Por favor, selecione o dia da semana para a liga semanal');
+        return;
+      }
+      if (!leagueFormData.weekly_time) {
+        alert('Por favor, informe o horário para a liga semanal');
+        return;
+      }
+    }
+
+    // Validate monthly format required fields
+    if (leagueFormData.format === 'monthly') {
+      if (!leagueFormData.monthly_min_matches) {
+        alert('Por favor, informe o número mínimo de partidas por mês');
+        return;
+      }
+    }
 
     try {
       const { error } = await supabase
@@ -428,11 +468,14 @@ export default function LeaguesManagement() {
                 <h4 className="font-semibold text-blue-900">Configurações Semanais</h4>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Dia da Semana</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Dia da Semana <span className="text-red-600">*</span>
+                    </label>
                     <select
                       value={leagueFormData.weekly_day ?? ''}
                       onChange={(e) => setLeagueFormData({ ...leagueFormData, weekly_day: e.target.value ? parseInt(e.target.value) : null })}
                       className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                      required
                     >
                       <option value="">Selecione...</option>
                       <option value="0">Domingo</option>
@@ -445,12 +488,15 @@ export default function LeaguesManagement() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Horário</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Horário <span className="text-red-600">*</span>
+                    </label>
                     <input
                       type="time"
                       value={leagueFormData.weekly_time || ''}
                       onChange={(e) => setLeagueFormData({ ...leagueFormData, weekly_time: e.target.value })}
                       className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                      required
                     />
                   </div>
                 </div>
@@ -476,7 +522,7 @@ export default function LeaguesManagement() {
                 <h4 className="font-semibold text-purple-900">Configurações Mensais</h4>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Número mínimo de partidas por mês
+                    Número mínimo de partidas por mês <span className="text-red-600">*</span>
                   </label>
                   <input
                     type="number"
@@ -486,6 +532,7 @@ export default function LeaguesManagement() {
                     onChange={(e) => setLeagueFormData({ ...leagueFormData, monthly_min_matches: e.target.value ? parseInt(e.target.value) : null })}
                     className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
                     placeholder="Ex: 4 partidas por mês"
+                    required
                   />
                 </div>
               </div>
