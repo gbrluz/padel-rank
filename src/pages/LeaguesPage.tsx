@@ -1450,16 +1450,34 @@ const shouldShowEventLists = (league: League): boolean => {
 
       if (editAppliedBlowouts && editBlowoutVictims.length > 0 && editorPair) {
         // CRITICAL: Delete only THIS PLAYER's blowouts, not the entire pair's
-        const { error: deleteError } = await supabase
+        console.log(`🗑️ Deleting blowouts for player ${editingPlayerScore.playerId} in event ${weeklyEvent.id}`);
+
+        // First check what exists
+        const { data: existingBlowouts, error: checkError } = await supabase
           .from('weekly_event_blowouts')
-          .delete()
+          .select('*')
           .eq('event_id', weeklyEvent.id)
           .eq('applier_player_id', editingPlayerScore.playerId);
 
-        if (deleteError) {
-          console.error('Error deleting old blowouts:', deleteError);
-          throw new Error('Erro ao deletar pneus antigos. Verifique se você tem permissão como organizador.');
+        if (checkError) {
+          console.error('Error checking existing blowouts:', checkError);
+        } else {
+          console.log(`📋 Found ${existingBlowouts?.length || 0} existing blowout(s) to delete`);
         }
+
+        const { data: deletedData, error: deleteError } = await supabase
+          .from('weekly_event_blowouts')
+          .delete()
+          .eq('event_id', weeklyEvent.id)
+          .eq('applier_player_id', editingPlayerScore.playerId)
+          .select();
+
+        if (deleteError) {
+          console.error('❌ Error deleting old blowouts:', deleteError);
+          throw new Error(`Erro ao deletar pneus antigos: ${deleteError.message}. Verifique se você tem permissão como organizador.`);
+        }
+
+        console.log(`✅ Successfully deleted ${deletedData?.length || 0} blowout record(s)`);
 
         const blowoutRecords = editBlowoutVictims.map(victimId => ({
           event_id: weeklyEvent.id,
@@ -1468,14 +1486,18 @@ const shouldShowEventLists = (league: League): boolean => {
           victim_player_id: victimId,
         }));
 
+        console.log(`➕ Inserting ${blowoutRecords.length} new blowout record(s)`);
+
         const { error: blowoutError } = await supabase
           .from('weekly_event_blowouts')
           .insert(blowoutRecords);
 
         if (blowoutError) {
-          console.error('Error inserting blowouts:', blowoutError);
-          throw blowoutError;
+          console.error('❌ Error inserting blowouts:', blowoutError);
+          throw new Error(`Erro ao inserir pneus: ${blowoutError.message}`);
         }
+
+        console.log('✅ Blowouts inserted successfully');
       } else {
         // If unchecking blowouts, delete only this player's records
         const { error: deleteError } = await supabase
