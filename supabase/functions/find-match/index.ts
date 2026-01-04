@@ -246,10 +246,22 @@ function findDuoMatches(
 }
 
 function buildTeamsFromSolos(players: PlayerEntry[]): [PlayerEntry[], PlayerEntry[]] | null {
+  if (players.length < 4) return null;
+
   const leftOnlyPlayers = players.filter((p) => p.preferred_side === "left");
   const rightOnlyPlayers = players.filter((p) => p.preferred_side === "right");
   const bothPlayers = players.filter((p) => p.preferred_side === "both");
 
+  // CRITICAL: Validate that we have at least 2 players who can play each side
+  const canPlayLeft = leftOnlyPlayers.length + bothPlayers.length;
+  const canPlayRight = rightOnlyPlayers.length + bothPlayers.length;
+
+  if (canPlayLeft < 2 || canPlayRight < 2) {
+    console.log(`  ⚠️  Insufficient players for sides: ${canPlayLeft} can play left, ${canPlayRight} can play right (need 2+ each)`);
+    return null;
+  }
+
+  // Strategy 1: Perfect balance - 2 left + 2 right
   if (leftOnlyPlayers.length >= 2 && rightOnlyPlayers.length >= 2) {
     return [
       [leftOnlyPlayers[0], rightOnlyPlayers[0]],
@@ -257,6 +269,7 @@ function buildTeamsFromSolos(players: PlayerEntry[]): [PlayerEntry[], PlayerEntr
     ];
   }
 
+  // Strategy 2: 1 left + 1 right + 2 both
   if (leftOnlyPlayers.length >= 1 && rightOnlyPlayers.length >= 1 && bothPlayers.length >= 2) {
     return [
       [leftOnlyPlayers[0], rightOnlyPlayers[0]],
@@ -264,6 +277,7 @@ function buildTeamsFromSolos(players: PlayerEntry[]): [PlayerEntry[], PlayerEntr
     ];
   }
 
+  // Strategy 3: 1 left + 3 both (both players can cover right side)
   if (leftOnlyPlayers.length >= 1 && bothPlayers.length >= 3) {
     return [
       [leftOnlyPlayers[0], bothPlayers[0]],
@@ -271,6 +285,7 @@ function buildTeamsFromSolos(players: PlayerEntry[]): [PlayerEntry[], PlayerEntr
     ];
   }
 
+  // Strategy 4: 1 right + 3 both (both players can cover left side)
   if (rightOnlyPlayers.length >= 1 && bothPlayers.length >= 3) {
     return [
       [rightOnlyPlayers[0], bothPlayers[0]],
@@ -278,13 +293,16 @@ function buildTeamsFromSolos(players: PlayerEntry[]): [PlayerEntry[], PlayerEntr
     ];
   }
 
-  if (players.length >= 4) {
+  // Strategy 5: 4 both players (all flexible)
+  if (bothPlayers.length >= 4) {
     return [
-      [players[0], players[1]],
-      [players[2], players[3]],
+      [bothPlayers[0], bothPlayers[1]],
+      [bothPlayers[2], bothPlayers[3]],
     ];
   }
 
+  // If none of the strategies work, we can't build balanced teams
+  console.log(`  ⚠️  Cannot build valid teams with current side preferences`);
   return null;
 }
 
