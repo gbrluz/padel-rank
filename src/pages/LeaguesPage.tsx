@@ -82,6 +82,15 @@ interface EventPair {
   player2?: Profile;
 }
 
+interface EventMatch {
+  id: string;
+  draw_id: string;
+  pair1_id: string;
+  pair2_id: string;
+  match_number: number;
+  created_at: string;
+}
+
 export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
   const { player: profile } = useAuth();
   const [leagues, setLeagues] = useState<League[]>([]);
@@ -118,6 +127,7 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
   const [blowoutRankingType, setBlowoutRankingType] = useState<'received' | 'applied'>('received');
   const [currentDraw, setCurrentDraw] = useState<EventDraw | null>(null);
   const [currentPairs, setCurrentPairs] = useState<EventPair[]>([]);
+  const [currentMatches, setCurrentMatches] = useState<EventMatch[]>([]);
   const [performingDraw, setPerformingDraw] = useState(false);
   const [scoreSubmissions, setScoreSubmissions] = useState<Record<string, boolean>>({});
   const [editingPlayerScore, setEditingPlayerScore] = useState<{ playerId: string; playerName: string } | null>(null);
@@ -655,8 +665,8 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
           .from('weekly_event_pairs')
           .select(`
             *,
-            player1:player1_id(id, full_name, category, regional_points, national_points),
-            player2:player2_id(id, full_name, category, regional_points, national_points)
+            player1:player1_id(id, full_name),
+            player2:player2_id(id, full_name)
           `)
           .eq('draw_id', drawData.id)
           .order('pair_number');
@@ -664,9 +674,24 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
         if (pairsError) throw pairsError;
 
         setCurrentPairs(pairsData || []);
+
+        // Load matches (confrontos) for this draw
+        const { data: matchesData, error: matchesError } = await supabase
+          .from('weekly_event_matches')
+          .select('*')
+          .eq('draw_id', drawData.id)
+          .order('match_number');
+
+        if (matchesError) {
+          console.error('Error loading matches:', matchesError);
+          setCurrentMatches([]);
+        } else {
+          setCurrentMatches(matchesData || []);
+        }
       } else {
         setCurrentDraw(null);
         setCurrentPairs([]);
+        setCurrentMatches([]);
       }
     } catch (error) {
       console.error('Error loading event draw:', error);
@@ -720,6 +745,32 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
 
     setPerformingDraw(true);
     try {
+      // CRITICAL: Create the weekly_event record first (if it doesn't exist)
+      // This is required because attendance, draws, and scores all reference weekly_events.id
+      const { data: existingEvent } = await supabase
+        .from('weekly_events')
+        .select('id')
+        .eq('league_id', selectedLeague.id)
+        .eq('event_date', eventDate)
+        .maybeSingle();
+
+      if (!existingEvent) {
+        const { error: eventError } = await supabase
+          .from('weekly_events')
+          .insert({
+            league_id: selectedLeague.id,
+            event_date: eventDate,
+          });
+
+        if (eventError) {
+          console.error('Error creating weekly_event:', eventError);
+          throw new Error('Erro ao criar evento semanal: ' + eventError.message);
+        }
+        console.log('✅ Created weekly_event for', eventDate);
+      } else {
+        console.log('✅ Weekly_event already exists for', eventDate);
+      }
+
       const playingStatuses = ['confirmed', 'play_and_bbq'];
       const confirmedPlayers = Object.entries(allAttendances)
         .filter(([_, att]) => playingStatuses.includes(att.status))
@@ -752,6 +803,42 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
         remainingPlayers = playersWithPoints.slice(12).map(p => p.playerId);
       }
 
+      // Fetch previous event's pairs to avoid repeating them
+      let previousPairs: Set<string> = new Set();
+      try {
+        const previousEventDate = getLastEventDate(selectedLeague);
+        if (previousEventDate) {
+          const prevDate = previousEventDate.toISOString().split('T')[0];
+
+          const { data: prevDraw } = await supabase
+            .from('weekly_event_draws')
+            .select('id')
+            .eq('league_id', selectedLeague.id)
+            .eq('event_date', prevDate)
+            .maybeSingle();
+
+          if (prevDraw) {
+            const { data: prevPairsData } = await supabase
+              .from('weekly_event_pairs')
+              .select('player1_id, player2_id')
+              .eq('draw_id', prevDraw.id);
+
+            if (prevPairsData) {
+              prevPairsData.forEach(pair => {
+                if (pair.player1_id && pair.player2_id) {
+                  // Store both orderings to catch any combination
+                  const key1 = [pair.player1_id, pair.player2_id].sort().join('-');
+                  previousPairs.add(key1);
+                }
+              });
+              console.log(`📋 Found ${previousPairs.size} pairs from previous event to avoid`);
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('Could not fetch previous pairs:', error);
+      }
+
       const shuffleArray = (arr: string[]) => {
         const shuffled = [...arr];
         for (let i = shuffled.length - 1; i > 0; i--) {
@@ -761,28 +848,74 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
         return shuffled;
       };
 
-      const shuffledTop12 = shuffleArray(top12Players);
-      const shuffledRemaining = shuffleArray(remainingPlayers);
+      // Function to create pairs while avoiding previous event's pairs
+      const createPairsAvoidingRepeats = (players: string[], isTop12: boolean): { player1: string; player2: string | null; isTop12: boolean }[] => {
+        const pairs: { player1: string; player2: string | null; isTop12: boolean }[] = [];
+        const used = new Set<string>();
+        const available = [...players];
+        let attempts = 0;
+        const maxAttempts = 100;
 
-      const pairs: { player1: string; player2: string | null; isTop12: boolean }[] = [];
+        while (available.length >= 2 && attempts < maxAttempts) {
+          attempts++;
+          let foundValidPair = false;
 
-      for (let i = 0; i < shuffledTop12.length; i += 2) {
-        if (i + 1 < shuffledTop12.length) {
-          pairs.push({ player1: shuffledTop12[i], player2: shuffledTop12[i + 1], isTop12: true });
-        } else {
-          pairs.push({ player1: shuffledTop12[i], player2: null, isTop12: true });
-        }
-      }
+          for (let i = 0; i < available.length - 1; i++) {
+            for (let j = i + 1; j < available.length; j++) {
+              const player1 = available[i];
+              const player2 = available[j];
+              const pairKey = [player1, player2].sort().join('-');
 
-      for (let i = 0; i < shuffledRemaining.length; i += 2) {
-        if (i + 1 < shuffledRemaining.length) {
-          pairs.push({ player1: shuffledRemaining[i], player2: shuffledRemaining[i + 1], isTop12: false });
-        } else {
-          if (pairs.length > 0 && pairs[pairs.length - 1].player2 === null) {
-            pairs[pairs.length - 1].player2 = shuffledRemaining[i];
-          } else {
-            pairs.push({ player1: shuffledRemaining[i], player2: null, isTop12: false });
+              if (!previousPairs.has(pairKey) && !used.has(player1) && !used.has(player2)) {
+                pairs.push({ player1, player2, isTop12 });
+                used.add(player1);
+                used.add(player2);
+                available.splice(j, 1); // Remove j first (higher index)
+                available.splice(i, 1);
+                foundValidPair = true;
+                break;
+              }
+            }
+            if (foundValidPair) break;
           }
+
+          // If no valid pair found, just take first two available
+          if (!foundValidPair && available.length >= 2) {
+            const player1 = available.shift()!;
+            const player2 = available.shift()!;
+            pairs.push({ player1, player2, isTop12 });
+            used.add(player1);
+            used.add(player2);
+            console.warn('⚠️ Had to create a repeated pair due to constraints');
+          }
+        }
+
+        // Handle remaining single player (wildcard)
+        if (available.length === 1) {
+          pairs.push({ player1: available[0], player2: null, isTop12 });
+        }
+
+        return pairs;
+      };
+
+      // Create pairs for top 12
+      const top12Pairs = top12Players.length > 0 ? createPairsAvoidingRepeats(top12Players, true) : [];
+
+      // Create pairs for remaining players
+      const remainingPairs = remainingPlayers.length > 0 ? createPairsAvoidingRepeats(remainingPlayers, false) : [];
+
+      // Combine all pairs
+      const pairs = [...top12Pairs, ...remainingPairs];
+
+      // Handle edge case: if last top12 pair is wildcard and first remaining pair exists,
+      // try to complete the wildcard pair
+      if (top12Pairs.length > 0 && top12Pairs[top12Pairs.length - 1].player2 === null && remainingPairs.length > 0) {
+        top12Pairs[top12Pairs.length - 1].player2 = remainingPairs[0].player1;
+        if (remainingPairs[0].player2 === null) {
+          remainingPairs.shift(); // Remove the now-completed pair
+        } else {
+          // Convert the remaining pair to a single wildcard
+          remainingPairs[0] = { player1: remainingPairs[0].player2!, player2: null, isTop12: false };
         }
       }
 
@@ -812,11 +945,99 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
         is_top_12: pair.isTop12,
       }));
 
-      const { error: pairsError } = await supabase
+      const { data: insertedPairs, error: pairsError } = await supabase
         .from('weekly_event_pairs')
-        .insert(pairsToInsert);
+        .insert(pairsToInsert)
+        .select('id');
 
       if (pairsError) throw pairsError;
+
+      // Generate match pairings (confrontos) - each pair plays 4 matches
+      if (insertedPairs && insertedPairs.length >= 2) {
+        console.log(`🎲 Generating matches for ${insertedPairs.length} pairs...`);
+
+        const pairIds = insertedPairs.map(p => p.id);
+        const matchesPerPair = 4;
+        const matches: { pair1_id: string; pair2_id: string }[] = [];
+        const pairMatchCounts = new Map<string, number>();
+
+        // Initialize match counts
+        pairIds.forEach(id => pairMatchCounts.set(id, 0));
+
+        // Shuffle pairs for randomness
+        const shuffledPairIds = [...pairIds].sort(() => Math.random() - 0.5);
+
+        // Greedy algorithm: assign matches to pairs that need them most
+        let attempts = 0;
+        const maxAttempts = 1000;
+
+        while (attempts < maxAttempts) {
+          attempts++;
+          let madeProgress = false;
+
+          for (const pair1Id of shuffledPairIds) {
+            const pair1Count = pairMatchCounts.get(pair1Id) || 0;
+            if (pair1Count >= matchesPerPair) continue;
+
+            // Find a suitable opponent
+            for (const pair2Id of shuffledPairIds) {
+              if (pair1Id === pair2Id) continue;
+
+              const pair2Count = pairMatchCounts.get(pair2Id) || 0;
+              if (pair2Count >= matchesPerPair) continue;
+
+              // Check if these pairs already have a match
+              const matchExists = matches.some(m =>
+                (m.pair1_id === pair1Id && m.pair2_id === pair2Id) ||
+                (m.pair1_id === pair2Id && m.pair2_id === pair1Id)
+              );
+
+              if (!matchExists) {
+                // Create match with consistent ordering (smaller ID first)
+                const [sortedPair1, sortedPair2] = [pair1Id, pair2Id].sort();
+                matches.push({ pair1_id: sortedPair1, pair2_id: sortedPair2 });
+                pairMatchCounts.set(pair1Id, pair1Count + 1);
+                pairMatchCounts.set(pair2Id, pair2Count + 1);
+                madeProgress = true;
+                break;
+              }
+            }
+          }
+
+          // Check if all pairs have enough matches
+          const allPairsSatisfied = Array.from(pairMatchCounts.values()).every(count => count >= matchesPerPair);
+          if (allPairsSatisfied || !madeProgress) break;
+        }
+
+        // Log results
+        console.log(`✅ Generated ${matches.length} matches`);
+        pairMatchCounts.forEach((count, pairId) => {
+          if (count < matchesPerPair) {
+            console.warn(`⚠️ Pair ${pairId} only has ${count}/${matchesPerPair} matches`);
+          }
+        });
+
+        // Insert matches into database
+        if (matches.length > 0) {
+          const matchesToInsert = matches.map((match, index) => ({
+            draw_id: newDraw.id,
+            pair1_id: match.pair1_id,
+            pair2_id: match.pair2_id,
+            match_number: index + 1,
+          }));
+
+          const { error: matchesError } = await supabase
+            .from('weekly_event_matches')
+            .insert(matchesToInsert);
+
+          if (matchesError) {
+            console.error('Error creating matches:', matchesError);
+            // Don't fail the whole draw if matches fail
+          } else {
+            console.log(`💾 Saved ${matchesToInsert.length} matches to database`);
+          }
+        }
+      }
 
       await loadEventDraw(selectedLeague.id);
       alert('Sorteio realizado com sucesso!');
@@ -984,12 +1205,26 @@ const shouldShowEventLists = (league: League): boolean => {
 };
 
   const loadWeeklyScore = async () => {
+    console.log('🔵 CODE VERSION: 2026-01-03-v3 - FIXED: USE LAST EVENT FOR SCORING');
+
     if (!profile || !selectedLeague) return;
 
+    // IMPORTANT: Score submission is for the CURRENT/PAST event, not the next one
+    // So we prioritize lastEvent (which could be today or past) over nextEvent
+    const nextEvent = getNextWeeklyEventDate(selectedLeague);
     const lastEvent = getLastEventDate(selectedLeague);
-    if (!lastEvent) return;
 
-    const eventDate = lastEvent.toISOString().split('T')[0];
+    const eventDate = lastEvent?.toISOString().split('T')[0] || nextEvent?.toISOString().split('T')[0];
+    if (!eventDate) {
+      console.warn('[loadWeeklyScore] No event date available (neither last nor next)');
+      return;
+    }
+
+    console.log('[loadWeeklyScore] Looking for event on date:', eventDate, {
+      nextEvent: nextEvent?.toISOString().split('T')[0],
+      lastEvent: lastEvent?.toISOString().split('T')[0],
+      using: lastEvent ? 'LAST EVENT (scoring for past/current)' : 'NEXT EVENT (fallback)'
+    });
 
     try {
       const { data: weeklyEvent, error: eventError } = await supabase
@@ -1000,6 +1235,8 @@ const shouldShowEventLists = (league: League): boolean => {
         .maybeSingle();
 
       if (eventError) throw eventError;
+
+      console.log('[loadWeeklyScore] Weekly Event found:', weeklyEvent ? `Yes (id: ${weeklyEvent.id})` : 'NO - event does not exist in database!');
 
       if (weeklyEvent) {
         const { data: attendance, error: attendanceError } = await supabase
@@ -1012,14 +1249,37 @@ const shouldShowEventLists = (league: League): boolean => {
         if (attendanceError) throw attendanceError;
 
         // Load pairs regardless of attendance status (needed for first-time score submission)
-        const { data: drawData } = await supabase
+        const { data: drawData, error: drawError } = await supabase
           .from('weekly_event_draws')
-          .select('id')
+          .select('id, event_date')
           .eq('league_id', selectedLeague.id)
           .eq('event_date', eventDate)
           .maybeSingle();
 
+        if (drawError) {
+          console.error('[loadWeeklyScore] Error fetching draw:', drawError);
+        }
+
         console.log('[loadWeeklyScore] Draw data:', drawData);
+
+        // If no draw found for calculated date, try to find ANY draw for this league
+        if (!drawData) {
+          console.warn('[loadWeeklyScore] No draw found for date', eventDate, '- searching for any draw for this league');
+          const { data: anyDraw } = await supabase
+            .from('weekly_event_draws')
+            .select('id, event_date')
+            .eq('league_id', selectedLeague.id)
+            .order('event_date', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (anyDraw) {
+            console.warn('[loadWeeklyScore] Found draw for different date:', anyDraw.event_date, '(expected:', eventDate, ')');
+            console.warn('[loadWeeklyScore] This indicates a date calculation mismatch!');
+          } else {
+            console.error('[loadWeeklyScore] No draws found for this league at all');
+          }
+        }
 
         if (drawData) {
           // Load pairs with player data using Supabase joins (avoids race conditions with allPlayers)
@@ -1027,8 +1287,8 @@ const shouldShowEventLists = (league: League): boolean => {
             .from('weekly_event_pairs')
             .select(`
               *,
-              player1:player1_id(id, full_name, category, regional_points, national_points),
-              player2:player2_id(id, full_name, category, regional_points, national_points)
+              player1:player1_id(id, full_name),
+              player2:player2_id(id, full_name)
             `)
             .eq('draw_id', drawData.id)
             .order('pair_number');
@@ -1037,11 +1297,23 @@ const shouldShowEventLists = (league: League): boolean => {
             console.error('[loadWeeklyScore] Error loading pairs:', pairsError);
           }
 
+          console.log('[loadWeeklyScore] Raw pairs data from Supabase:', pairsData);
+
           const eventPairs = pairsData || [];
           console.log('[loadWeeklyScore] Event Pairs loaded:', eventPairs.length, 'pairs');
+          console.log('[loadWeeklyScore] Current user profile.id:', profile.id);
 
           const myPair = eventPairs.find(p => p.player1_id === profile.id || p.player2_id === profile.id);
           console.log('[loadWeeklyScore] My Pair:', myPair ? `Pair #${myPair.pair_number}` : 'NOT FOUND');
+
+          if (!myPair && eventPairs.length > 0) {
+            console.warn('[loadWeeklyScore] User not found in pairs. Pairs player IDs:', eventPairs.map(p => ({
+              pair_number: p.pair_number,
+              player1_id: p.player1_id,
+              player2_id: p.player2_id
+            })));
+          }
+
           setMyCurrentPair(myPair || null);
 
           if (myPair) {
@@ -1087,7 +1359,13 @@ const shouldShowEventLists = (league: League): boolean => {
           setScoringDefeats(0);
         }
       } else {
+        console.warn('[loadWeeklyScore] ❌ No weekly_event found for this date - cannot load pairs!');
+        console.warn('[loadWeeklyScore] The event may not have been created yet. Expected event_date:', eventDate);
         setWeeklyScore(null);
+        setMyCurrentPair(null);
+        setVictimPairs([]);
+        setAppliedBlowouts(false);
+        setBlowoutVictims([]);
       }
     } catch (error) {
       console.error('Error loading weekly score:', error);
@@ -1099,10 +1377,10 @@ const shouldShowEventLists = (league: League): boolean => {
     if (!selectedLeague) return;
 
     try {
+      const nextEvent = getNextWeeklyEventDate(selectedLeague);
       const lastEvent = getLastEventDate(selectedLeague);
-      if (!lastEvent) return;
-
-      const eventDate = lastEvent.toISOString().split('T')[0];
+      const eventDate = lastEvent?.toISOString().split('T')[0] || nextEvent?.toISOString().split('T')[0];
+      if (!eventDate) return;
 
       const { data: weeklyEvent } = await supabase
         .from('weekly_events')
@@ -1139,12 +1417,13 @@ const shouldShowEventLists = (league: League): boolean => {
 
     setSubmittingPlayerScore(true);
     try {
+      const nextEvent = getNextWeeklyEventDate(selectedLeague);
       const lastEvent = getLastEventDate(selectedLeague);
-      if (!lastEvent) {
+      const eventDate = lastEvent?.toISOString().split('T')[0] || nextEvent?.toISOString().split('T')[0];
+      if (!eventDate) {
         alert('Nao foi possivel determinar a data do evento');
         return;
       }
-      const eventDate = lastEvent.toISOString().split('T')[0];
 
       let { data: weeklyEvent } = await supabase
         .from('weekly_events')
@@ -1170,11 +1449,35 @@ const shouldShowEventLists = (league: League): boolean => {
       const editorPair = currentPairs.find(p => p.player1_id === editingPlayerScore.playerId || p.player2_id === editingPlayerScore.playerId);
 
       if (editAppliedBlowouts && editBlowoutVictims.length > 0 && editorPair) {
-        await supabase
+        // CRITICAL: Delete only THIS PLAYER's blowouts, not the entire pair's
+        console.log(`🗑️ Deleting blowouts for player ${editingPlayerScore.playerId} in event ${weeklyEvent.id}`);
+
+        // First check what exists
+        const { data: existingBlowouts, error: checkError } = await supabase
+          .from('weekly_event_blowouts')
+          .select('*')
+          .eq('event_id', weeklyEvent.id)
+          .eq('applier_player_id', editingPlayerScore.playerId);
+
+        if (checkError) {
+          console.error('Error checking existing blowouts:', checkError);
+        } else {
+          console.log(`📋 Found ${existingBlowouts?.length || 0} existing blowout(s) to delete`);
+        }
+
+        const { data: deletedData, error: deleteError } = await supabase
           .from('weekly_event_blowouts')
           .delete()
           .eq('event_id', weeklyEvent.id)
-          .eq('applier_pair_id', editorPair.id);
+          .eq('applier_player_id', editingPlayerScore.playerId)
+          .select();
+
+        if (deleteError) {
+          console.error('❌ Error deleting old blowouts:', deleteError);
+          throw new Error(`Erro ao deletar pneus antigos: ${deleteError.message}. Verifique se você tem permissão como organizador.`);
+        }
+
+        console.log(`✅ Successfully deleted ${deletedData?.length || 0} blowout record(s)`);
 
         const blowoutRecords = editBlowoutVictims.map(victimId => ({
           event_id: weeklyEvent.id,
@@ -1183,28 +1486,76 @@ const shouldShowEventLists = (league: League): boolean => {
           victim_player_id: victimId,
         }));
 
+        console.log(`➕ Inserting ${blowoutRecords.length} new blowout record(s)`);
+
         const { error: blowoutError } = await supabase
           .from('weekly_event_blowouts')
           .insert(blowoutRecords);
 
-        if (blowoutError) throw blowoutError;
-      } else if (editorPair) {
-        await supabase
+        if (blowoutError) {
+          console.error('❌ Error inserting blowouts:', blowoutError);
+          throw new Error(`Erro ao inserir pneus: ${blowoutError.message}`);
+        }
+
+        console.log('✅ Blowouts inserted successfully');
+      } else {
+        // If unchecking blowouts, delete only this player's records
+        const { error: deleteError } = await supabase
           .from('weekly_event_blowouts')
           .delete()
           .eq('event_id', weeklyEvent.id)
-          .eq('applier_pair_id', editorPair.id);
+          .eq('applier_player_id', editingPlayerScore.playerId);
+
+        if (deleteError) {
+          console.error('Error deleting blowouts:', deleteError);
+          throw new Error('Erro ao deletar pneus. Verifique se você tem permissão como organizador.');
+        }
       }
 
-      const { data: attendanceData } = await supabase
-        .from('weekly_event_attendance')
-        .select('blowouts_received, blowouts_applied')
+      // CRITICAL: Recalculate blowout counts (same logic as handleSubmitScore)
+
+      // 1. Count blowouts APPLIED by this player (deduplicate by victim pair)
+      const { data: appliedBlowoutsData } = await supabase
+        .from('weekly_event_blowouts')
+        .select('victim_player_id')
         .eq('event_id', weeklyEvent.id)
-        .eq('player_id', editingPlayerScore.playerId)
+        .eq('applier_player_id', editingPlayerScore.playerId);
+
+      // Get draw to find victim pairs
+      const { data: drawData } = await supabase
+        .from('weekly_event_draws')
+        .select('id')
+        .eq('league_id', selectedLeague.id)
+        .eq('event_date', eventDate)
         .maybeSingle();
 
-      const blowoutsReceived = attendanceData?.blowouts_received || 0;
-      const blowoutsApplied = attendanceData?.blowouts_applied || 0;
+      let blowoutsApplied = 0;
+      if (drawData && appliedBlowoutsData && appliedBlowoutsData.length > 0) {
+        const { data: pairsData } = await supabase
+          .from('weekly_event_pairs')
+          .select('id, player1_id, player2_id')
+          .eq('draw_id', drawData.id);
+
+        const victimPairIds = appliedBlowoutsData.map(b => {
+          const victimPair = pairsData?.find(p =>
+            p.player1_id === b.victim_player_id || p.player2_id === b.victim_player_id
+          );
+          return victimPair?.id;
+        }).filter(id => id !== undefined);
+
+        const uniqueVictimPairs = new Set(victimPairIds);
+        blowoutsApplied = uniqueVictimPairs.size;
+      }
+
+      // 2. Count blowouts RECEIVED (deduplicate by applier_pair_id)
+      const { data: receivedBlowoutsData } = await supabase
+        .from('weekly_event_blowouts')
+        .select('applier_pair_id')
+        .eq('event_id', weeklyEvent.id)
+        .eq('victim_player_id', editingPlayerScore.playerId);
+
+      const uniqueApplierPairs = new Set(receivedBlowoutsData?.map(b => b.applier_pair_id) || []);
+      const blowoutsReceived = uniqueApplierPairs.size;
 
       const playerAttendance = lastEventAttendances[editingPlayerScore.playerId];
       const bbqParticipated = playerAttendance?.status === 'play_and_bbq' || playerAttendance?.status === 'bbq_only';
@@ -1225,6 +1576,8 @@ const shouldShowEventLists = (league: League): boolean => {
           victories: editVictories,
           defeats: editDefeats,
           bbq_participated: bbqParticipated,
+          blowouts_received: blowoutsReceived,
+          blowouts_applied: blowoutsApplied,
           total_points: totalPoints,
           points_submitted: true,
           points_submitted_at: new Date().toISOString(),
@@ -1234,6 +1587,46 @@ const shouldShowEventLists = (league: League): boolean => {
         });
 
       if (error) throw error;
+
+      // 3. Update victims' blowout counts (same as handleSubmitScore)
+      if (editBlowoutVictims.length > 0) {
+        for (const victimId of editBlowoutVictims) {
+          const { data: victimBlowoutsData } = await supabase
+            .from('weekly_event_blowouts')
+            .select('applier_pair_id')
+            .eq('event_id', weeklyEvent.id)
+            .eq('victim_player_id', victimId);
+
+          const uniqueVictimApplierPairs = new Set(victimBlowoutsData?.map(b => b.applier_pair_id) || []);
+          const victimBlowoutsCount = uniqueVictimApplierPairs.size;
+
+          const { data: victimAttendance } = await supabase
+            .from('weekly_event_attendance')
+            .select('*')
+            .eq('event_id', weeklyEvent.id)
+            .eq('player_id', victimId)
+            .maybeSingle();
+
+          if (victimAttendance) {
+            const victimTotalPoints =
+              2.5 +
+              (victimAttendance.bbq_participated ? 2.5 : 0) +
+              (victimAttendance.victories * 2) +
+              (victimBlowoutsCount * -3) +
+              (victimAttendance.blowouts_applied * 3);
+
+            await supabase
+              .from('weekly_event_attendance')
+              .update({
+                blowouts_received: victimBlowoutsCount,
+                total_points: victimTotalPoints,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('event_id', weeklyEvent.id)
+              .eq('player_id', victimId);
+          }
+        }
+      }
 
       alert(`Pontuacao de ${editingPlayerScore.playerName} enviada com sucesso!`);
       setEditingPlayerScore(null);
@@ -1261,10 +1654,10 @@ const shouldShowEventLists = (league: League): boolean => {
     if (!selectedLeague) return;
 
     try {
+      const nextEvent = getNextWeeklyEventDate(selectedLeague);
       const lastEvent = getLastEventDate(selectedLeague);
-      if (!lastEvent) return;
-
-      const eventDate = lastEvent.toISOString().split('T')[0];
+      const eventDate = lastEvent?.toISOString().split('T')[0] || nextEvent?.toISOString().split('T')[0];
+      if (!eventDate) return;
 
       const { data: weeklyEvent } = await supabase
         .from('weekly_events')
@@ -1288,8 +1681,8 @@ const shouldShowEventLists = (league: League): boolean => {
         .from('weekly_event_pairs')
         .select(`
           *,
-          player1:player1_id(id, full_name, category, regional_points, national_points),
-          player2:player2_id(id, full_name, category, regional_points, national_points)
+          player1:player1_id(id, full_name),
+          player2:player2_id(id, full_name)
         `)
         .eq('draw_id', drawData.id)
         .order('pair_number');
@@ -1304,7 +1697,7 @@ const shouldShowEventLists = (league: League): boolean => {
           .from('weekly_event_blowouts')
           .select('victim_player_id')
           .eq('event_id', weeklyEvent.id)
-          .eq('applier_pair_id', playerPair.id);
+          .eq('applier_player_id', playerId);
 
         if (blowouts && blowouts.length > 0) {
           setEditAppliedBlowouts(true);
@@ -1321,12 +1714,13 @@ const shouldShowEventLists = (league: League): boolean => {
 
     setSubmittingScore(true);
     try {
+      const nextEvent = getNextWeeklyEventDate(selectedLeague);
       const lastEvent = getLastEventDate(selectedLeague);
-      if (!lastEvent) {
+      const eventDate = lastEvent?.toISOString().split('T')[0] || nextEvent?.toISOString().split('T')[0];
+      if (!eventDate) {
         alert('Nao foi possivel determinar a data do evento');
         return;
       }
-      const eventDate = lastEvent.toISOString().split('T')[0];
 
       let { data: weeklyEvent } = await supabase
         .from('weekly_events')
@@ -1350,11 +1744,13 @@ const shouldShowEventLists = (league: League): boolean => {
       }
 
       if (appliedBlowouts && blowoutVictims.length > 0 && myCurrentPair) {
+        // CRITICAL: Delete only THIS PLAYER's blowouts, not the entire pair's
+        // This allows both partners to independently mark their blowouts
         await supabase
           .from('weekly_event_blowouts')
           .delete()
           .eq('event_id', weeklyEvent.id)
-          .eq('applier_pair_id', myCurrentPair.id);
+          .eq('applier_player_id', profile.id);
 
         const blowoutRecords = blowoutVictims.map(victimId => ({
           event_id: weeklyEvent.id,
@@ -1368,23 +1764,68 @@ const shouldShowEventLists = (league: League): boolean => {
           .insert(blowoutRecords);
 
         if (blowoutError) throw blowoutError;
-      } else if (myCurrentPair) {
+      } else {
+        // If unchecking blowouts, delete only this player's records
         await supabase
           .from('weekly_event_blowouts')
           .delete()
           .eq('event_id', weeklyEvent.id)
-          .eq('applier_pair_id', myCurrentPair.id);
+          .eq('applier_player_id', profile.id);
       }
 
-      const { data: attendanceData } = await supabase
-        .from('weekly_event_attendance')
-        .select('blowouts_received, blowouts_applied')
+      // CRITICAL: Recalculate blowout counts for all affected players
+      // After saving/deleting blowouts, we need to update the aggregated counts in attendance table
+
+      // 1. Count blowouts APPLIED by current player
+      // CRITICAL: Must deduplicate by victim PAIR, not individual victims
+      // When player marks "Dupla 2" (2 victims), it creates 2 records but should count as 1 blowout applied
+      const { data: appliedBlowoutsData } = await supabase
+        .from('weekly_event_blowouts')
+        .select('victim_player_id')
         .eq('event_id', weeklyEvent.id)
-        .eq('player_id', profile.id)
+        .eq('applier_player_id', profile.id);
+
+      // Get draw to find victim pairs
+      const { data: drawData } = await supabase
+        .from('weekly_event_draws')
+        .select('id')
+        .eq('league_id', selectedLeague.id)
+        .eq('event_date', eventDate)
         .maybeSingle();
 
-      const blowoutsReceived = attendanceData?.blowouts_received || 0;
-      const blowoutsAppliedCount = attendanceData?.blowouts_applied || 0;
+      let blowoutsAppliedCount = 0;
+      if (drawData && appliedBlowoutsData && appliedBlowoutsData.length > 0) {
+        // Get all pairs for this draw to map victims to their pairs
+        const { data: pairsData } = await supabase
+          .from('weekly_event_pairs')
+          .select('id, player1_id, player2_id')
+          .eq('draw_id', drawData.id);
+
+        // Map each victim to their pair_id
+        const victimPairIds = appliedBlowoutsData.map(b => {
+          const victimPair = pairsData?.find(p =>
+            p.player1_id === b.victim_player_id || p.player2_id === b.victim_player_id
+          );
+          return victimPair?.id;
+        }).filter(id => id !== undefined);
+
+        // Count unique victim pairs
+        const uniqueVictimPairs = new Set(victimPairIds);
+        blowoutsAppliedCount = uniqueVictimPairs.size;
+      }
+
+      // 2. Count blowouts RECEIVED by current player
+      // CRITICAL: Deduplicate by applier_pair_id to avoid double-counting
+      // When both partners mark the same victim, it should count as 1 blowout, not 2
+      const { data: receivedBlowoutsData } = await supabase
+        .from('weekly_event_blowouts')
+        .select('applier_pair_id')
+        .eq('event_id', weeklyEvent.id)
+        .eq('victim_player_id', profile.id);
+
+      // Count unique applier pairs (deduplicate)
+      const uniqueApplierPairs = new Set(receivedBlowoutsData?.map(b => b.applier_pair_id) || []);
+      const blowoutsReceived = uniqueApplierPairs.size;
 
       const bbqParticipated = myLastEventAttendance?.status === 'play_and_bbq' || myLastEventAttendance?.status === 'bbq_only';
       const totalPoints =
@@ -1404,6 +1845,8 @@ const shouldShowEventLists = (league: League): boolean => {
           victories: scoringVictories ?? 0,
           defeats: scoringDefeats ?? 0,
           bbq_participated: bbqParticipated,
+          blowouts_received: blowoutsReceived,
+          blowouts_applied: blowoutsAppliedCount,
           total_points: totalPoints,
           points_submitted: true,
           points_submitted_at: new Date().toISOString(),
@@ -1413,6 +1856,53 @@ const shouldShowEventLists = (league: League): boolean => {
         });
 
       if (error) throw error;
+
+      // 3. Update blowout counts for victim players
+      // When player applies blowouts to others, victims' blowouts_received counts must also be updated
+      if (blowoutVictims.length > 0) {
+        for (const victimId of blowoutVictims) {
+          // Count how many blowouts this victim received
+          // CRITICAL: Deduplicate by applier_pair_id
+          const { data: victimBlowoutsData } = await supabase
+            .from('weekly_event_blowouts')
+            .select('applier_pair_id')
+            .eq('event_id', weeklyEvent.id)
+            .eq('victim_player_id', victimId);
+
+          // Deduplicate - if both partners from same pair marked this victim, count as 1
+          const uniqueVictimApplierPairs = new Set(victimBlowoutsData?.map(b => b.applier_pair_id) || []);
+          const victimBlowoutsCount = uniqueVictimApplierPairs.size;
+
+          // Get victim's current attendance data
+          const { data: victimAttendance } = await supabase
+            .from('weekly_event_attendance')
+            .select('*')
+            .eq('event_id', weeklyEvent.id)
+            .eq('player_id', victimId)
+            .maybeSingle();
+
+          if (victimAttendance) {
+            // Recalculate victim's total points with updated blowout count
+            const victimTotalPoints =
+              2.5 +
+              (victimAttendance.bbq_participated ? 2.5 : 0) +
+              (victimAttendance.victories * 2) +
+              (victimBlowoutsCount * -3) +
+              (victimAttendance.blowouts_applied * 3);
+
+            // Update victim's attendance with new blowout count and total points
+            await supabase
+              .from('weekly_event_attendance')
+              .update({
+                blowouts_received: victimBlowoutsCount,
+                total_points: victimTotalPoints,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('event_id', weeklyEvent.id)
+              .eq('player_id', victimId);
+          }
+        }
+      }
 
       alert('Pontuacao enviada com sucesso!');
       await loadWeeklyScore();
@@ -1433,12 +1923,13 @@ const shouldShowEventLists = (league: League): boolean => {
 
     setSubmittingScore(true);
     try {
+      const nextEvent = getNextWeeklyEventDate(selectedLeague);
       const lastEvent = getLastEventDate(selectedLeague);
-      if (!lastEvent) {
+      const eventDate = lastEvent?.toISOString().split('T')[0] || nextEvent?.toISOString().split('T')[0];
+      if (!eventDate) {
         alert('Nao foi possivel determinar a data do evento');
         return;
       }
-      const eventDate = lastEvent.toISOString().split('T')[0];
 
       let { data: weeklyEvent } = await supabase
         .from('weekly_events')
@@ -2120,6 +2611,116 @@ const shouldShowEventLists = (league: League): boolean => {
                               Top 12 colocados
                             </p>
                           )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {myLeagues.includes(selectedLeague.id) && shouldShowDrawResults(selectedLeague) && currentMatches.length > 0 && (
+                    <div className="bg-purple-50 border-2 border-purple-200 rounded-xl p-4 mb-6">
+                      <div className="flex items-start gap-3">
+                        <div className="w-6 h-6 flex items-center justify-center bg-purple-600 rounded-full flex-shrink-0 mt-0.5">
+                          <span className="text-white text-sm font-bold">vs</span>
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-semibold text-purple-900">
+                            Confrontos (Jogos)
+                          </p>
+                          <p className="text-sm text-purple-700 mt-1">
+                            {currentDraw?.event_date && new Date(currentDraw.event_date + 'T00:00:00').toLocaleDateString('pt-BR')}
+                          </p>
+
+                          <div className="mt-4 space-y-3">
+                            {currentMatches.map((match) => {
+                              // Find the pairs involved in this match
+                              const pair1 = currentPairs.find(p => p.id === match.pair1_id);
+                              const pair2 = currentPairs.find(p => p.id === match.pair2_id);
+
+                              if (!pair1 || !pair2) return null;
+
+                              const isMyMatch =
+                                pair1.player1_id === profile?.id ||
+                                pair1.player2_id === profile?.id ||
+                                pair2.player1_id === profile?.id ||
+                                pair2.player2_id === profile?.id;
+
+                              return (
+                                <div
+                                  key={match.id}
+                                  className={`p-3 rounded-lg border ${
+                                    isMyMatch
+                                      ? 'bg-purple-100 border-purple-300'
+                                      : 'bg-white border-purple-200'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2 text-xs text-purple-600 mb-2">
+                                    <span className="font-bold">Jogo #{match.match_number}</span>
+                                  </div>
+
+                                  <div className="flex items-center gap-3">
+                                    {/* Pair 1 */}
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-2">
+                                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                                          pair1.is_top_12 ? 'bg-amber-500 text-white' : 'bg-gray-300 text-gray-700'
+                                        }`}>
+                                          {pair1.pair_number}
+                                        </span>
+                                        <div className="flex-1">
+                                          <div className="text-sm font-medium text-gray-900">
+                                            {pair1.player1?.full_name || 'Jogador'}
+                                            {pair1.player1_id === profile?.id && ' (Você)'}
+                                          </div>
+                                          {pair1.player2 ? (
+                                            <div className="text-sm font-medium text-gray-900">
+                                              {pair1.player2?.full_name || 'Jogador'}
+                                              {pair1.player2_id === profile?.id && ' (Você)'}
+                                            </div>
+                                          ) : (
+                                            <div className="text-xs text-amber-600">(Coringa)</div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* VS indicator */}
+                                    <div className="px-2">
+                                      <span className="text-purple-600 font-bold text-sm">VS</span>
+                                    </div>
+
+                                    {/* Pair 2 */}
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-2">
+                                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                                          pair2.is_top_12 ? 'bg-amber-500 text-white' : 'bg-gray-300 text-gray-700'
+                                        }`}>
+                                          {pair2.pair_number}
+                                        </span>
+                                        <div className="flex-1">
+                                          <div className="text-sm font-medium text-gray-900">
+                                            {pair2.player1?.full_name || 'Jogador'}
+                                            {pair2.player1_id === profile?.id && ' (Você)'}
+                                          </div>
+                                          {pair2.player2 ? (
+                                            <div className="text-sm font-medium text-gray-900">
+                                              {pair2.player2?.full_name || 'Jogador'}
+                                              {pair2.player2_id === profile?.id && ' (Você)'}
+                                            </div>
+                                          ) : (
+                                            <div className="text-xs text-amber-600">(Coringa)</div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          <p className="text-xs text-purple-600 mt-3">
+                            {currentMatches.length} confrontos gerados
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -3110,17 +3711,32 @@ const shouldShowEventLists = (league: League): boolean => {
                   <p>Churras: +2,5 pts</p>
                 )}
                 {editVictories > 0 && <p>Vitorias: +{editVictories * 2} pts</p>}
-                {editAppliedBlowouts && editBlowoutVictims.length > 0 && (
-                  <p className="text-green-700">Pneus aplicados: +{editBlowoutVictims.length * 3} pts</p>
-                )}
+                {editAppliedBlowouts && editBlowoutVictims.length > 0 && (() => {
+                  // Count how many PAIRS were selected (not individual players)
+                  const selectedPairsCount = currentPairs.filter(pair => {
+                    const hasPlayer1 = pair.player1_id && editBlowoutVictims.includes(pair.player1_id);
+                    const hasPlayer2 = pair.player2_id && editBlowoutVictims.includes(pair.player2_id);
+                    return hasPlayer1 || hasPlayer2;
+                  }).length;
+                  return <p className="text-green-700">Pneus aplicados: +{selectedPairsCount * 3} pts</p>;
+                })()}
                 <p className="font-bold mt-1 pt-1 border-t border-teal-200">
-                  Total: {(
-                    2.5 +
-                    ((lastEventAttendances[editingPlayerScore.playerId]?.status === 'play_and_bbq' ||
-                      lastEventAttendances[editingPlayerScore.playerId]?.status === 'bbq_only') ? 2.5 : 0) +
-                    (editVictories * 2) +
-                    (editAppliedBlowouts ? editBlowoutVictims.length * 3 : 0)
-                  ).toFixed(1)} pts
+                  Total: {(() => {
+                    // Count unique pairs for total calculation
+                    const selectedPairsCount = editAppliedBlowouts ? currentPairs.filter(pair => {
+                      const hasPlayer1 = pair.player1_id && editBlowoutVictims.includes(pair.player1_id);
+                      const hasPlayer2 = pair.player2_id && editBlowoutVictims.includes(pair.player2_id);
+                      return hasPlayer1 || hasPlayer2;
+                    }).length : 0;
+
+                    return (
+                      2.5 +
+                      ((lastEventAttendances[editingPlayerScore.playerId]?.status === 'play_and_bbq' ||
+                        lastEventAttendances[editingPlayerScore.playerId]?.status === 'bbq_only') ? 2.5 : 0) +
+                      (editVictories * 2) +
+                      (selectedPairsCount * 3)
+                    ).toFixed(1);
+                  })()} pts
                 </p>
               </div>
             </div>

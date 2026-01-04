@@ -15,11 +15,22 @@ import Navigation from './components/Navigation';
 function AppContent() {
   const { user, player, loading } = useAuth();
   const [showAuth, setShowAuth] = useState(false);
-  const [currentPage, setCurrentPage] = useState('dashboard');
+  const [currentPage, setCurrentPage] = useState(() => {
+    // Restore last page from localStorage on initial load
+    return localStorage.getItem('lastPage') || 'dashboard';
+  });
   const previousPlayerRef = useRef<typeof player>(null);
 
+  // Save current page to localStorage whenever it changes
   useEffect(() => {
-    if (player && !previousPlayerRef.current) {
+    if (currentPage) {
+      localStorage.setItem('lastPage', currentPage);
+    }
+  }, [currentPage]);
+
+  useEffect(() => {
+    // Only reset to dashboard if this is truly a new login (no previous player)
+    if (player && !previousPlayerRef.current && !localStorage.getItem('lastPage')) {
       setCurrentPage('dashboard');
     }
     previousPlayerRef.current = player;
