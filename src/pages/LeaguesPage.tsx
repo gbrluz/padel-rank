@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Medal, Users, Trophy, TrendingUp, UserPlus, Clock, Check, Loader2, Shield, CheckCircle, XCircle, Trash2, Calendar, CalendarCheck, RotateCcw, AlertTriangle, Shuffle, Beef, Pencil, X, HelpCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Player as Profile } from '../types';
@@ -95,6 +95,7 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
   const { player: profile } = useAuth();
   const [leagues, setLeagues] = useState<League[]>([]);
   const [selectedLeague, setSelectedLeague] = useState<League | null>(null);
+  const loadingLeagueRef = useRef<string | null>(null); // Track which league is currently loading to prevent duplicate requests
   const [leagueRankings, setLeagueRankings] = useState<LeagueRanking[]>([]);
   const [myLeagues, setMyLeagues] = useState<string[]>([]);
   const [pendingRequests, setPendingRequests] = useState<string[]>([]);
@@ -149,24 +150,49 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
 
   useEffect(() => {
     if (selectedLeague) {
-      loadLeagueRankings(selectedLeague.id);
-      if (organizerLeagues.includes(selectedLeague.id)) {
-        loadJoinRequests(selectedLeague.id);
+      // Prevent duplicate loads for the same league
+      if (loadingLeagueRef.current === selectedLeague.id) {
+        return;
       }
+
+      loadingLeagueRef.current = selectedLeague.id;
+
+      const isOrganizer = organizerLeagues.includes(selectedLeague.id);
+      const isMember = myLeagues.includes(selectedLeague.id);
+
+      // Load all data in parallel instead of sequentially
+      const promises: Promise<void>[] = [
+        loadLeagueRankings(selectedLeague.id)
+      ];
+
+      if (isOrganizer) {
+        promises.push(loadJoinRequests(selectedLeague.id));
+      }
+
       if (selectedLeague.format === 'weekly') {
-        loadAllAttendances(selectedLeague.id);
-        loadEventDraw(selectedLeague.id);
-        loadScoreSubmissions(selectedLeague.id);
-        if (myLeagues.includes(selectedLeague.id)) {
-          loadMyAttendance(selectedLeague.id);
-          loadMyLastEventAttendance(selectedLeague.id);
-          loadLeagueMembers(selectedLeague.id);
+        promises.push(
+          loadAllAttendances(selectedLeague.id),
+          loadEventDraw(selectedLeague.id),
+          loadScoreSubmissions(selectedLeague.id)
+        );
+
+        if (isMember) {
+          promises.push(
+            loadMyAttendance(selectedLeague.id),
+            loadMyLastEventAttendance(selectedLeague.id),
+            loadLeagueMembers(selectedLeague.id)
+          );
         }
-      } else if (organizerLeagues.includes(selectedLeague.id)) {
-        loadLeagueMembers(selectedLeague.id);
+      } else if (isOrganizer) {
+        promises.push(loadLeagueMembers(selectedLeague.id));
       }
+
+      // Execute all queries in parallel
+      Promise.all(promises).finally(() => {
+        loadingLeagueRef.current = null;
+      });
     }
-  }, [selectedLeague, organizerLeagues, myLeagues]);
+  }, [selectedLeague]); // ✅ Removido organizerLeagues e myLeagues das dependências
 
   useEffect(() => {
     if (selectedLeague && myLastEventAttendance && shouldShowScoringCard(selectedLeague)) {
