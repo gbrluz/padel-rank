@@ -16,23 +16,35 @@ function AppContent() {
   const { user, player, loading } = useAuth();
   const [showAuth, setShowAuth] = useState(false);
   const [currentPage, setCurrentPage] = useState(() => {
-    // Restore last page from localStorage on initial load
-    return localStorage.getItem('lastPage') || 'dashboard';
+    // Use sessionStorage instead of localStorage
+    // sessionStorage is cleared when browser/tab closes, so new logins start fresh
+    return sessionStorage.getItem('lastPage') || 'dashboard';
   });
   const previousPlayerRef = useRef<typeof player>(null);
+  const isFirstLoad = useRef(true);
 
-  // Save current page to localStorage whenever it changes
+  // Save current page to sessionStorage whenever it changes
   useEffect(() => {
-    if (currentPage) {
-      localStorage.setItem('lastPage', currentPage);
+    if (currentPage && !isFirstLoad.current) {
+      sessionStorage.setItem('lastPage', currentPage);
     }
   }, [currentPage]);
 
   useEffect(() => {
-    // Only reset to dashboard if this is truly a new login (no previous player)
-    if (player && !previousPlayerRef.current && !localStorage.getItem('lastPage')) {
-      setCurrentPage('dashboard');
+    // On first load with a player, reset to dashboard if it's a new login session
+    if (player && !previousPlayerRef.current) {
+      // If there's no session data, this is a fresh login → go to dashboard
+      if (!sessionStorage.getItem('lastPage')) {
+        setCurrentPage('dashboard');
+      }
+      isFirstLoad.current = false;
     }
+
+    // Clear session when user logs out
+    if (!player && previousPlayerRef.current) {
+      sessionStorage.removeItem('lastPage');
+    }
+
     previousPlayerRef.current = player;
   }, [player]);
 
