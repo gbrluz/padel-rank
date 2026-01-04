@@ -1662,7 +1662,7 @@ const shouldShowEventLists = (league: League): boolean => {
           .from('weekly_event_blowouts')
           .select('victim_player_id')
           .eq('event_id', weeklyEvent.id)
-          .eq('applier_pair_id', playerPair.id);
+          .eq('applier_player_id', playerId);
 
         if (blowouts && blowouts.length > 0) {
           setEditAppliedBlowouts(true);
