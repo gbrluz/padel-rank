@@ -1450,11 +1450,16 @@ const shouldShowEventLists = (league: League): boolean => {
 
       if (editAppliedBlowouts && editBlowoutVictims.length > 0 && editorPair) {
         // CRITICAL: Delete only THIS PLAYER's blowouts, not the entire pair's
-        await supabase
+        const { error: deleteError } = await supabase
           .from('weekly_event_blowouts')
           .delete()
           .eq('event_id', weeklyEvent.id)
           .eq('applier_player_id', editingPlayerScore.playerId);
+
+        if (deleteError) {
+          console.error('Error deleting old blowouts:', deleteError);
+          throw new Error('Erro ao deletar pneus antigos. Verifique se você tem permissão como organizador.');
+        }
 
         const blowoutRecords = editBlowoutVictims.map(victimId => ({
           event_id: weeklyEvent.id,
@@ -1467,14 +1472,22 @@ const shouldShowEventLists = (league: League): boolean => {
           .from('weekly_event_blowouts')
           .insert(blowoutRecords);
 
-        if (blowoutError) throw blowoutError;
+        if (blowoutError) {
+          console.error('Error inserting blowouts:', blowoutError);
+          throw blowoutError;
+        }
       } else {
         // If unchecking blowouts, delete only this player's records
-        await supabase
+        const { error: deleteError } = await supabase
           .from('weekly_event_blowouts')
           .delete()
           .eq('event_id', weeklyEvent.id)
           .eq('applier_player_id', editingPlayerScore.playerId);
+
+        if (deleteError) {
+          console.error('Error deleting blowouts:', deleteError);
+          throw new Error('Erro ao deletar pneus. Verifique se você tem permissão como organizador.');
+        }
       }
 
       // CRITICAL: Recalculate blowout counts (same logic as handleSubmitScore)

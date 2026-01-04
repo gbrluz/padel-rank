@@ -21,13 +21,34 @@
 -- Drop the old generic "FOR ALL" policy if it exists
 DROP POLICY IF EXISTS "Organizers can manage blowouts" ON weekly_event_blowouts;
 
--- Create separate policies for organizers
+-- Drop and recreate the INSERT policy to include organizers
+DROP POLICY IF EXISTS "League members can register blowouts" ON weekly_event_blowouts;
+DROP POLICY IF EXISTS "Players can record blowouts they applied" ON weekly_event_blowouts;
 
--- Organizers can INSERT blowouts for any player
-CREATE POLICY "Organizers can insert blowouts"
+-- Create new INSERT policy that allows both players AND organizers
+CREATE POLICY "Players and organizers can insert blowouts"
   ON weekly_event_blowouts FOR INSERT
   TO authenticated
   WITH CHECK (
+    -- Allow if user is in the pair (player registering their own blowout)
+    (
+      EXISTS (
+        SELECT 1
+        FROM weekly_events we
+        JOIN league_memberships lm ON lm.league_id = we.league_id
+        WHERE we.id = weekly_event_blowouts.event_id
+        AND lm.player_id = auth.uid()
+        AND lm.status = 'active'
+      )
+      AND EXISTS (
+        SELECT 1
+        FROM weekly_event_pairs wep
+        WHERE wep.id = weekly_event_blowouts.applier_pair_id
+        AND (wep.player1_id = auth.uid() OR wep.player2_id = auth.uid())
+      )
+    )
+    OR
+    -- OR allow if user is an organizer (organizer editing any player's blowouts)
     EXISTS (
       SELECT 1
       FROM weekly_events we
@@ -37,11 +58,17 @@ CREATE POLICY "Organizers can insert blowouts"
     )
   );
 
--- Organizers can DELETE blowouts for any player in their leagues
-CREATE POLICY "Organizers can delete blowouts"
+-- Drop and recreate DELETE policy to include organizers
+DROP POLICY IF EXISTS "Players can delete own blowout records" ON weekly_event_blowouts;
+
+CREATE POLICY "Players and organizers can delete blowouts"
   ON weekly_event_blowouts FOR DELETE
   TO authenticated
   USING (
+    -- Allow if user is deleting their own blowouts
+    applier_player_id = auth.uid()
+    OR
+    -- OR allow if user is an organizer
     EXISTS (
       SELECT 1
       FROM weekly_events we
