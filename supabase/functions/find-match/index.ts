@@ -32,24 +32,37 @@ function assignSides(
   const p1Pref = player1.preferred_side;
   const p2Pref = player2.preferred_side;
 
+  // Priority 1: If preferences are perfectly complementary
   if (p1Pref === "left" && p2Pref === "right") {
     return { player1Side: "left", player2Side: "right" };
   }
   if (p1Pref === "right" && p2Pref === "left") {
     return { player1Side: "right", player2Side: "left" };
   }
-  if (p1Pref === "left" && (p2Pref === "left" || p2Pref === "both")) {
+
+  // Priority 2: If one player has specific preference and other is flexible (both)
+  if (p1Pref === "left" && p2Pref === "both") {
     return { player1Side: "left", player2Side: "right" };
   }
-  if (p1Pref === "right" && (p2Pref === "right" || p2Pref === "both")) {
+  if (p1Pref === "right" && p2Pref === "both") {
     return { player1Side: "right", player2Side: "left" };
   }
   if (p1Pref === "both" && p2Pref === "left") {
-    return { player1Side: "right", player2Side: "left" };
+    return { player1Side: "right", player2Side: "left" }; // Player2 gets their preference
   }
   if (p1Pref === "both" && p2Pref === "right") {
-    return { player1Side: "left", player2Side: "right" };
+    return { player1Side: "left", player2Side: "right" }; // Player2 gets their preference
   }
+
+  // Priority 3: Both have same preference (conflict) - assign opposite sides
+  if (p1Pref === "left" && p2Pref === "left") {
+    return { player1Side: "left", player2Side: "right" }; // First player gets preference
+  }
+  if (p1Pref === "right" && p2Pref === "right") {
+    return { player1Side: "right", player2Side: "left" }; // First player gets preference
+  }
+
+  // Default: Both are flexible - standard assignment
   return { player1Side: "left", player2Side: "right" };
 }
 
@@ -279,8 +292,15 @@ async function createMatch(
   supabase: SupabaseClient,
   match: MatchCandidate
 ): Promise<boolean> {
+  console.log(`\n🏐 Creating match:`);
+  console.log(`  Team A: ${match.team_a[0].preferred_side}(${match.team_a[0].player_id.slice(0,8)}) + ${match.team_a[1].preferred_side}(${match.team_a[1].player_id.slice(0,8)})`);
+  console.log(`  Team B: ${match.team_b[0].preferred_side}(${match.team_b[0].player_id.slice(0,8)}) + ${match.team_b[1].preferred_side}(${match.team_b[1].player_id.slice(0,8)})`);
+
   const teamASides = assignSides(match.team_a[0], match.team_a[1]);
   const teamBSides = assignSides(match.team_b[0], match.team_b[1]);
+
+  console.log(`  Assigned sides Team A: ${teamASides.player1Side} + ${teamASides.player2Side}`);
+  console.log(`  Assigned sides Team B: ${teamBSides.player1Side} + ${teamBSides.player2Side}`);
 
   const allPlayerIds = [
     match.team_a[0].player_id,
