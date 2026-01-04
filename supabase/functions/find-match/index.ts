@@ -369,12 +369,19 @@ Deno.serve(async (req: Request) => {
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
 
-  const authResult = await authenticateRequest(req);
-  if (!authResult.success) {
-    return authResult.response;
+  // This function can be called without user auth (uses service role internally)
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader) {
+    return jsonResponse({ error: "Missing authorization header" }, 401);
   }
 
-  const { supabase } = authResult;
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+  // Use service role to bypass RLS and perform admin operations
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  console.log("🎯 find-match function called");
 
   try {
     const { data: activeQueue, error: queueError } = await supabase
@@ -383,10 +390,19 @@ Deno.serve(async (req: Request) => {
       .eq("status", "active")
       .order("created_at");
 
-    if (queueError || !activeQueue || activeQueue.length < 4) {
+    console.log(`📋 Active queue: ${activeQueue?.length || 0} entries`);
+
+    if (queueError) {
+      console.error("❌ Queue error:", queueError);
+      return jsonResponse({ error: "Failed to fetch queue", details: queueError.message }, 500);
+    }
+
+    if (!activeQueue || activeQueue.length < 4) {
+      console.log(`⏭️  Not enough players (need 4, have ${activeQueue?.length || 0})`);
       return jsonResponse({
         message: "Jogadores insuficientes na fila (minimo 4)",
         found: 0,
+        queueSize: activeQueue?.length || 0,
       });
     }
 
@@ -577,15 +593,20 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    console.log(`\n📊 Summary: Found ${matchesFound.length} potential matches`);
+
     let createdCount = 0;
     for (const match of matchesFound) {
       const success = await createMatch(supabase, match);
       if (success) createdCount++;
     }
 
+    console.log(`✅ Successfully created ${createdCount} match(es)`);
+
     return jsonResponse({
       message: `Criadas ${createdCount} partidas`,
       found: createdCount,
+      queueSize: activeQueue.length,
       details: matchesFound.map((m) => ({
         gender: m.gender,
         team_a: [m.team_a[0].player_id, m.team_a[1].player_id],
@@ -593,7 +614,7 @@ Deno.serve(async (req: Request) => {
       })),
     });
   } catch (error) {
-    console.error("Error in find-match:", error);
-    return Errors.internal();
+    console.error("❌ Error in find-match:", error);
+    return jsonResponse({ error: "Internal server error", details: error.message }, 500);
   }
 });
