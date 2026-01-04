@@ -424,7 +424,12 @@ Deno.serve(async (req: Request) => {
     }
 
     for (const [regionKey, regionQueue] of regionMap) {
-      if (regionQueue.length < 4) continue;
+      console.log(`\n🌍 Region: ${regionKey}, Players: ${regionQueue.length}`);
+
+      if (regionQueue.length < 4) {
+        console.log(`⏭️  Skipping region (need 4+, have ${regionQueue.length})`);
+        continue;
+      }
 
       const gender = regionKey.split("-")[2];
 
@@ -456,6 +461,9 @@ Deno.serve(async (req: Request) => {
         }
       }
 
+      console.log(`\n👤 Processing ${solos.length} solo players`);
+      solos.forEach(s => console.log(`  - ${s.player_id}: ${s.average_ranking} pts, side: ${s.preferred_side}`));
+
       while (solos.length >= 4) {
         solos.sort((a, b) => a.average_ranking - b.average_ranking);
 
@@ -463,22 +471,36 @@ Deno.serve(async (req: Request) => {
         const rankings = players.map((p) => p.average_ranking);
         const rankingSpread = Math.max(...rankings) - Math.min(...rankings);
 
+        console.log(`\n🔍 Trying match with 4 players:`);
+        console.log(`  Rankings: ${rankings.join(', ')}`);
+        console.log(`  Spread: ${rankingSpread} (max: ${MAX_POINT_DIFFERENCE})`);
+
         if (rankingSpread > MAX_POINT_DIFFERENCE) {
+          console.log(`  ❌ Spread too large, stopping`);
           break;
         }
 
         const teams = buildTeamsFromSolos(players);
-        if (!teams) break;
+        if (!teams) {
+          console.log(`  ❌ Could not build balanced teams with side preferences`);
+          break;
+        }
 
         const [team1, team2] = teams;
         const team1Avg = (team1[0].average_ranking + team1[1].average_ranking) / 2;
         const team2Avg = (team2[0].average_ranking + team2[1].average_ranking) / 2;
+        const teamBalanceDiff = Math.abs(team1Avg - team2Avg);
+
+        console.log(`  Team A: ${team1Avg.toFixed(0)} avg (${team1[0].preferred_side}, ${team1[1].preferred_side})`);
+        console.log(`  Team B: ${team2Avg.toFixed(0)} avg (${team2[0].preferred_side}, ${team2[1].preferred_side})`);
+        console.log(`  Balance diff: ${teamBalanceDiff.toFixed(0)} (max: ${MAX_TEAM_BALANCE_DIFF})`);
 
         if (Math.abs(team1Avg - team2Avg) <= MAX_TEAM_BALANCE_DIFF) {
           const playerIds = [...team1, ...team2].map((p) => p.player_id);
           const validityCheck = await checkMatchValidity(supabase, playerIds, gender);
 
           if (validityCheck.valid) {
+            console.log(`  ✅ Match created!`);
             matchesFound.push({
               gender,
               team_a: team1,
@@ -493,9 +515,11 @@ Deno.serve(async (req: Request) => {
               if (index !== -1) solos.splice(index, 1);
             });
           } else {
+            console.log(`  ❌ Match validation failed: ${validityCheck.reason}`);
             break;
           }
         } else {
+          console.log(`  ❌ Team balance difference too large, stopping`);
           break;
         }
       }
