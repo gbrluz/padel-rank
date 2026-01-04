@@ -3711,17 +3711,32 @@ const shouldShowEventLists = (league: League): boolean => {
                   <p>Churras: +2,5 pts</p>
                 )}
                 {editVictories > 0 && <p>Vitorias: +{editVictories * 2} pts</p>}
-                {editAppliedBlowouts && editBlowoutVictims.length > 0 && (
-                  <p className="text-green-700">Pneus aplicados: +{editBlowoutVictims.length * 3} pts</p>
-                )}
+                {editAppliedBlowouts && editBlowoutVictims.length > 0 && (() => {
+                  // Count how many PAIRS were selected (not individual players)
+                  const selectedPairsCount = currentPairs.filter(pair => {
+                    const hasPlayer1 = pair.player1_id && editBlowoutVictims.includes(pair.player1_id);
+                    const hasPlayer2 = pair.player2_id && editBlowoutVictims.includes(pair.player2_id);
+                    return hasPlayer1 || hasPlayer2;
+                  }).length;
+                  return <p className="text-green-700">Pneus aplicados: +{selectedPairsCount * 3} pts</p>;
+                })()}
                 <p className="font-bold mt-1 pt-1 border-t border-teal-200">
-                  Total: {(
-                    2.5 +
-                    ((lastEventAttendances[editingPlayerScore.playerId]?.status === 'play_and_bbq' ||
-                      lastEventAttendances[editingPlayerScore.playerId]?.status === 'bbq_only') ? 2.5 : 0) +
-                    (editVictories * 2) +
-                    (editAppliedBlowouts ? editBlowoutVictims.length * 3 : 0)
-                  ).toFixed(1)} pts
+                  Total: {(() => {
+                    // Count unique pairs for total calculation
+                    const selectedPairsCount = editAppliedBlowouts ? currentPairs.filter(pair => {
+                      const hasPlayer1 = pair.player1_id && editBlowoutVictims.includes(pair.player1_id);
+                      const hasPlayer2 = pair.player2_id && editBlowoutVictims.includes(pair.player2_id);
+                      return hasPlayer1 || hasPlayer2;
+                    }).length : 0;
+
+                    return (
+                      2.5 +
+                      ((lastEventAttendances[editingPlayerScore.playerId]?.status === 'play_and_bbq' ||
+                        lastEventAttendances[editingPlayerScore.playerId]?.status === 'bbq_only') ? 2.5 : 0) +
+                      (editVictories * 2) +
+                      (selectedPairsCount * 3)
+                    ).toFixed(1);
+                  })()} pts
                 </p>
               </div>
             </div>
