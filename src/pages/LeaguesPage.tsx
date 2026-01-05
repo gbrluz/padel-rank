@@ -137,6 +137,7 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
   const [editAppliedBlowouts, setEditAppliedBlowouts] = useState(false);
   const [editBlowoutVictims, setEditBlowoutVictims] = useState<string[]>([]);
   const [submittingPlayerScore, setSubmittingPlayerScore] = useState(false);
+  const [showAllLeagues, setShowAllLeagues] = useState(false);
 
   useEffect(() => {
     loadLeagues();
@@ -2197,9 +2198,17 @@ const shouldShowEventLists = (league: League): boolean => {
           <div className="grid md:grid-cols-3 gap-4 sm:gap-6 w-full">
             <div className="md:col-span-1 min-w-0">
               <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-6">
-                <h2 className="text-xl font-bold text-gray-900 mb-4">Ligas Disponíveis</h2>
+                <h2 className="text-xl font-bold text-gray-900 mb-4">
+                  {showAllLeagues ? 'Todas as Ligas' : 'Minhas Ligas'}
+                </h2>
                 <div className="space-y-3">
-                  {leagues.map((league) => (
+                  {leagues
+                    .filter(league =>
+                      showAllLeagues ||
+                      myLeagues.includes(league.id) ||
+                      organizerLeagues.includes(league.id)
+                    )
+                    .map((league) => (
                     <button
                       key={league.id}
                       onClick={() => {
@@ -2247,6 +2256,23 @@ const shouldShowEventLists = (league: League): boolean => {
                     </button>
                   ))}
                 </div>
+
+                <button
+                  onClick={() => setShowAllLeagues(!showAllLeagues)}
+                  className="w-full mt-4 px-4 py-2 text-sm font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors flex items-center justify-center gap-2"
+                >
+                  {showAllLeagues ? (
+                    <>
+                      <Check className="w-4 h-4" />
+                      Minhas Ligas
+                    </>
+                  ) : (
+                    <>
+                      <Users className="w-4 h-4" />
+                      Explorar Ligas
+                    </>
+                  )}
+                </button>
               </div>
             </div>
 
