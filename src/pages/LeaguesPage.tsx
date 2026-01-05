@@ -149,6 +149,23 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
     }
   }, [profile]);
 
+  // Auto-select first league that user participates in
+  useEffect(() => {
+    if (leagues.length > 0 && (myLeagues.length > 0 || organizerLeagues.length > 0)) {
+      // If no league is selected, or selected league is not in user's leagues
+      if (!selectedLeague ||
+          (!myLeagues.includes(selectedLeague.id) && !organizerLeagues.includes(selectedLeague.id))) {
+        // Find first league that user is member or organizer of
+        const firstMyLeague = leagues.find(league =>
+          myLeagues.includes(league.id) || organizerLeagues.includes(league.id)
+        );
+        if (firstMyLeague) {
+          setSelectedLeague(firstMyLeague);
+        }
+      }
+    }
+  }, [leagues, myLeagues, organizerLeagues]);
+
   useEffect(() => {
     if (selectedLeague) {
       // Prevent duplicate loads for the same league
@@ -213,9 +230,7 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
       if (error) throw error;
       setLeagues(data || []);
 
-      if (data && data.length > 0 && !selectedLeague) {
-        setSelectedLeague(data[0]);
-      }
+      // Don't auto-select here - let the useEffect handle it after myLeagues loads
     } catch (error) {
       console.error('Error loading leagues:', error);
     } finally {
