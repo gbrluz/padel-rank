@@ -32,24 +32,37 @@ function assignSides(
   const p1Pref = player1.preferred_side;
   const p2Pref = player2.preferred_side;
 
+  // Priority 1: If preferences are perfectly complementary
   if (p1Pref === "left" && p2Pref === "right") {
     return { player1Side: "left", player2Side: "right" };
   }
   if (p1Pref === "right" && p2Pref === "left") {
     return { player1Side: "right", player2Side: "left" };
   }
-  if (p1Pref === "left" && (p2Pref === "left" || p2Pref === "both")) {
+
+  // Priority 2: If one player has specific preference and other is flexible (both)
+  if (p1Pref === "left" && p2Pref === "both") {
     return { player1Side: "left", player2Side: "right" };
   }
-  if (p1Pref === "right" && (p2Pref === "right" || p2Pref === "both")) {
+  if (p1Pref === "right" && p2Pref === "both") {
     return { player1Side: "right", player2Side: "left" };
   }
   if (p1Pref === "both" && p2Pref === "left") {
-    return { player1Side: "right", player2Side: "left" };
+    return { player1Side: "right", player2Side: "left" }; // Player2 gets their preference
   }
   if (p1Pref === "both" && p2Pref === "right") {
-    return { player1Side: "left", player2Side: "right" };
+    return { player1Side: "left", player2Side: "right" }; // Player2 gets their preference
   }
+
+  // Priority 3: Both have same preference (conflict) - assign opposite sides
+  if (p1Pref === "left" && p2Pref === "left") {
+    return { player1Side: "left", player2Side: "right" }; // First player gets preference
+  }
+  if (p1Pref === "right" && p2Pref === "right") {
+    return { player1Side: "right", player2Side: "left" }; // First player gets preference
+  }
+
+  // Default: Both are flexible - standard assignment
   return { player1Side: "left", player2Side: "right" };
 }
 
@@ -233,10 +246,22 @@ function findDuoMatches(
 }
 
 function buildTeamsFromSolos(players: PlayerEntry[]): [PlayerEntry[], PlayerEntry[]] | null {
+  if (players.length < 4) return null;
+
   const leftOnlyPlayers = players.filter((p) => p.preferred_side === "left");
   const rightOnlyPlayers = players.filter((p) => p.preferred_side === "right");
   const bothPlayers = players.filter((p) => p.preferred_side === "both");
 
+  // CRITICAL: Validate that we have at least 2 players who can play each side
+  const canPlayLeft = leftOnlyPlayers.length + bothPlayers.length;
+  const canPlayRight = rightOnlyPlayers.length + bothPlayers.length;
+
+  if (canPlayLeft < 2 || canPlayRight < 2) {
+    console.log(`  ⚠️  Insufficient players for sides: ${canPlayLeft} can play left, ${canPlayRight} can play right (need 2+ each)`);
+    return null;
+  }
+
+  // Strategy 1: Perfect balance - 2 left + 2 right
   if (leftOnlyPlayers.length >= 2 && rightOnlyPlayers.length >= 2) {
     return [
       [leftOnlyPlayers[0], rightOnlyPlayers[0]],
@@ -244,6 +269,7 @@ function buildTeamsFromSolos(players: PlayerEntry[]): [PlayerEntry[], PlayerEntr
     ];
   }
 
+  // Strategy 2: 1 left + 1 right + 2 both
   if (leftOnlyPlayers.length >= 1 && rightOnlyPlayers.length >= 1 && bothPlayers.length >= 2) {
     return [
       [leftOnlyPlayers[0], rightOnlyPlayers[0]],
@@ -251,6 +277,7 @@ function buildTeamsFromSolos(players: PlayerEntry[]): [PlayerEntry[], PlayerEntr
     ];
   }
 
+  // Strategy 3: 1 left + 3 both (both players can cover right side)
   if (leftOnlyPlayers.length >= 1 && bothPlayers.length >= 3) {
     return [
       [leftOnlyPlayers[0], bothPlayers[0]],
@@ -258,6 +285,7 @@ function buildTeamsFromSolos(players: PlayerEntry[]): [PlayerEntry[], PlayerEntr
     ];
   }
 
+  // Strategy 4: 1 right + 3 both (both players can cover left side)
   if (rightOnlyPlayers.length >= 1 && bothPlayers.length >= 3) {
     return [
       [rightOnlyPlayers[0], bothPlayers[0]],
@@ -265,13 +293,16 @@ function buildTeamsFromSolos(players: PlayerEntry[]): [PlayerEntry[], PlayerEntr
     ];
   }
 
-  if (players.length >= 4) {
+  // Strategy 5: 4 both players (all flexible)
+  if (bothPlayers.length >= 4) {
     return [
-      [players[0], players[1]],
-      [players[2], players[3]],
+      [bothPlayers[0], bothPlayers[1]],
+      [bothPlayers[2], bothPlayers[3]],
     ];
   }
 
+  // If none of the strategies work, we can't build balanced teams
+  console.log(`  ⚠️  Cannot build valid teams with current side preferences`);
   return null;
 }
 
@@ -279,8 +310,15 @@ async function createMatch(
   supabase: SupabaseClient,
   match: MatchCandidate
 ): Promise<boolean> {
+  console.log(`\n🏐 Creating match:`);
+  console.log(`  Team A: ${match.team_a[0].preferred_side}(${match.team_a[0].player_id.slice(0,8)}) + ${match.team_a[1].preferred_side}(${match.team_a[1].player_id.slice(0,8)})`);
+  console.log(`  Team B: ${match.team_b[0].preferred_side}(${match.team_b[0].player_id.slice(0,8)}) + ${match.team_b[1].preferred_side}(${match.team_b[1].player_id.slice(0,8)})`);
+
   const teamASides = assignSides(match.team_a[0], match.team_a[1]);
   const teamBSides = assignSides(match.team_b[0], match.team_b[1]);
+
+  console.log(`  Assigned sides Team A: ${teamASides.player1Side} + ${teamASides.player2Side}`);
+  console.log(`  Assigned sides Team B: ${teamBSides.player1Side} + ${teamBSides.player2Side}`);
 
   const allPlayerIds = [
     match.team_a[0].player_id,

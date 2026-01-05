@@ -571,7 +571,10 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
     if (!profile || !selectedLeague) return;
 
     const nextEvent = getNextWeeklyEventDate(selectedLeague);
-    if (!nextEvent) return;
+    if (!nextEvent) {
+      // No next event - keep current state
+      return;
+    }
 
     const weekDate = nextEvent.toISOString().split('T')[0];
 
@@ -584,10 +587,16 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
         .eq('week_date', weekDate)
         .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error loading attendance:', error);
+        return; // Don't clear state on error
+      }
+
+      // Only update state if data is valid (can be null if no attendance yet)
       setMyAttendance(data);
     } catch (error) {
       console.error('Error loading attendance:', error);
+      // Don't clear state on error
     }
   };
 
@@ -595,7 +604,10 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
     if (!profile || !selectedLeague) return;
 
     const lastEvent = getLastEventDate(selectedLeague);
-    if (!lastEvent) return;
+    if (!lastEvent) {
+      // No last event - keep current state
+      return;
+    }
 
     const weekDate = lastEvent.toISOString().split('T')[0];
 
@@ -608,10 +620,16 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
         .eq('week_date', weekDate)
         .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error loading last event attendance:', error);
+        return; // Don't clear state on error
+      }
+
+      // Only update state if data is valid (can be null if no attendance yet)
       setMyLastEventAttendance(data);
     } catch (error) {
       console.error('Error loading last event attendance:', error);
+      // Don't clear state on error
     }
   };
 
@@ -621,8 +639,9 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
     const nextEvent = getNextWeeklyEventDate(selectedLeague);
     const lastEvent = getLastEventDate(selectedLeague);
 
-    try {
-      if (nextEvent) {
+    // Load next event attendances
+    if (nextEvent) {
+      try {
         const weekDate = nextEvent.toISOString().split('T')[0];
         const { data, error } = await supabase
           .from('league_attendance')
@@ -630,18 +649,28 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
           .eq('league_id', leagueId)
           .eq('week_date', weekDate);
 
-        if (error) throw error;
-
-        const attendanceMap: Record<string, WeeklyAttendance> = {};
-        if (data) {
-          data.forEach((attendance) => {
-            attendanceMap[attendance.player_id] = attendance;
-          });
+        if (error) {
+          console.error('Error loading next event attendances:', error);
+          // Don't update state on error - preserve current state
+        } else {
+          // Only update state if query was successful
+          const attendanceMap: Record<string, WeeklyAttendance> = {};
+          if (data) {
+            data.forEach((attendance) => {
+              attendanceMap[attendance.player_id] = attendance;
+            });
+          }
+          setAllAttendances(attendanceMap);
         }
-        setAllAttendances(attendanceMap);
+      } catch (error) {
+        console.error('Error loading next event attendances:', error);
+        // Don't update state on error
       }
+    }
 
-      if (lastEvent) {
+    // Load last event attendances
+    if (lastEvent) {
+      try {
         const lastWeekDate = lastEvent.toISOString().split('T')[0];
         const { data: lastData, error: lastError } = await supabase
           .from('league_attendance')
@@ -649,18 +678,23 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
           .eq('league_id', leagueId)
           .eq('week_date', lastWeekDate);
 
-        if (lastError) throw lastError;
-
-        const lastAttendanceMap: Record<string, WeeklyAttendance> = {};
-        if (lastData) {
-          lastData.forEach((attendance) => {
-            lastAttendanceMap[attendance.player_id] = attendance;
-          });
+        if (lastError) {
+          console.error('Error loading last event attendances:', lastError);
+          // Don't update state on error - preserve current state
+        } else {
+          // Only update state if query was successful
+          const lastAttendanceMap: Record<string, WeeklyAttendance> = {};
+          if (lastData) {
+            lastData.forEach((attendance) => {
+              lastAttendanceMap[attendance.player_id] = attendance;
+            });
+          }
+          setLastEventAttendances(lastAttendanceMap);
         }
-        setLastEventAttendances(lastAttendanceMap);
+      } catch (error) {
+        console.error('Error loading last event attendances:', error);
+        // Don't update state on error
       }
-    } catch (error) {
-      console.error('Error loading all attendances:', error);
     }
   };
 
