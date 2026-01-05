@@ -95,7 +95,7 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
   const { player: profile } = useAuth();
   const [leagues, setLeagues] = useState<League[]>([]);
   const [selectedLeague, setSelectedLeague] = useState<League | null>(null);
-  const loadingLeagueRef = useRef<string | null>(null); // Track which league is currently loading to prevent duplicate requests
+  const loadingLeagueRef = useRef<{ leagueId: string; loadedMemberData: boolean } | null>(null); // Track which league is currently loading
   const [leagueRankings, setLeagueRankings] = useState<LeagueRanking[]>([]);
   const [myLeagues, setMyLeagues] = useState<string[]>([]);
   const [pendingRequests, setPendingRequests] = useState<string[]>([]);
@@ -160,23 +160,42 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
           myLeagues.includes(league.id) || organizerLeagues.includes(league.id)
         );
         if (firstMyLeague) {
+          console.log('[Auto-select] Setting selected league to:', firstMyLeague.name);
           setSelectedLeague(firstMyLeague);
         }
+      } else {
+        console.log('[Auto-select] Keeping current league:', selectedLeague?.name);
       }
     }
   }, [leagues, myLeagues, organizerLeagues]);
 
   useEffect(() => {
     if (selectedLeague) {
-      // Prevent duplicate loads for the same league
-      if (loadingLeagueRef.current === selectedLeague.id) {
-        return;
-      }
-
-      loadingLeagueRef.current = selectedLeague.id;
+      console.log('[Load Data] Effect triggered for league:', selectedLeague.name);
 
       const isOrganizer = organizerLeagues.includes(selectedLeague.id);
       const isMember = myLeagues.includes(selectedLeague.id);
+      console.log('[Load Data] isOrganizer:', isOrganizer, 'isMember:', isMember);
+
+      // Check if we're already loading this league
+      if (loadingLeagueRef.current?.leagueId === selectedLeague.id) {
+        // If we already loaded member data, skip entirely
+        if (loadingLeagueRef.current.loadedMemberData) {
+          console.log('[Load Data] Already loaded all data for this league, skipping');
+          return;
+        }
+        // If we haven't loaded member data yet but now isMember is true, we need to load it
+        if (!isMember) {
+          console.log('[Load Data] Already loading this league, skipping');
+          return;
+        }
+        console.log('[Load Data] Need to load member data that was skipped before');
+      }
+
+      // Track that we're loading this league
+      if (!loadingLeagueRef.current || loadingLeagueRef.current.leagueId !== selectedLeague.id) {
+        loadingLeagueRef.current = { leagueId: selectedLeague.id, loadedMemberData: false };
+      }
 
       // Load all data in parallel instead of sequentially
       const promises: Promise<void>[] = [
@@ -195,11 +214,14 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
         );
 
         if (isMember) {
+          console.log('[Load Data] Loading member-specific data (attendance)');
           promises.push(
             loadMyAttendance(selectedLeague.id),
             loadMyLastEventAttendance(selectedLeague.id),
             loadLeagueMembers(selectedLeague.id)
           );
+        } else {
+          console.log('[Load Data] NOT loading attendance - user is not a member');
         }
       } else if (isOrganizer) {
         promises.push(loadLeagueMembers(selectedLeague.id));
@@ -207,10 +229,14 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
 
       // Execute all queries in parallel
       Promise.all(promises).finally(() => {
-        loadingLeagueRef.current = null;
+        console.log('[Load Data] All queries completed');
+        // Mark that we've loaded member data for this league
+        if (loadingLeagueRef.current?.leagueId === selectedLeague.id) {
+          loadingLeagueRef.current.loadedMemberData = isMember;
+        }
       });
     }
-  }, [selectedLeague]); // ✅ Removido organizerLeagues e myLeagues das dependências
+  }, [selectedLeague, myLeagues, organizerLeagues]); // Need these deps because we use them inside
 
   useEffect(() => {
     if (selectedLeague && myLastEventAttendance && shouldShowScoringCard(selectedLeague)) {
@@ -589,10 +615,12 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
     const nextEvent = getNextWeeklyEventDate(selectedLeague);
     if (!nextEvent) {
       // No next event - keep current state
+      console.log('[loadMyAttendance] No next event, keeping current state');
       return;
     }
 
     const weekDate = nextEvent.toISOString().split('T')[0];
+    console.log('[loadMyAttendance] Loading attendance for', weekDate, 'league:', leagueId);
 
     try {
       const { data, error } = await supabase
@@ -604,14 +632,17 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
         .maybeSingle();
 
       if (error) {
-        console.error('Error loading attendance:', error);
+        console.error('[loadMyAttendance] Error loading attendance:', error);
         return; // Don't clear state on error
       }
 
-      // Only update state if data is valid (can be null if no attendance yet)
+      console.log('[loadMyAttendance] Loaded attendance:', data);
+
+      // Always update state with query result (null means no attendance yet)
+      // This is correct behavior - null means user hasn't confirmed yet
       setMyAttendance(data);
     } catch (error) {
-      console.error('Error loading attendance:', error);
+      console.error('[loadMyAttendance] Exception loading attendance:', error);
       // Don't clear state on error
     }
   };
