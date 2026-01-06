@@ -1016,24 +1016,40 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
         return pairs;
       };
 
-      // Create all pairs from sorted players
-      const allPairs = createPairsAvoidingRepeats(sortedPlayerIds);
-      console.log(`✅ Created ${allPairs.length} pairs total`);
+      // CRITICAL: Divide PLAYERS by 2 first
+      // If the result is odd, one more player goes to bottom half
+      const halfCount = Math.floor(sortedPlayerIds.length / 2);
 
-      // CRITICAL: Divide PAIRS in half (not players)
-      // If odd number of pairs, extra pair goes to bottom half
-      const halfPoint = Math.floor(allPairs.length / 2);
+      let topPlayers: string[];
+      let bottomPlayers: string[];
 
-      // Mark pairs as top or bottom half
-      const pairs = allPairs.map((pair, index) => ({
+      if (halfCount % 2 === 1) {
+        // halfCount is odd, move one player to bottom
+        topPlayers = sortedPlayerIds.slice(0, halfCount - 1);
+        bottomPlayers = sortedPlayerIds.slice(halfCount - 1);
+        console.log(`📊 Half is odd (${halfCount}), adjusting: ${topPlayers.length} top, ${bottomPlayers.length} bottom`);
+      } else {
+        // halfCount is even, divide normally
+        topPlayers = sortedPlayerIds.slice(0, halfCount);
+        bottomPlayers = sortedPlayerIds.slice(halfCount);
+        console.log(`📊 Half is even (${halfCount}): ${topPlayers.length} top, ${bottomPlayers.length} bottom`);
+      }
+
+      // Create pairs within each group
+      const topPairs = createPairsAvoidingRepeats(topPlayers).map(pair => ({
         player1: pair.player1,
         player2: pair.player2,
-        isTop12: index < halfPoint, // First half = top, second half = bottom
+        isTop12: true,
       }));
 
-      const topPairsCount = pairs.filter(p => p.isTop12).length;
-      const bottomPairsCount = pairs.filter(p => !p.isTop12).length;
-      console.log(`📊 Split pairs: ${topPairsCount} top half, ${bottomPairsCount} bottom half`);
+      const bottomPairs = createPairsAvoidingRepeats(bottomPlayers).map(pair => ({
+        player1: pair.player1,
+        player2: pair.player2,
+        isTop12: false,
+      }));
+
+      const pairs = [...topPairs, ...bottomPairs];
+      console.log(`✅ Created ${topPairs.length} top pairs and ${bottomPairs.length} bottom pairs (${pairs.length} total)`);
 
       await supabase
         .from('weekly_event_draws')
