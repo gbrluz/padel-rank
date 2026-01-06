@@ -136,8 +136,14 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
   const [editDefeats, setEditDefeats] = useState(0);
   const [editAppliedBlowouts, setEditAppliedBlowouts] = useState(false);
   const [editBlowoutVictims, setEditBlowoutVictims] = useState<string[]>([]);
+  const [editAttendanceConfirmed, setEditAttendanceConfirmed] = useState(true);
+  const [editBbqParticipated, setEditBbqParticipated] = useState(false);
   const [submittingPlayerScore, setSubmittingPlayerScore] = useState(false);
   const [showAllLeagues, setShowAllLeagues] = useState(false);
+  const [showManualBlowoutModal, setShowManualBlowoutModal] = useState(false);
+  const [manualBlowoutAppliers, setManualBlowoutAppliers] = useState<string[]>([]);
+  const [manualBlowoutVictims, setManualBlowoutVictims] = useState<string[]>([]);
+  const [submittingManualBlowout, setSubmittingManualBlowout] = useState(false);
 
   useEffect(() => {
     loadLeagues();
@@ -1664,10 +1670,12 @@ const shouldShowEventLists = (league: League): boolean => {
       const uniqueApplierPairs = new Set(receivedBlowoutsData?.map(b => b.applier_pair_id) || []);
       const blowoutsReceived = uniqueApplierPairs.size;
 
-      const playerAttendance = lastEventAttendances[editingPlayerScore.playerId];
-      const bbqParticipated = playerAttendance?.status === 'play_and_bbq' || playerAttendance?.status === 'bbq_only';
+      // Use organizer-edited values for attendance and BBQ
+      const bbqParticipated = editBbqParticipated;
+      const attendanceConfirmed = editAttendanceConfirmed;
+
       const totalPoints =
-        2.5 +
+        (attendanceConfirmed ? 2.5 : 0) +
         (bbqParticipated ? 2.5 : 0) +
         (editVictories * 2) +
         (blowoutsReceived * -3) +
@@ -1678,7 +1686,7 @@ const shouldShowEventLists = (league: League): boolean => {
         .upsert({
           event_id: weeklyEvent.id,
           player_id: editingPlayerScore.playerId,
-          confirmed: true,
+          confirmed: attendanceConfirmed,
           confirmed_at: new Date().toISOString(),
           victories: editVictories,
           defeats: editDefeats,
@@ -1686,11 +1694,29 @@ const shouldShowEventLists = (league: League): boolean => {
           blowouts_received: blowoutsReceived,
           blowouts_applied: blowoutsApplied,
           total_points: totalPoints,
-          points_submitted: true,
-          points_submitted_at: new Date().toISOString(),
+          points_submitted: attendanceConfirmed, // Only mark as submitted if confirmed
+          points_submitted_at: attendanceConfirmed ? new Date().toISOString() : null,
           updated_at: new Date().toISOString(),
         }, {
           onConflict: 'event_id,player_id'
+        });
+
+      if (error) throw error;
+
+      // Also update league_attendance status
+      const attendanceStatus = !attendanceConfirmed ? 'declined' :
+                               (bbqParticipated ? 'play_and_bbq' : 'confirmed');
+
+      await supabase
+        .from('league_attendance')
+        .upsert({
+          league_id: selectedLeague.id,
+          player_id: editingPlayerScore.playerId,
+          week_date: eventDate,
+          status: attendanceStatus,
+          updated_at: new Date().toISOString(),
+        }, {
+          onConflict: 'league_id,player_id,week_date'
         });
 
       if (error) throw error;
@@ -1741,13 +1767,142 @@ const shouldShowEventLists = (league: League): boolean => {
       setEditDefeats(0);
       setEditAppliedBlowouts(false);
       setEditBlowoutVictims([]);
+      setEditAttendanceConfirmed(true);
+      setEditBbqParticipated(false);
       await loadScoreSubmissions(selectedLeague.id);
       await loadLeagueRankings(selectedLeague.id);
+      await loadAllAttendances(selectedLeague.id);
     } catch (error) {
       console.error('Error submitting player score:', error);
       alert('Erro ao enviar pontuacao');
     } finally {
       setSubmittingPlayerScore(false);
+    }
+  };
+
+  const handleSubmitManualBlowout = async () => {
+    if (!selectedLeague || manualBlowoutAppliers.length === 0 || manualBlowoutVictims.length === 0) {
+      alert('Selecione pelo menos um jogador que aplicou e um que recebeu o pneu');
+      return;
+    }
+
+    setSubmittingManualBlowout(true);
+    try {
+      const nextEvent = getNextWeeklyEventDate(selectedLeague);
+      const lastEvent = getLastEventDate(selectedLeague);
+      const eventDate = lastEvent?.toISOString().split('T')[0] || nextEvent?.toISOString().split('T')[0];
+      if (!eventDate) {
+        alert('Nao foi possivel determinar a data do evento');
+        return;
+      }
+
+      let { data: weeklyEvent } = await supabase
+        .from('weekly_events')
+        .select('id')
+        .eq('league_id', selectedLeague.id)
+        .eq('event_date', eventDate)
+        .maybeSingle();
+
+      if (!weeklyEvent) {
+        const { data: newEvent, error: eventError } = await supabase
+          .from('weekly_events')
+          .insert({
+            league_id: selectedLeague.id,
+            event_date: eventDate,
+          })
+          .select()
+          .single();
+
+        if (eventError) throw eventError;
+        weeklyEvent = newEvent;
+      }
+
+      // Insert blowout records for each combination of applier and victim
+      const blowoutRecords = [];
+      for (const applierId of manualBlowoutAppliers) {
+        for (const victimId of manualBlowoutVictims) {
+          // Find the applier's pair (can be null for manual blowouts)
+          const applierPair = currentPairs.find(p => p.player1_id === applierId || p.player2_id === applierId);
+
+          blowoutRecords.push({
+            event_id: weeklyEvent.id,
+            applier_pair_id: applierPair?.id || null,
+            applier_player_id: applierId,
+            victim_player_id: victimId,
+          });
+        }
+      }
+
+      const { error: blowoutError } = await supabase
+        .from('weekly_event_blowouts')
+        .insert(blowoutRecords);
+
+      if (blowoutError) {
+        console.error('Error inserting manual blowouts:', blowoutError);
+        throw new Error(`Erro ao inserir pneus: ${blowoutError.message}`);
+      }
+
+      // Update points for all affected players
+      const affectedPlayers = [...new Set([...manualBlowoutAppliers, ...manualBlowoutVictims])];
+      for (const playerId of affectedPlayers) {
+        // Count blowouts APPLIED by this player
+        const { data: appliedBlowoutsData } = await supabase
+          .from('weekly_event_blowouts')
+          .select('victim_player_id')
+          .eq('event_id', weeklyEvent.id)
+          .eq('applier_player_id', playerId);
+
+        const blowoutsApplied = new Set(appliedBlowoutsData?.map(b => b.victim_player_id) || []).size;
+
+        // Count blowouts RECEIVED (deduplicate by applier_pair_id)
+        const { data: receivedBlowoutsData } = await supabase
+          .from('weekly_event_blowouts')
+          .select('applier_pair_id')
+          .eq('event_id', weeklyEvent.id)
+          .eq('victim_player_id', playerId);
+
+        const uniqueApplierPairs = new Set(receivedBlowoutsData?.map(b => b.applier_pair_id).filter(id => id !== null) || []);
+        const blowoutsReceived = uniqueApplierPairs.size;
+
+        // Get current attendance data
+        const { data: attendance } = await supabase
+          .from('weekly_event_attendance')
+          .select('*')
+          .eq('event_id', weeklyEvent.id)
+          .eq('player_id', playerId)
+          .maybeSingle();
+
+        if (attendance) {
+          const totalPoints =
+            2.5 +
+            (attendance.bbq_participated ? 2.5 : 0) +
+            (attendance.victories * 2) +
+            (blowoutsReceived * -3) +
+            (blowoutsApplied * 3);
+
+          await supabase
+            .from('weekly_event_attendance')
+            .update({
+              blowouts_received: blowoutsReceived,
+              blowouts_applied: blowoutsApplied,
+              total_points: totalPoints,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('event_id', weeklyEvent.id)
+            .eq('player_id', playerId);
+        }
+      }
+
+      alert('Pneu manual inserido com sucesso!');
+      setShowManualBlowoutModal(false);
+      setManualBlowoutAppliers([]);
+      setManualBlowoutVictims([]);
+      await loadLeagueRankings(selectedLeague.id);
+    } catch (error) {
+      console.error('Error submitting manual blowout:', error);
+      alert('Erro ao inserir pneu manual');
+    } finally {
+      setSubmittingManualBlowout(false);
     }
   };
 
@@ -1757,6 +1912,8 @@ const shouldShowEventLists = (league: League): boolean => {
     setEditDefeats(0);
     setEditAppliedBlowouts(false);
     setEditBlowoutVictims([]);
+    setEditAttendanceConfirmed(true);
+    setEditBbqParticipated(false);
 
     if (!selectedLeague) return;
 
@@ -1774,6 +1931,15 @@ const shouldShowEventLists = (league: League): boolean => {
         .maybeSingle();
 
       if (!weeklyEvent) return;
+
+      // Load attendance data
+      const playerAttendance = lastEventAttendances[playerId];
+      if (playerAttendance) {
+        const bbqStatuses = ['play_and_bbq', 'bbq_only'];
+        setEditBbqParticipated(bbqStatuses.includes(playerAttendance.status));
+        // Attendance is confirmed if status is not 'declined' or 'no_response'
+        setEditAttendanceConfirmed(playerAttendance.status !== 'declined' && playerAttendance.status !== 'no_response');
+      }
 
       const { data: drawData } = await supabase
         .from('weekly_event_draws')
@@ -1812,7 +1978,7 @@ const shouldShowEventLists = (league: League): boolean => {
         }
       }
     } catch (error) {
-      console.error('Error loading blowouts:', error);
+      console.error('Error loading player score data:', error);
     }
   };
 
@@ -2500,6 +2666,24 @@ const shouldShowEventLists = (league: League): boolean => {
                               O sorteio pode ser realizado apos o prazo de confirmacao de presenca e antes do inicio do evento.
                             </p>
                           )}
+                        </div>
+                      )}
+
+                      {selectedLeague.format === 'weekly' && shouldShowScoringCard(selectedLeague) && (
+                        <div className="bg-purple-50 border-2 border-purple-200 rounded-xl p-4">
+                          <h3 className="font-bold text-purple-900 mb-3 flex items-center gap-2">
+                            <Beef className="w-5 h-5" />
+                            Inserir Pneu Manual
+                          </h3>
+                          <p className="text-sm text-purple-700 mb-3">
+                            Registre um pneu que aconteceu fora do sistema. Selecione jogadores individualmente.
+                          </p>
+                          <button
+                            onClick={() => setShowManualBlowoutModal(true)}
+                            className="w-full py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium"
+                          >
+                            Inserir Pneu Manual
+                          </button>
                         </div>
                       )}
 
@@ -3742,6 +3926,33 @@ const shouldShowEventLists = (league: League): boolean => {
 
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="editAttendanceConfirmed"
+                    checked={editAttendanceConfirmed}
+                    onChange={(e) => setEditAttendanceConfirmed(e.target.checked)}
+                    className="w-4 h-4 text-emerald-600 border-emerald-300 rounded focus:ring-emerald-500"
+                  />
+                  <label htmlFor="editAttendanceConfirmed" className="text-sm font-medium text-gray-700">
+                    Confirmou presença
+                  </label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="editBbqParticipated"
+                    checked={editBbqParticipated}
+                    onChange={(e) => setEditBbqParticipated(e.target.checked)}
+                    className="w-4 h-4 text-orange-600 border-orange-300 rounded focus:ring-orange-500"
+                  />
+                  <label htmlFor="editBbqParticipated" className="text-sm font-medium text-gray-700">
+                    Participou churras
+                  </label>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Vitorias
@@ -3837,11 +4048,8 @@ const shouldShowEventLists = (league: League): boolean => {
 
               <div className="bg-teal-50 rounded-lg p-3 text-sm text-teal-800">
                 <p className="font-medium mb-1">Previa da pontuacao:</p>
-                <p>Presenca: +2,5 pts</p>
-                {(lastEventAttendances[editingPlayerScore.playerId]?.status === 'play_and_bbq' ||
-                  lastEventAttendances[editingPlayerScore.playerId]?.status === 'bbq_only') && (
-                  <p>Churras: +2,5 pts</p>
-                )}
+                {editAttendanceConfirmed && <p>Presenca: +2,5 pts</p>}
+                {editBbqParticipated && <p>Churras: +2,5 pts</p>}
                 {editVictories > 0 && <p>Vitorias: +{editVictories * 2} pts</p>}
                 {editAppliedBlowouts && editBlowoutVictims.length > 0 && (() => {
                   // Count how many PAIRS were selected (not individual players)
@@ -3862,9 +4070,8 @@ const shouldShowEventLists = (league: League): boolean => {
                     }).length : 0;
 
                     return (
-                      2.5 +
-                      ((lastEventAttendances[editingPlayerScore.playerId]?.status === 'play_and_bbq' ||
-                        lastEventAttendances[editingPlayerScore.playerId]?.status === 'bbq_only') ? 2.5 : 0) +
+                      (editAttendanceConfirmed ? 2.5 : 0) +
+                      (editBbqParticipated ? 2.5 : 0) +
                       (editVictories * 2) +
                       (selectedPairsCount * 3)
                     ).toFixed(1);
@@ -3895,6 +4102,141 @@ const shouldShowEventLists = (league: League): boolean => {
                   <>
                     <Check className="w-4 h-4" />
                     Salvar Pontuacao
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showManualBlowoutModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-purple-100 rounded-full">
+                  <Beef className="w-6 h-6 text-purple-600" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">Inserir Pneu Manual</h3>
+                  <p className="text-sm text-gray-600">Selecione jogadores individualmente</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowManualBlowoutModal(false);
+                  setManualBlowoutAppliers([]);
+                  setManualBlowoutVictims([]);
+                }}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Jogadores que aplicaram o pneu (podem ser múltiplos):
+                </label>
+                <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-2 space-y-1">
+                  {Object.values(lastEventAttendances)
+                    .filter(att => ['confirmed', 'play_and_bbq'].includes(att.status))
+                    .map((attendance) => {
+                      const player = leagueRankings.find(r => r.player_id === attendance.player_id)?.player;
+                      if (!player) return null;
+
+                      return (
+                        <label key={player.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={manualBlowoutAppliers.includes(player.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setManualBlowoutAppliers([...manualBlowoutAppliers, player.id]);
+                              } else {
+                                setManualBlowoutAppliers(manualBlowoutAppliers.filter(id => id !== player.id));
+                              }
+                            }}
+                            className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                          />
+                          <span className="text-sm text-gray-800">{player.full_name}</span>
+                        </label>
+                      );
+                    })}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Jogadores que receberam o pneu (podem ser múltiplos):
+                </label>
+                <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-2 space-y-1">
+                  {Object.values(lastEventAttendances)
+                    .filter(att => ['confirmed', 'play_and_bbq'].includes(att.status))
+                    .map((attendance) => {
+                      const player = leagueRankings.find(r => r.player_id === attendance.player_id)?.player;
+                      if (!player) return null;
+
+                      return (
+                        <label key={player.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={manualBlowoutVictims.includes(player.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setManualBlowoutVictims([...manualBlowoutVictims, player.id]);
+                              } else {
+                                setManualBlowoutVictims(manualBlowoutVictims.filter(id => id !== player.id));
+                              }
+                            }}
+                            className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                          />
+                          <span className="text-sm text-gray-800">{player.full_name}</span>
+                        </label>
+                      );
+                    })}
+                </div>
+              </div>
+
+              {manualBlowoutAppliers.length > 0 && manualBlowoutVictims.length > 0 && (
+                <div className="bg-purple-50 rounded-lg p-3 text-sm text-purple-800">
+                  <p className="font-medium mb-1">Previa:</p>
+                  <p>{manualBlowoutAppliers.length} jogador(es) aplicando pneu em {manualBlowoutVictims.length} jogador(es)</p>
+                  <p className="text-xs mt-1 text-purple-600">
+                    Total de {manualBlowoutAppliers.length * manualBlowoutVictims.length} registro(s) de pneu
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowManualBlowoutModal(false);
+                  setManualBlowoutAppliers([]);
+                  setManualBlowoutVictims([]);
+                }}
+                disabled={submittingManualBlowout}
+                className="flex-1 py-2.5 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSubmitManualBlowout}
+                disabled={submittingManualBlowout || manualBlowoutAppliers.length === 0 || manualBlowoutVictims.length === 0}
+                className="flex-1 py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {submittingManualBlowout ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Inserindo...
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    Inserir Pneu
                   </>
                 )}
               </button>
