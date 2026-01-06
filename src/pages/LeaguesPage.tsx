@@ -925,21 +925,17 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
         // shuffle randomly to avoid bias based on confirmation order
         const shuffledPlayers = shuffleArray(playersWithPoints.map(p => p.playerId));
 
-        // Divide shuffled players in half
-        // If odd number of players, extra player goes to bottom half
-        const halfPoint = Math.floor(shuffledPlayers.length / 2);
-        topHalfPlayers = shuffledPlayers.slice(0, halfPoint);
-        bottomHalfPlayers = shuffledPlayers.slice(halfPoint);
+        // Always 10 players in top half, rest in bottom half
+        topHalfPlayers = shuffledPlayers.slice(0, 10);
+        bottomHalfPlayers = shuffledPlayers.slice(10);
 
-        console.log(`🎲 All players have same points - shuffled randomly and split: ${topHalfPlayers.length} top, ${bottomHalfPlayers.length} bottom`);
+        console.log(`🎲 All players have same points - shuffled randomly: ${topHalfPlayers.length} top, ${bottomHalfPlayers.length} bottom`);
       } else {
-        // Divide by ranking: top half vs bottom half
-        // If odd number of players, extra player goes to bottom half
-        const halfPoint = Math.floor(playersWithPoints.length / 2);
-        topHalfPlayers = playersWithPoints.slice(0, halfPoint).map(p => p.playerId);
-        bottomHalfPlayers = playersWithPoints.slice(halfPoint).map(p => p.playerId);
+        // Always 10 best ranked players in top half, rest in bottom half
+        topHalfPlayers = playersWithPoints.slice(0, 10).map(p => p.playerId);
+        bottomHalfPlayers = playersWithPoints.slice(10).map(p => p.playerId);
 
-        console.log(`📊 Split by ranking: ${topHalfPlayers.length} top half, ${bottomHalfPlayers.length} bottom half`);
+        console.log(`📊 Split by ranking: ${topHalfPlayers.length} top (best ranked), ${bottomHalfPlayers.length} bottom`);
       }
 
       // Fetch previous event's pairs to avoid repeating them
@@ -1083,73 +1079,110 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
       if (pairsError) throw pairsError;
 
       // Generate match pairings (confrontos) - each pair plays 4 matches
+      // CRITICAL: Top half plays only among themselves, bottom half plays only among themselves
       if (insertedPairs && insertedPairs.length >= 2) {
         console.log(`🎲 Generating matches for ${insertedPairs.length} pairs...`);
 
-        const pairIds = insertedPairs.map(p => p.id);
-        const matchesPerPair = 4;
-        const matches: { pair1_id: string; pair2_id: string }[] = [];
-        const pairMatchCounts = new Map<string, number>();
+        // Separate pairs into top and bottom groups based on is_top_12 flag
+        const topPairIds: string[] = [];
+        const bottomPairIds: string[] = [];
 
-        // Initialize match counts
-        pairIds.forEach(id => pairMatchCounts.set(id, 0));
-
-        // Shuffle pairs for randomness
-        const shuffledPairIds = [...pairIds].sort(() => Math.random() - 0.5);
-
-        // Greedy algorithm: assign matches to pairs that need them most
-        let attempts = 0;
-        const maxAttempts = 1000;
-
-        while (attempts < maxAttempts) {
-          attempts++;
-          let madeProgress = false;
-
-          for (const pair1Id of shuffledPairIds) {
-            const pair1Count = pairMatchCounts.get(pair1Id) || 0;
-            if (pair1Count >= matchesPerPair) continue;
-
-            // Find a suitable opponent
-            for (const pair2Id of shuffledPairIds) {
-              if (pair1Id === pair2Id) continue;
-
-              const pair2Count = pairMatchCounts.get(pair2Id) || 0;
-              if (pair2Count >= matchesPerPair) continue;
-
-              // Check if these pairs already have a match
-              const matchExists = matches.some(m =>
-                (m.pair1_id === pair1Id && m.pair2_id === pair2Id) ||
-                (m.pair1_id === pair2Id && m.pair2_id === pair1Id)
-              );
-
-              if (!matchExists) {
-                // Create match with consistent ordering (smaller ID first)
-                const [sortedPair1, sortedPair2] = [pair1Id, pair2Id].sort();
-                matches.push({ pair1_id: sortedPair1, pair2_id: sortedPair2 });
-                pairMatchCounts.set(pair1Id, pair1Count + 1);
-                pairMatchCounts.set(pair2Id, pair2Count + 1);
-                madeProgress = true;
-                break;
-              }
-            }
-          }
-
-          // Check if all pairs have enough matches
-          const allPairsSatisfied = Array.from(pairMatchCounts.values()).every(count => count >= matchesPerPair);
-          if (allPairsSatisfied || !madeProgress) break;
-        }
-
-        // Log results
-        console.log(`✅ Generated ${matches.length} matches`);
-        pairMatchCounts.forEach((count, pairId) => {
-          if (count < matchesPerPair) {
-            console.warn(`⚠️ Pair ${pairId} only has ${count}/${matchesPerPair} matches`);
+        // We need to match insertedPairs with the original pairs array to get is_top_12 flag
+        insertedPairs.forEach((insertedPair, index) => {
+          if (pairs[index].isTop12) {
+            topPairIds.push(insertedPair.id);
+          } else {
+            bottomPairIds.push(insertedPair.id);
           }
         });
 
+        console.log(`📊 Match groups: ${topPairIds.length} top pairs, ${bottomPairIds.length} bottom pairs`);
+
+        const matchesPerPair = 4;
+        const allMatches: { pair1_id: string; pair2_id: string }[] = [];
+
+        // Function to generate matches within a group
+        const generateMatchesForGroup = (groupPairIds: string[], groupName: string) => {
+          if (groupPairIds.length < 2) {
+            console.log(`⚠️ ${groupName}: Not enough pairs (${groupPairIds.length}) to create matches`);
+            return;
+          }
+
+          const matches: { pair1_id: string; pair2_id: string }[] = [];
+          const pairMatchCounts = new Map<string, number>();
+
+          // Initialize match counts
+          groupPairIds.forEach(id => pairMatchCounts.set(id, 0));
+
+          // Shuffle pairs for randomness
+          const shuffledPairIds = [...groupPairIds].sort(() => Math.random() - 0.5);
+
+          // Greedy algorithm: assign matches to pairs that need them most
+          let attempts = 0;
+          const maxAttempts = 1000;
+
+          while (attempts < maxAttempts) {
+            attempts++;
+            let madeProgress = false;
+
+            for (const pair1Id of shuffledPairIds) {
+              const pair1Count = pairMatchCounts.get(pair1Id) || 0;
+              if (pair1Count >= matchesPerPair) continue;
+
+              // Find a suitable opponent WITHIN THE SAME GROUP
+              for (const pair2Id of shuffledPairIds) {
+                if (pair1Id === pair2Id) continue;
+
+                const pair2Count = pairMatchCounts.get(pair2Id) || 0;
+                if (pair2Count >= matchesPerPair) continue;
+
+                // Check if these pairs already have a match
+                const matchExists = matches.some(m =>
+                  (m.pair1_id === pair1Id && m.pair2_id === pair2Id) ||
+                  (m.pair1_id === pair2Id && m.pair2_id === pair1Id)
+                );
+
+                if (!matchExists) {
+                  // Create match with consistent ordering (smaller ID first)
+                  const [sortedPair1, sortedPair2] = [pair1Id, pair2Id].sort();
+                  matches.push({ pair1_id: sortedPair1, pair2_id: sortedPair2 });
+                  pairMatchCounts.set(pair1Id, pair1Count + 1);
+                  pairMatchCounts.set(pair2Id, pair2Count + 1);
+                  madeProgress = true;
+                  break;
+                }
+              }
+            }
+
+            // Check if all pairs have enough matches
+            const allPairsSatisfied = Array.from(pairMatchCounts.values()).every(count => count >= matchesPerPair);
+            if (allPairsSatisfied || !madeProgress) break;
+          }
+
+          // Log results
+          console.log(`✅ ${groupName}: Generated ${matches.length} matches`);
+          pairMatchCounts.forEach((count, pairId) => {
+            if (count < matchesPerPair) {
+              console.warn(`⚠️ ${groupName} Pair ${pairId} only has ${count}/${matchesPerPair} matches`);
+            }
+          });
+
+          return matches;
+        };
+
+        // Generate matches for top half
+        const topMatches = generateMatchesForGroup(topPairIds, 'Top half');
+        if (topMatches) allMatches.push(...topMatches);
+
+        // Generate matches for bottom half
+        const bottomMatches = generateMatchesForGroup(bottomPairIds, 'Bottom half');
+        if (bottomMatches) allMatches.push(...bottomMatches);
+
+        console.log(`✅ Total matches generated: ${allMatches.length}`);
+
         // Insert matches into database
-        if (matches.length > 0) {
-          const matchesToInsert = matches.map((match, index) => ({
+        if (allMatches.length > 0) {
+          const matchesToInsert = allMatches.map((match, index) => ({
             draw_id: newDraw.id,
             pair1_id: match.pair1_id,
             pair2_id: match.pair2_id,
