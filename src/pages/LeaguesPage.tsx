@@ -1742,7 +1742,7 @@ const shouldShowEventLists = (league: League): boolean => {
 
           if (victimAttendance) {
             const victimTotalPoints =
-              2.5 +
+              (victimAttendance.confirmed ? 2.5 : 0) + // Only add game points if player confirmed game attendance
               (victimAttendance.bbq_participated ? 2.5 : 0) +
               (victimAttendance.victories * 2) +
               (victimBlowoutsCount * -3) +
@@ -1874,7 +1874,7 @@ const shouldShowEventLists = (league: League): boolean => {
 
         if (attendance) {
           const totalPoints =
-            2.5 +
+            (attendance.confirmed ? 2.5 : 0) + // Only add game points if player confirmed game attendance
             (attendance.bbq_participated ? 2.5 : 0) +
             (attendance.victories * 2) +
             (blowoutsReceived * -3) +
@@ -1937,8 +1937,10 @@ const shouldShowEventLists = (league: League): boolean => {
       if (playerAttendance) {
         const bbqStatuses = ['play_and_bbq', 'bbq_only'];
         setEditBbqParticipated(bbqStatuses.includes(playerAttendance.status));
-        // Attendance is confirmed if status is not 'declined' or 'no_response'
-        setEditAttendanceConfirmed(playerAttendance.status !== 'declined' && playerAttendance.status !== 'no_response');
+        // Attendance is confirmed only if status is 'confirmed' or 'play_and_bbq'
+        // 'bbq_only' means they only participated in BBQ, not in the game
+        const playStatuses = ['confirmed', 'play_and_bbq'];
+        setEditAttendanceConfirmed(playStatuses.includes(playerAttendance.status));
       }
 
       const { data: drawData } = await supabase
@@ -2157,7 +2159,7 @@ const shouldShowEventLists = (league: League): boolean => {
           if (victimAttendance) {
             // Recalculate victim's total points with updated blowout count
             const victimTotalPoints =
-              2.5 +
+              (victimAttendance.confirmed ? 2.5 : 0) + // Only add game points if player confirmed game attendance
               (victimAttendance.bbq_participated ? 2.5 : 0) +
               (victimAttendance.victories * 2) +
               (victimBlowoutsCount * -3) +
@@ -2230,14 +2232,14 @@ const shouldShowEventLists = (league: League): boolean => {
         .upsert({
           event_id: weeklyEvent.id,
           player_id: profile.id,
-          confirmed: true,
+          confirmed: false, // BBQ only - did NOT play
           confirmed_at: new Date().toISOString(),
           victories: 0,
           defeats: 0,
           bbq_participated: true,
           blowouts_received: 0,
           blowouts_applied: 0,
-          total_points: 2.5,
+          total_points: 2.5, // Only BBQ points
           points_submitted: true,
           points_submitted_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
