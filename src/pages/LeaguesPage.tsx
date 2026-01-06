@@ -917,25 +917,17 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
 
       const allSamePoints = playersWithPoints.every(p => p.points === playersWithPoints[0].points);
 
-      let topHalfPlayers: string[] = [];
-      let bottomHalfPlayers: string[] = [];
+      let sortedPlayerIds: string[];
 
       if (allSamePoints) {
         // CRITICAL: When all players have same points (e.g., all 0 at start),
         // shuffle randomly to avoid bias based on confirmation order
-        const shuffledPlayers = shuffleArray(playersWithPoints.map(p => p.playerId));
-
-        // Always 10 players in top half, rest in bottom half
-        topHalfPlayers = shuffledPlayers.slice(0, 10);
-        bottomHalfPlayers = shuffledPlayers.slice(10);
-
-        console.log(`🎲 All players have same points - shuffled randomly: ${topHalfPlayers.length} top, ${bottomHalfPlayers.length} bottom`);
+        sortedPlayerIds = shuffleArray(playersWithPoints.map(p => p.playerId));
+        console.log(`🎲 All players have same points - shuffled randomly`);
       } else {
-        // Always 10 best ranked players in top half, rest in bottom half
-        topHalfPlayers = playersWithPoints.slice(0, 10).map(p => p.playerId);
-        bottomHalfPlayers = playersWithPoints.slice(10).map(p => p.playerId);
-
-        console.log(`📊 Split by ranking: ${topHalfPlayers.length} top (best ranked), ${bottomHalfPlayers.length} bottom`);
+        // Sort by ranking (best players first)
+        sortedPlayerIds = playersWithPoints.map(p => p.playerId);
+        console.log(`📊 Sorted by ranking (best players first)`);
       }
 
       // Fetch previous event's pairs to avoid repeating them
@@ -975,8 +967,8 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
       }
 
       // Function to create pairs while avoiding previous event's pairs
-      const createPairsAvoidingRepeats = (players: string[], isTopHalf: boolean): { player1: string; player2: string | null; isTop12: boolean }[] => {
-        const pairs: { player1: string; player2: string | null; isTop12: boolean }[] = [];
+      const createPairsAvoidingRepeats = (players: string[]): { player1: string; player2: string | null }[] => {
+        const pairs: { player1: string; player2: string | null }[] = [];
         const used = new Set<string>();
         const available = [...players];
         let attempts = 0;
@@ -993,7 +985,7 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
               const pairKey = [player1, player2].sort().join('-');
 
               if (!previousPairs.has(pairKey) && !used.has(player1) && !used.has(player2)) {
-                pairs.push({ player1, player2, isTop12: isTopHalf });
+                pairs.push({ player1, player2 });
                 used.add(player1);
                 used.add(player2);
                 available.splice(j, 1); // Remove j first (higher index)
@@ -1009,7 +1001,7 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
           if (!foundValidPair && available.length >= 2) {
             const player1 = available.shift()!;
             const player2 = available.shift()!;
-            pairs.push({ player1, player2, isTop12: isTopHalf });
+            pairs.push({ player1, player2 });
             used.add(player1);
             used.add(player2);
             console.warn('⚠️ Had to create a repeated pair due to constraints');
@@ -1018,32 +1010,30 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
 
         // Handle remaining single player (wildcard)
         if (available.length === 1) {
-          pairs.push({ player1: available[0], player2: null, isTop12: isTopHalf });
+          pairs.push({ player1: available[0], player2: null });
         }
 
         return pairs;
       };
 
-      // Create pairs for top half
-      const topHalfPairs = topHalfPlayers.length > 0 ? createPairsAvoidingRepeats(topHalfPlayers, true) : [];
+      // Create all pairs from sorted players
+      const allPairs = createPairsAvoidingRepeats(sortedPlayerIds);
+      console.log(`✅ Created ${allPairs.length} pairs total`);
 
-      // Create pairs for bottom half
-      const bottomHalfPairs = bottomHalfPlayers.length > 0 ? createPairsAvoidingRepeats(bottomHalfPlayers, false) : [];
+      // CRITICAL: Divide PAIRS in half (not players)
+      // If odd number of pairs, extra pair goes to bottom half
+      const halfPoint = Math.floor(allPairs.length / 2);
 
-      // Combine all pairs
-      const pairs = [...topHalfPairs, ...bottomHalfPairs];
+      // Mark pairs as top or bottom half
+      const pairs = allPairs.map((pair, index) => ({
+        player1: pair.player1,
+        player2: pair.player2,
+        isTop12: index < halfPoint, // First half = top, second half = bottom
+      }));
 
-      // Handle edge case: if last top half pair is wildcard and first bottom half pair exists,
-      // try to complete the wildcard pair
-      if (topHalfPairs.length > 0 && topHalfPairs[topHalfPairs.length - 1].player2 === null && bottomHalfPairs.length > 0) {
-        topHalfPairs[topHalfPairs.length - 1].player2 = bottomHalfPairs[0].player1;
-        if (bottomHalfPairs[0].player2 === null) {
-          bottomHalfPairs.shift(); // Remove the now-completed pair
-        } else {
-          // Convert the bottom half pair to a single wildcard
-          bottomHalfPairs[0] = { player1: bottomHalfPairs[0].player2!, player2: null, isTop12: false };
-        }
-      }
+      const topPairsCount = pairs.filter(p => p.isTop12).length;
+      const bottomPairsCount = pairs.filter(p => !p.isTop12).length;
+      console.log(`📊 Split pairs: ${topPairsCount} top half, ${bottomPairsCount} bottom half`);
 
       await supabase
         .from('weekly_event_draws')
