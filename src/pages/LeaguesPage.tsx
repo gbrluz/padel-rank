@@ -1731,11 +1731,11 @@ const shouldShowEventLists = (league: League): boolean => {
       const attendanceConfirmed = editAttendanceConfirmed;
 
       const totalPoints =
-        (attendanceConfirmed ? 2.5 : 0) +
-        (bbqParticipated ? 2.5 : 0) +
+        (attendanceConfirmed ? 1 : 0) +
+        (bbqParticipated ? 1 : 0) +
         (editVictories * 2) +
-        (blowoutsReceived * -3) +
-        (blowoutsApplied * 3);
+        (blowoutsReceived * -2) +
+        (blowoutsApplied * 2);
 
       const { error } = await supabase
         .from('weekly_event_attendance')
@@ -1798,11 +1798,11 @@ const shouldShowEventLists = (league: League): boolean => {
 
           if (victimAttendance) {
             const victimTotalPoints =
-              (victimAttendance.confirmed ? 2.5 : 0) + // Only add game points if player confirmed game attendance
-              (victimAttendance.bbq_participated ? 2.5 : 0) +
+              (victimAttendance.confirmed ? 1 : 0) + // Only add game points if player confirmed game attendance
+              (victimAttendance.bbq_participated ? 1 : 0) +
               (victimAttendance.victories * 2) +
-              (victimBlowoutsCount * -3) +
-              (victimAttendance.blowouts_applied * 3);
+              (victimBlowoutsCount * -2) +
+              (victimAttendance.blowouts_applied * 2);
 
             await supabase
               .from('weekly_event_attendance')
@@ -1930,11 +1930,11 @@ const shouldShowEventLists = (league: League): boolean => {
 
         if (attendance) {
           const totalPoints =
-            (attendance.confirmed ? 2.5 : 0) + // Only add game points if player confirmed game attendance
-            (attendance.bbq_participated ? 2.5 : 0) +
+            (attendance.confirmed ? 1 : 0) + // Only add game points if player confirmed game attendance
+            (attendance.bbq_participated ? 1 : 0) +
             (attendance.victories * 2) +
-            (blowoutsReceived * -3) +
-            (blowoutsApplied * 3);
+            (blowoutsReceived * -2) +
+            (blowoutsApplied * 2);
 
           await supabase
             .from('weekly_event_attendance')
@@ -2160,11 +2160,11 @@ const shouldShowEventLists = (league: League): boolean => {
 
       const bbqParticipated = myLastEventAttendance?.status === 'play_and_bbq' || myLastEventAttendance?.status === 'bbq_only';
       const totalPoints =
-        2.5 +
-        (bbqParticipated ? 2.5 : 0) +
+        1 +
+        (bbqParticipated ? 1 : 0) +
         ((scoringVictories ?? 0) * 2) +
-        (blowoutsReceived * -3) +
-        (blowoutsAppliedCount * 3);
+        (blowoutsReceived * -2) +
+        (blowoutsAppliedCount * 2);
 
       const { error } = await supabase
         .from('weekly_event_attendance')
@@ -2215,11 +2215,11 @@ const shouldShowEventLists = (league: League): boolean => {
           if (victimAttendance) {
             // Recalculate victim's total points with updated blowout count
             const victimTotalPoints =
-              (victimAttendance.confirmed ? 2.5 : 0) + // Only add game points if player confirmed game attendance
-              (victimAttendance.bbq_participated ? 2.5 : 0) +
+              (victimAttendance.confirmed ? 1 : 0) + // Only add game points if player confirmed game attendance
+              (victimAttendance.bbq_participated ? 1 : 0) +
               (victimAttendance.victories * 2) +
-              (victimBlowoutsCount * -3) +
-              (victimAttendance.blowouts_applied * 3);
+              (victimBlowoutsCount * -2) +
+              (victimAttendance.blowouts_applied * 2);
 
             // Update victim's attendance with new blowout count and total points
             await supabase
@@ -2295,7 +2295,7 @@ const shouldShowEventLists = (league: League): boolean => {
           bbq_participated: true,
           blowouts_received: 0,
           blowouts_applied: 0,
-          total_points: 2.5, // Only BBQ points
+          total_points: 1, // Only BBQ points
           points_submitted: true,
           points_submitted_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
@@ -2305,7 +2305,7 @@ const shouldShowEventLists = (league: League): boolean => {
 
       if (error) throw error;
 
-      alert('Presenca no churrasco confirmada! +2,5 pontos');
+      alert('Presenca no churrasco confirmada! +1 ponto');
       await loadWeeklyScore();
       if (selectedLeague) {
         await loadScoreSubmissions(selectedLeague.id);
@@ -3373,7 +3373,7 @@ const shouldShowEventLists = (league: League): boolean => {
                             <>
                               <div className="mt-3 p-3 bg-amber-100 rounded-lg">
                                 <p className="text-sm text-amber-800">
-                                  Voce selecionou <span className="font-semibold">apenas churrasco</span>. Ao confirmar, voce recebera automaticamente <span className="font-bold">2,5 pontos</span>.
+                                  Voce selecionou <span className="font-semibold">apenas churrasco</span>. Ao confirmar, voce recebera automaticamente <span className="font-bold">1 ponto</span>.
                                 </p>
                               </div>
 
@@ -3544,7 +3544,7 @@ const shouldShowEventLists = (league: League): boolean => {
                                       const hasPlayer2 = pair.player2 && blowoutVictims.includes(pair.player2.id);
                                       return hasPlayer1 || hasPlayer2;
                                     }).length;
-                                    return <p className="text-green-700">Pneus aplicados ({selectedPairsCount} {selectedPairsCount === 1 ? 'dupla' : 'duplas'}): +{selectedPairsCount * 3} pts</p>;
+                                    return <p className="text-green-700">Pneus aplicados ({selectedPairsCount} {selectedPairsCount === 1 ? 'dupla' : 'duplas'}): +{selectedPairsCount * 2} pts</p>;
                                   })()}
                                   <p className="font-bold mt-1 pt-1 border-t border-teal-200">
                                     Total: {(() => {
@@ -3553,7 +3553,7 @@ const shouldShowEventLists = (league: League): boolean => {
                                         const hasPlayer2 = pair.player2 && blowoutVictims.includes(pair.player2.id);
                                         return hasPlayer1 || hasPlayer2;
                                       }).length;
-                                      return (2.5 + ((myLastEventAttendance?.status === 'play_and_bbq' || myLastEventAttendance?.status === 'bbq_only') ? 2.5 : 0) + (scoringVictories * 2) + (appliedBlowouts ? selectedPairsCount * 3 : 0)).toFixed(1);
+                                      return (1 + ((myLastEventAttendance?.status === 'play_and_bbq' || myLastEventAttendance?.status === 'bbq_only') ? 1 : 0) + (scoringVictories * 2) + (appliedBlowouts ? selectedPairsCount * 2 : 0)).toFixed(1);
                                     })()} pts
                                   </p>
                                 </div>
@@ -4300,10 +4300,10 @@ const shouldShowEventLists = (league: League): boolean => {
                     }).length : 0;
 
                     return (
-                      (editAttendanceConfirmed ? 2.5 : 0) +
-                      (editBbqParticipated ? 2.5 : 0) +
+                      (editAttendanceConfirmed ? 1 : 0) +
+                      (editBbqParticipated ? 1 : 0) +
                       (editVictories * 2) +
-                      (selectedPairsCount * 3)
+                      (selectedPairsCount * 2)
                     ).toFixed(1);
                   })()} pts
                 </p>
