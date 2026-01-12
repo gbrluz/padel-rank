@@ -917,43 +917,44 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
 
       const allSamePoints = playersWithPoints.every(p => p.points === playersWithPoints[0].points);
 
-      // Fetch previous event's pairs to avoid repeating them
+      // Fetch previous events' pairs to avoid repeating them (last 4 events)
       let previousPairs: Set<string> = new Set();
       try {
-        const previousEventDate = getLastEventDate(selectedLeague);
-        if (previousEventDate) {
-          const prevDate = previousEventDate.toISOString().split('T')[0];
+        // Get the last 4 draws from this league
+        const { data: recentDraws } = await supabase
+          .from('weekly_event_draws')
+          .select('id, event_date')
+          .eq('league_id', selectedLeague.id)
+          .order('event_date', { ascending: false })
+          .limit(4);
 
-          const { data: prevDraw } = await supabase
-            .from('weekly_event_draws')
-            .select('id')
-            .eq('league_id', selectedLeague.id)
-            .eq('event_date', prevDate)
-            .maybeSingle();
+        if (recentDraws && recentDraws.length > 0) {
+          console.log(`📋 Checking last ${recentDraws.length} events for pairs to avoid...`);
 
-          if (prevDraw) {
+          // Fetch pairs from all recent draws
+          for (const draw of recentDraws) {
             const { data: prevPairsData } = await supabase
               .from('weekly_event_pairs')
               .select('player1_id, player2_id')
-              .eq('draw_id', prevDraw.id);
+              .eq('draw_id', draw.id);
 
             if (prevPairsData) {
               prevPairsData.forEach(pair => {
                 if (pair.player1_id && pair.player2_id) {
-                  // Store both orderings to catch any combination
-                  const key1 = [pair.player1_id, pair.player2_id].sort().join('-');
-                  previousPairs.add(key1);
+                  const key = [pair.player1_id, pair.player2_id].sort().join('-');
+                  previousPairs.add(key);
                 }
               });
-              console.log(`📋 Found ${previousPairs.size} pairs from previous event to avoid`);
             }
           }
+
+          console.log(`📋 Found ${previousPairs.size} unique pairs from last ${recentDraws.length} events to avoid`);
         }
       } catch (error) {
         console.warn('Could not fetch previous pairs:', error);
       }
 
-      // Function to create pairs while avoiding previous event's pairs
+      // Function to create pairs while avoiding previous events' pairs
       const createPairsAvoidingRepeats = (players: string[]): { player1: string; player2: string | null }[] => {
         const pairs: { player1: string; player2: string | null }[] = [];
         const used = new Set<string>();
