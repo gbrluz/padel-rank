@@ -1147,9 +1147,12 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
           groupPairIds.forEach(id => pairMatchCounts.set(id, 0));
 
           // Shuffle pairs for randomness
-          const shuffledPairIds = [...groupPairIds].sort(() => Math.random() - 0.5);
+          let shuffledPairIds = [...groupPairIds].sort(() => Math.random() - 0.5);
 
-          // Greedy algorithm: assign matches to pairs that need them most
+          const minMatchesPerPair = 4;
+          const maxMatchesPerPair = 5;
+
+          // PHASE 1: Try to give everyone 4 matches
           let attempts = 0;
           const maxAttempts = 1000;
 
@@ -1157,16 +1160,19 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
             attempts++;
             let madeProgress = false;
 
+            // Reshuffle to ensure different match order each iteration
+            shuffledPairIds = [...shuffledPairIds].sort(() => Math.random() - 0.5);
+
             for (const pair1Id of shuffledPairIds) {
               const pair1Count = pairMatchCounts.get(pair1Id) || 0;
-              if (pair1Count >= matchesPerPair) continue;
+              if (pair1Count >= minMatchesPerPair) continue;
 
               // Find a suitable opponent
               for (const pair2Id of shuffledPairIds) {
                 if (pair1Id === pair2Id) continue;
 
                 const pair2Count = pairMatchCounts.get(pair2Id) || 0;
-                if (pair2Count >= matchesPerPair) continue;
+                if (pair2Count >= minMatchesPerPair) continue;
 
                 // Check if these pairs already have a match
                 const matchExists = matches.some(m =>
@@ -1186,16 +1192,69 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
               }
             }
 
-            // Check if all pairs have enough matches
-            const allPairsSatisfied = Array.from(pairMatchCounts.values()).every(count => count >= matchesPerPair);
+            // Check if all pairs have at least 4 matches
+            const allPairsSatisfied = Array.from(pairMatchCounts.values()).every(count => count >= minMatchesPerPair);
             if (allPairsSatisfied || !madeProgress) break;
+          }
+
+          // PHASE 2: If some pairs still have less than 4 matches, create additional matches
+          // Allow some pairs to go up to 5 matches to help pairs with less than 4
+          const pairsNeedingMore = Array.from(pairMatchCounts.entries())
+            .filter(([_, count]) => count < minMatchesPerPair)
+            .map(([id, _]) => id);
+
+          if (pairsNeedingMore.length > 0) {
+            console.log(`⚠️ ${groupName}: ${pairsNeedingMore.length} pairs need more matches, trying phase 2...`);
+
+            attempts = 0;
+            while (attempts < maxAttempts && pairsNeedingMore.length > 0) {
+              attempts++;
+              let madeProgress = false;
+
+              for (const pair1Id of pairsNeedingMore) {
+                const pair1Count = pairMatchCounts.get(pair1Id) || 0;
+                if (pair1Count >= minMatchesPerPair) {
+                  // Remove from needing more
+                  const index = pairsNeedingMore.indexOf(pair1Id);
+                  if (index > -1) pairsNeedingMore.splice(index, 1);
+                  continue;
+                }
+
+                // Find opponent - can be anyone with less than 5 matches
+                for (const pair2Id of shuffledPairIds) {
+                  if (pair1Id === pair2Id) continue;
+
+                  const pair2Count = pairMatchCounts.get(pair2Id) || 0;
+                  if (pair2Count >= maxMatchesPerPair) continue;
+
+                  // Check if these pairs already have a match
+                  const matchExists = matches.some(m =>
+                    (m.pair1_id === pair1Id && m.pair2_id === pair2Id) ||
+                    (m.pair1_id === pair2Id && m.pair2_id === pair1Id)
+                  );
+
+                  if (!matchExists) {
+                    const [sortedPair1, sortedPair2] = [pair1Id, pair2Id].sort();
+                    matches.push({ pair1_id: sortedPair1, pair2_id: sortedPair2 });
+                    pairMatchCounts.set(pair1Id, pair1Count + 1);
+                    pairMatchCounts.set(pair2Id, pair2Count + 1);
+                    madeProgress = true;
+                    break;
+                  }
+                }
+              }
+
+              if (!madeProgress) break;
+            }
           }
 
           // Log results
           console.log(`✅ ${groupName}: Generated ${matches.length} matches`);
           pairMatchCounts.forEach((count, pairId) => {
-            if (count < matchesPerPair) {
-              console.warn(`⚠️ ${groupName} Pair ${pairId} only has ${count}/${matchesPerPair} matches`);
+            if (count < minMatchesPerPair) {
+              console.warn(`⚠️ ${groupName} Pair ${pairId} only has ${count}/${minMatchesPerPair} matches`);
+            } else if (count > minMatchesPerPair) {
+              console.log(`ℹ️ ${groupName} Pair ${pairId} has ${count} matches (helped others reach minimum)`);
             }
           });
 
