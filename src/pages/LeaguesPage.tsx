@@ -894,6 +894,16 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
         return;
       }
 
+      // Fisher-Yates shuffle algorithm
+      const shuffleArray = (arr: string[]) => {
+        const shuffled = [...arr];
+        for (let i = shuffled.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        return shuffled;
+      };
+
       const playersWithPoints = confirmedPlayers.map(playerId => {
         const ranking = leagueRankings.find(r => r.player_id === playerId);
         return {
@@ -902,18 +912,22 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
         };
       });
 
+      // Sort by points (highest first)
       playersWithPoints.sort((a, b) => b.points - a.points);
 
       const allSamePoints = playersWithPoints.every(p => p.points === playersWithPoints[0].points);
 
-      let top12Players: string[] = [];
-      let remainingPlayers: string[] = [];
+      let sortedPlayerIds: string[];
 
       if (allSamePoints) {
-        remainingPlayers = playersWithPoints.map(p => p.playerId);
+        // CRITICAL: When all players have same points (e.g., all 0 at start),
+        // shuffle randomly to avoid bias based on confirmation order
+        sortedPlayerIds = shuffleArray(playersWithPoints.map(p => p.playerId));
+        console.log(`🎲 All players have same points - shuffled randomly`);
       } else {
-        top12Players = playersWithPoints.slice(0, 12).map(p => p.playerId);
-        remainingPlayers = playersWithPoints.slice(12).map(p => p.playerId);
+        // Sort by ranking (best players first)
+        sortedPlayerIds = playersWithPoints.map(p => p.playerId);
+        console.log(`📊 Sorted by ranking (best players first)`);
       }
 
       // Fetch previous event's pairs to avoid repeating them
@@ -952,18 +966,9 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
         console.warn('Could not fetch previous pairs:', error);
       }
 
-      const shuffleArray = (arr: string[]) => {
-        const shuffled = [...arr];
-        for (let i = shuffled.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-        }
-        return shuffled;
-      };
-
       // Function to create pairs while avoiding previous event's pairs
-      const createPairsAvoidingRepeats = (players: string[], isTop12: boolean): { player1: string; player2: string | null; isTop12: boolean }[] => {
-        const pairs: { player1: string; player2: string | null; isTop12: boolean }[] = [];
+      const createPairsAvoidingRepeats = (players: string[]): { player1: string; player2: string | null }[] => {
+        const pairs: { player1: string; player2: string | null }[] = [];
         const used = new Set<string>();
         const available = [...players];
         let attempts = 0;
@@ -980,7 +985,7 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
               const pairKey = [player1, player2].sort().join('-');
 
               if (!previousPairs.has(pairKey) && !used.has(player1) && !used.has(player2)) {
-                pairs.push({ player1, player2, isTop12 });
+                pairs.push({ player1, player2 });
                 used.add(player1);
                 used.add(player2);
                 available.splice(j, 1); // Remove j first (higher index)
@@ -996,7 +1001,7 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
           if (!foundValidPair && available.length >= 2) {
             const player1 = available.shift()!;
             const player2 = available.shift()!;
-            pairs.push({ player1, player2, isTop12 });
+            pairs.push({ player1, player2 });
             used.add(player1);
             used.add(player2);
             console.warn('⚠️ Had to create a repeated pair due to constraints');
@@ -1005,32 +1010,46 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
 
         // Handle remaining single player (wildcard)
         if (available.length === 1) {
-          pairs.push({ player1: available[0], player2: null, isTop12 });
+          pairs.push({ player1: available[0], player2: null });
         }
 
         return pairs;
       };
 
-      // Create pairs for top 12
-      const top12Pairs = top12Players.length > 0 ? createPairsAvoidingRepeats(top12Players, true) : [];
+      // CRITICAL: Divide PLAYERS by 2 first
+      // If the result is odd, one more player goes to bottom half
+      const halfCount = Math.floor(sortedPlayerIds.length / 2);
 
-      // Create pairs for remaining players
-      const remainingPairs = remainingPlayers.length > 0 ? createPairsAvoidingRepeats(remainingPlayers, false) : [];
+      let topPlayers: string[];
+      let bottomPlayers: string[];
 
-      // Combine all pairs
-      const pairs = [...top12Pairs, ...remainingPairs];
-
-      // Handle edge case: if last top12 pair is wildcard and first remaining pair exists,
-      // try to complete the wildcard pair
-      if (top12Pairs.length > 0 && top12Pairs[top12Pairs.length - 1].player2 === null && remainingPairs.length > 0) {
-        top12Pairs[top12Pairs.length - 1].player2 = remainingPairs[0].player1;
-        if (remainingPairs[0].player2 === null) {
-          remainingPairs.shift(); // Remove the now-completed pair
-        } else {
-          // Convert the remaining pair to a single wildcard
-          remainingPairs[0] = { player1: remainingPairs[0].player2!, player2: null, isTop12: false };
-        }
+      if (halfCount % 2 === 1) {
+        // halfCount is odd, move one player to bottom
+        topPlayers = sortedPlayerIds.slice(0, halfCount - 1);
+        bottomPlayers = sortedPlayerIds.slice(halfCount - 1);
+        console.log(`📊 Half is odd (${halfCount}), adjusting: ${topPlayers.length} top, ${bottomPlayers.length} bottom`);
+      } else {
+        // halfCount is even, divide normally
+        topPlayers = sortedPlayerIds.slice(0, halfCount);
+        bottomPlayers = sortedPlayerIds.slice(halfCount);
+        console.log(`📊 Half is even (${halfCount}): ${topPlayers.length} top, ${bottomPlayers.length} bottom`);
       }
+
+      // Create pairs within each group
+      const topPairs = createPairsAvoidingRepeats(topPlayers).map(pair => ({
+        player1: pair.player1,
+        player2: pair.player2,
+        isTop12: true,
+      }));
+
+      const bottomPairs = createPairsAvoidingRepeats(bottomPlayers).map(pair => ({
+        player1: pair.player1,
+        player2: pair.player2,
+        isTop12: false,
+      }));
+
+      const pairs = [...topPairs, ...bottomPairs];
+      console.log(`✅ Created ${topPairs.length} top pairs and ${bottomPairs.length} bottom pairs (${pairs.length} total)`);
 
       await supabase
         .from('weekly_event_draws')
@@ -1066,73 +1085,110 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
       if (pairsError) throw pairsError;
 
       // Generate match pairings (confrontos) - each pair plays 4 matches
+      // CRITICAL: Top half plays only among themselves, bottom half plays only among themselves
       if (insertedPairs && insertedPairs.length >= 2) {
         console.log(`🎲 Generating matches for ${insertedPairs.length} pairs...`);
 
-        const pairIds = insertedPairs.map(p => p.id);
-        const matchesPerPair = 4;
-        const matches: { pair1_id: string; pair2_id: string }[] = [];
-        const pairMatchCounts = new Map<string, number>();
+        // Separate pairs into top and bottom groups based on is_top_12 flag
+        const topPairIds: string[] = [];
+        const bottomPairIds: string[] = [];
 
-        // Initialize match counts
-        pairIds.forEach(id => pairMatchCounts.set(id, 0));
-
-        // Shuffle pairs for randomness
-        const shuffledPairIds = [...pairIds].sort(() => Math.random() - 0.5);
-
-        // Greedy algorithm: assign matches to pairs that need them most
-        let attempts = 0;
-        const maxAttempts = 1000;
-
-        while (attempts < maxAttempts) {
-          attempts++;
-          let madeProgress = false;
-
-          for (const pair1Id of shuffledPairIds) {
-            const pair1Count = pairMatchCounts.get(pair1Id) || 0;
-            if (pair1Count >= matchesPerPair) continue;
-
-            // Find a suitable opponent
-            for (const pair2Id of shuffledPairIds) {
-              if (pair1Id === pair2Id) continue;
-
-              const pair2Count = pairMatchCounts.get(pair2Id) || 0;
-              if (pair2Count >= matchesPerPair) continue;
-
-              // Check if these pairs already have a match
-              const matchExists = matches.some(m =>
-                (m.pair1_id === pair1Id && m.pair2_id === pair2Id) ||
-                (m.pair1_id === pair2Id && m.pair2_id === pair1Id)
-              );
-
-              if (!matchExists) {
-                // Create match with consistent ordering (smaller ID first)
-                const [sortedPair1, sortedPair2] = [pair1Id, pair2Id].sort();
-                matches.push({ pair1_id: sortedPair1, pair2_id: sortedPair2 });
-                pairMatchCounts.set(pair1Id, pair1Count + 1);
-                pairMatchCounts.set(pair2Id, pair2Count + 1);
-                madeProgress = true;
-                break;
-              }
-            }
-          }
-
-          // Check if all pairs have enough matches
-          const allPairsSatisfied = Array.from(pairMatchCounts.values()).every(count => count >= matchesPerPair);
-          if (allPairsSatisfied || !madeProgress) break;
-        }
-
-        // Log results
-        console.log(`✅ Generated ${matches.length} matches`);
-        pairMatchCounts.forEach((count, pairId) => {
-          if (count < matchesPerPair) {
-            console.warn(`⚠️ Pair ${pairId} only has ${count}/${matchesPerPair} matches`);
+        // We need to match insertedPairs with the original pairs array to get is_top_12 flag
+        insertedPairs.forEach((insertedPair, index) => {
+          if (pairs[index].isTop12) {
+            topPairIds.push(insertedPair.id);
+          } else {
+            bottomPairIds.push(insertedPair.id);
           }
         });
 
+        console.log(`📊 Match groups: ${topPairIds.length} top pairs, ${bottomPairIds.length} bottom pairs`);
+
+        const matchesPerPair = 4;
+        const allMatches: { pair1_id: string; pair2_id: string }[] = [];
+
+        // Function to generate matches within a group
+        const generateMatchesForGroup = (groupPairIds: string[], groupName: string) => {
+          if (groupPairIds.length < 2) {
+            console.log(`⚠️ ${groupName}: Not enough pairs (${groupPairIds.length}) to create matches`);
+            return;
+          }
+
+          const matches: { pair1_id: string; pair2_id: string }[] = [];
+          const pairMatchCounts = new Map<string, number>();
+
+          // Initialize match counts
+          groupPairIds.forEach(id => pairMatchCounts.set(id, 0));
+
+          // Shuffle pairs for randomness
+          const shuffledPairIds = [...groupPairIds].sort(() => Math.random() - 0.5);
+
+          // Greedy algorithm: assign matches to pairs that need them most
+          let attempts = 0;
+          const maxAttempts = 1000;
+
+          while (attempts < maxAttempts) {
+            attempts++;
+            let madeProgress = false;
+
+            for (const pair1Id of shuffledPairIds) {
+              const pair1Count = pairMatchCounts.get(pair1Id) || 0;
+              if (pair1Count >= matchesPerPair) continue;
+
+              // Find a suitable opponent WITHIN THE SAME GROUP
+              for (const pair2Id of shuffledPairIds) {
+                if (pair1Id === pair2Id) continue;
+
+                const pair2Count = pairMatchCounts.get(pair2Id) || 0;
+                if (pair2Count >= matchesPerPair) continue;
+
+                // Check if these pairs already have a match
+                const matchExists = matches.some(m =>
+                  (m.pair1_id === pair1Id && m.pair2_id === pair2Id) ||
+                  (m.pair1_id === pair2Id && m.pair2_id === pair1Id)
+                );
+
+                if (!matchExists) {
+                  // Create match with consistent ordering (smaller ID first)
+                  const [sortedPair1, sortedPair2] = [pair1Id, pair2Id].sort();
+                  matches.push({ pair1_id: sortedPair1, pair2_id: sortedPair2 });
+                  pairMatchCounts.set(pair1Id, pair1Count + 1);
+                  pairMatchCounts.set(pair2Id, pair2Count + 1);
+                  madeProgress = true;
+                  break;
+                }
+              }
+            }
+
+            // Check if all pairs have enough matches
+            const allPairsSatisfied = Array.from(pairMatchCounts.values()).every(count => count >= matchesPerPair);
+            if (allPairsSatisfied || !madeProgress) break;
+          }
+
+          // Log results
+          console.log(`✅ ${groupName}: Generated ${matches.length} matches`);
+          pairMatchCounts.forEach((count, pairId) => {
+            if (count < matchesPerPair) {
+              console.warn(`⚠️ ${groupName} Pair ${pairId} only has ${count}/${matchesPerPair} matches`);
+            }
+          });
+
+          return matches;
+        };
+
+        // Generate matches for top half
+        const topMatches = generateMatchesForGroup(topPairIds, 'Top half');
+        if (topMatches) allMatches.push(...topMatches);
+
+        // Generate matches for bottom half
+        const bottomMatches = generateMatchesForGroup(bottomPairIds, 'Bottom half');
+        if (bottomMatches) allMatches.push(...bottomMatches);
+
+        console.log(`✅ Total matches generated: ${allMatches.length}`);
+
         // Insert matches into database
-        if (matches.length > 0) {
-          const matchesToInsert = matches.map((match, index) => ({
+        if (allMatches.length > 0) {
+          const matchesToInsert = allMatches.map((match, index) => ({
             draw_id: newDraw.id,
             pair1_id: match.pair1_id,
             pair2_id: match.pair2_id,
@@ -1675,11 +1731,11 @@ const shouldShowEventLists = (league: League): boolean => {
       const attendanceConfirmed = editAttendanceConfirmed;
 
       const totalPoints =
-        (attendanceConfirmed ? 2.5 : 0) +
-        (bbqParticipated ? 2.5 : 0) +
+        (attendanceConfirmed ? 1 : 0) +
+        (bbqParticipated ? 1 : 0) +
         (editVictories * 2) +
-        (blowoutsReceived * -3) +
-        (blowoutsApplied * 3);
+        (blowoutsReceived * -2) +
+        (blowoutsApplied * 2);
 
       const { error } = await supabase
         .from('weekly_event_attendance')
@@ -1742,11 +1798,11 @@ const shouldShowEventLists = (league: League): boolean => {
 
           if (victimAttendance) {
             const victimTotalPoints =
-              2.5 +
-              (victimAttendance.bbq_participated ? 2.5 : 0) +
+              (victimAttendance.confirmed ? 1 : 0) + // Only add game points if player confirmed game attendance
+              (victimAttendance.bbq_participated ? 1 : 0) +
               (victimAttendance.victories * 2) +
-              (victimBlowoutsCount * -3) +
-              (victimAttendance.blowouts_applied * 3);
+              (victimBlowoutsCount * -2) +
+              (victimAttendance.blowouts_applied * 2);
 
             await supabase
               .from('weekly_event_attendance')
@@ -1874,11 +1930,11 @@ const shouldShowEventLists = (league: League): boolean => {
 
         if (attendance) {
           const totalPoints =
-            2.5 +
-            (attendance.bbq_participated ? 2.5 : 0) +
+            (attendance.confirmed ? 1 : 0) + // Only add game points if player confirmed game attendance
+            (attendance.bbq_participated ? 1 : 0) +
             (attendance.victories * 2) +
-            (blowoutsReceived * -3) +
-            (blowoutsApplied * 3);
+            (blowoutsReceived * -2) +
+            (blowoutsApplied * 2);
 
           await supabase
             .from('weekly_event_attendance')
@@ -1937,8 +1993,10 @@ const shouldShowEventLists = (league: League): boolean => {
       if (playerAttendance) {
         const bbqStatuses = ['play_and_bbq', 'bbq_only'];
         setEditBbqParticipated(bbqStatuses.includes(playerAttendance.status));
-        // Attendance is confirmed if status is not 'declined' or 'no_response'
-        setEditAttendanceConfirmed(playerAttendance.status !== 'declined' && playerAttendance.status !== 'no_response');
+        // Attendance is confirmed only if status is 'confirmed' or 'play_and_bbq'
+        // 'bbq_only' means they only participated in BBQ, not in the game
+        const playStatuses = ['confirmed', 'play_and_bbq'];
+        setEditAttendanceConfirmed(playStatuses.includes(playerAttendance.status));
       }
 
       const { data: drawData } = await supabase
@@ -2102,11 +2160,11 @@ const shouldShowEventLists = (league: League): boolean => {
 
       const bbqParticipated = myLastEventAttendance?.status === 'play_and_bbq' || myLastEventAttendance?.status === 'bbq_only';
       const totalPoints =
-        2.5 +
-        (bbqParticipated ? 2.5 : 0) +
+        1 +
+        (bbqParticipated ? 1 : 0) +
         ((scoringVictories ?? 0) * 2) +
-        (blowoutsReceived * -3) +
-        (blowoutsAppliedCount * 3);
+        (blowoutsReceived * -2) +
+        (blowoutsAppliedCount * 2);
 
       const { error } = await supabase
         .from('weekly_event_attendance')
@@ -2157,11 +2215,11 @@ const shouldShowEventLists = (league: League): boolean => {
           if (victimAttendance) {
             // Recalculate victim's total points with updated blowout count
             const victimTotalPoints =
-              2.5 +
-              (victimAttendance.bbq_participated ? 2.5 : 0) +
+              (victimAttendance.confirmed ? 1 : 0) + // Only add game points if player confirmed game attendance
+              (victimAttendance.bbq_participated ? 1 : 0) +
               (victimAttendance.victories * 2) +
-              (victimBlowoutsCount * -3) +
-              (victimAttendance.blowouts_applied * 3);
+              (victimBlowoutsCount * -2) +
+              (victimAttendance.blowouts_applied * 2);
 
             // Update victim's attendance with new blowout count and total points
             await supabase
@@ -2230,14 +2288,14 @@ const shouldShowEventLists = (league: League): boolean => {
         .upsert({
           event_id: weeklyEvent.id,
           player_id: profile.id,
-          confirmed: true,
+          confirmed: false, // BBQ only - did NOT play
           confirmed_at: new Date().toISOString(),
           victories: 0,
           defeats: 0,
           bbq_participated: true,
           blowouts_received: 0,
           blowouts_applied: 0,
-          total_points: 2.5,
+          total_points: 1, // Only BBQ points
           points_submitted: true,
           points_submitted_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
@@ -2247,7 +2305,7 @@ const shouldShowEventLists = (league: League): boolean => {
 
       if (error) throw error;
 
-      alert('Presenca no churrasco confirmada! +2,5 pontos');
+      alert('Presenca no churrasco confirmada! +1 ponto');
       await loadWeeklyScore();
       if (selectedLeague) {
         await loadScoreSubmissions(selectedLeague.id);
@@ -2878,55 +2936,111 @@ const shouldShowEventLists = (league: League): boolean => {
                             {currentDraw?.event_date && new Date(currentDraw.event_date + 'T00:00:00').toLocaleDateString('pt-BR')}
                           </p>
 
-                          <div className="mt-4 space-y-2">
-                            {currentPairs.map((pair, index) => {
-                              const isMyPair = pair.player1_id === profile?.id || pair.player2_id === profile?.id;
-                              return (
-                                <div
-                                  key={pair.id}
-                                  className={`p-3 rounded-lg border ${
-                                    isMyPair
-                                      ? 'bg-cyan-100 border-cyan-300'
-                                      : 'bg-white border-cyan-200'
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-3">
-                                    <span className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold ${
-                                      pair.is_top_12 ? 'bg-amber-500 text-white' : 'bg-gray-300 text-gray-700'
-                                    }`}>
-                                      {index + 1}
-                                    </span>
-                                    <div className="flex-1">
-                                      <div className="flex items-center gap-2 flex-wrap">
-                                        <span className={`font-medium ${pair.player1_id === profile?.id ? 'text-cyan-700' : 'text-gray-900'}`}>
-                                          {pair.player1?.full_name || 'Jogador'}
-                                          {pair.player1_id === profile?.id && ' (Voce)'}
-                                        </span>
-                                        {pair.player2 ? (
-                                          <>
-                                            <span className="text-gray-400">&</span>
-                                            <span className={`font-medium ${pair.player2_id === profile?.id ? 'text-cyan-700' : 'text-gray-900'}`}>
-                                              {pair.player2?.full_name || 'Jogador'}
-                                              {pair.player2_id === profile?.id && ' (Voce)'}
-                                            </span>
-                                          </>
-                                        ) : (
-                                          <span className="text-amber-600 font-medium">(Coringa)</span>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
+                          <div className="mt-4 space-y-4">
+                            {/* Serie A - Top Half */}
+                            {currentPairs.some(p => p.is_top_12) && (
+                              <div>
+                                <div className="flex items-center gap-2 mb-3">
+                                  <span className="w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center">
+                                    <span className="text-white text-xs font-bold">A</span>
+                                  </span>
+                                  <h4 className="font-bold text-cyan-900">Série A</h4>
                                 </div>
-                              );
-                            })}
-                          </div>
+                                <div className="space-y-2">
+                                  {currentPairs.filter(p => p.is_top_12).map((pair, index) => {
+                                    const isMyPair = pair.player1_id === profile?.id || pair.player2_id === profile?.id;
+                                    return (
+                                      <div
+                                        key={pair.id}
+                                        className={`p-3 rounded-lg border ${
+                                          isMyPair
+                                            ? 'bg-cyan-100 border-cyan-300'
+                                            : 'bg-white border-cyan-200'
+                                        }`}
+                                      >
+                                        <div className="flex items-center gap-3">
+                                          <span className="w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold bg-amber-500 text-white">
+                                            {index + 1}
+                                          </span>
+                                          <div className="flex-1">
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                              <span className={`font-medium ${pair.player1_id === profile?.id ? 'text-cyan-700' : 'text-gray-900'}`}>
+                                                {pair.player1?.full_name || 'Jogador'}
+                                                {pair.player1_id === profile?.id && ' (Voce)'}
+                                              </span>
+                                              {pair.player2 ? (
+                                                <>
+                                                  <span className="text-gray-400">&</span>
+                                                  <span className={`font-medium ${pair.player2_id === profile?.id ? 'text-cyan-700' : 'text-gray-900'}`}>
+                                                    {pair.player2?.full_name || 'Jogador'}
+                                                    {pair.player2_id === profile?.id && ' (Voce)'}
+                                                  </span>
+                                                </>
+                                              ) : (
+                                                <span className="text-amber-600 font-medium">(Coringa)</span>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
 
-                          {currentPairs.some(p => p.is_top_12) && (
-                            <p className="text-xs text-cyan-600 mt-3 flex items-center gap-1">
-                              <span className="w-3 h-3 rounded-full bg-amber-500 inline-block"></span>
-                              Top 12 colocados
-                            </p>
-                          )}
+                            {/* Serie B - Bottom Half */}
+                            {currentPairs.some(p => !p.is_top_12) && (
+                              <div>
+                                <div className="flex items-center gap-2 mb-3">
+                                  <span className="w-5 h-5 rounded-full bg-gray-500 flex items-center justify-center">
+                                    <span className="text-white text-xs font-bold">B</span>
+                                  </span>
+                                  <h4 className="font-bold text-cyan-900">Série B</h4>
+                                </div>
+                                <div className="space-y-2">
+                                  {currentPairs.filter(p => !p.is_top_12).map((pair, index) => {
+                                    const isMyPair = pair.player1_id === profile?.id || pair.player2_id === profile?.id;
+                                    return (
+                                      <div
+                                        key={pair.id}
+                                        className={`p-3 rounded-lg border ${
+                                          isMyPair
+                                            ? 'bg-cyan-100 border-cyan-300'
+                                            : 'bg-white border-cyan-200'
+                                        }`}
+                                      >
+                                        <div className="flex items-center gap-3">
+                                          <span className="w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold bg-gray-500 text-white">
+                                            {index + 1}
+                                          </span>
+                                          <div className="flex-1">
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                              <span className={`font-medium ${pair.player1_id === profile?.id ? 'text-cyan-700' : 'text-gray-900'}`}>
+                                                {pair.player1?.full_name || 'Jogador'}
+                                                {pair.player1_id === profile?.id && ' (Voce)'}
+                                              </span>
+                                              {pair.player2 ? (
+                                                <>
+                                                  <span className="text-gray-400">&</span>
+                                                  <span className={`font-medium ${pair.player2_id === profile?.id ? 'text-cyan-700' : 'text-gray-900'}`}>
+                                                    {pair.player2?.full_name || 'Jogador'}
+                                                    {pair.player2_id === profile?.id && ' (Voce)'}
+                                                  </span>
+                                                </>
+                                              ) : (
+                                                <span className="text-amber-600 font-medium">(Coringa)</span>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -2946,97 +3060,213 @@ const shouldShowEventLists = (league: League): boolean => {
                             {currentDraw?.event_date && new Date(currentDraw.event_date + 'T00:00:00').toLocaleDateString('pt-BR')}
                           </p>
 
-                          <div className="mt-4 space-y-3">
-                            {currentMatches.map((match) => {
-                              // Find the pairs involved in this match
-                              const pair1 = currentPairs.find(p => p.id === match.pair1_id);
-                              const pair2 = currentPairs.find(p => p.id === match.pair2_id);
+                          <div className="mt-4 space-y-4">
+                            {/* Serie A Matches */}
+                            {(() => {
+                              const serieAMatches = currentMatches.filter(match => {
+                                const pair1 = currentPairs.find(p => p.id === match.pair1_id);
+                                return pair1?.is_top_12;
+                              });
 
-                              if (!pair1 || !pair2) return null;
-
-                              const isMyMatch =
-                                pair1.player1_id === profile?.id ||
-                                pair1.player2_id === profile?.id ||
-                                pair2.player1_id === profile?.id ||
-                                pair2.player2_id === profile?.id;
+                              if (serieAMatches.length === 0) return null;
 
                               return (
-                                <div
-                                  key={match.id}
-                                  className={`p-3 rounded-lg border ${
-                                    isMyMatch
-                                      ? 'bg-purple-100 border-purple-300'
-                                      : 'bg-white border-purple-200'
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-2 text-xs text-purple-600 mb-2">
-                                    <span className="font-bold">Jogo #{match.match_number}</span>
+                                <div>
+                                  <div className="flex items-center gap-2 mb-3">
+                                    <span className="w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center">
+                                      <span className="text-white text-xs font-bold">A</span>
+                                    </span>
+                                    <h4 className="font-bold text-purple-900">Série A</h4>
                                   </div>
+                                  <div className="space-y-3">
+                                    {serieAMatches.map((match) => {
+                                      const pair1 = currentPairs.find(p => p.id === match.pair1_id);
+                                      const pair2 = currentPairs.find(p => p.id === match.pair2_id);
 
-                                  <div className="flex items-center gap-3">
-                                    {/* Pair 1 */}
-                                    <div className="flex-1">
-                                      <div className="flex items-center gap-2">
-                                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                                          pair1.is_top_12 ? 'bg-amber-500 text-white' : 'bg-gray-300 text-gray-700'
-                                        }`}>
-                                          {pair1.pair_number}
-                                        </span>
-                                        <div className="flex-1">
-                                          <div className="text-sm font-medium text-gray-900">
-                                            {pair1.player1?.full_name || 'Jogador'}
-                                            {pair1.player1_id === profile?.id && ' (Você)'}
+                                      if (!pair1 || !pair2) return null;
+
+                                      const isMyMatch =
+                                        pair1.player1_id === profile?.id ||
+                                        pair1.player2_id === profile?.id ||
+                                        pair2.player1_id === profile?.id ||
+                                        pair2.player2_id === profile?.id;
+
+                                      return (
+                                        <div
+                                          key={match.id}
+                                          className={`p-3 rounded-lg border ${
+                                            isMyMatch
+                                              ? 'bg-purple-100 border-purple-300'
+                                              : 'bg-white border-purple-200'
+                                          }`}
+                                        >
+                                          <div className="flex items-center gap-2 text-xs text-purple-600 mb-2">
+                                            <span className="font-bold">Jogo #{match.match_number}</span>
                                           </div>
-                                          {pair1.player2 ? (
-                                            <div className="text-sm font-medium text-gray-900">
-                                              {pair1.player2?.full_name || 'Jogador'}
-                                              {pair1.player2_id === profile?.id && ' (Você)'}
+
+                                          <div className="flex items-center gap-3">
+                                            {/* Pair 1 */}
+                                            <div className="flex-1">
+                                              <div className="flex items-center gap-2">
+                                                <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-amber-500 text-white">
+                                                  {pair1.pair_number}
+                                                </span>
+                                                <div className="flex-1">
+                                                  <div className="text-sm font-medium text-gray-900">
+                                                    {pair1.player1?.full_name || 'Jogador'}
+                                                    {pair1.player1_id === profile?.id && ' (Você)'}
+                                                  </div>
+                                                  {pair1.player2 ? (
+                                                    <div className="text-sm font-medium text-gray-900">
+                                                      {pair1.player2?.full_name || 'Jogador'}
+                                                      {pair1.player2_id === profile?.id && ' (Você)'}
+                                                    </div>
+                                                  ) : (
+                                                    <div className="text-xs text-amber-600">(Coringa)</div>
+                                                  )}
+                                                </div>
+                                              </div>
                                             </div>
-                                          ) : (
-                                            <div className="text-xs text-amber-600">(Coringa)</div>
-                                          )}
-                                        </div>
-                                      </div>
-                                    </div>
 
-                                    {/* VS indicator */}
-                                    <div className="px-2">
-                                      <span className="text-purple-600 font-bold text-sm">VS</span>
-                                    </div>
+                                            {/* VS indicator */}
+                                            <div className="px-2">
+                                              <span className="text-purple-600 font-bold text-sm">VS</span>
+                                            </div>
 
-                                    {/* Pair 2 */}
-                                    <div className="flex-1">
-                                      <div className="flex items-center gap-2">
-                                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                                          pair2.is_top_12 ? 'bg-amber-500 text-white' : 'bg-gray-300 text-gray-700'
-                                        }`}>
-                                          {pair2.pair_number}
-                                        </span>
-                                        <div className="flex-1">
-                                          <div className="text-sm font-medium text-gray-900">
-                                            {pair2.player1?.full_name || 'Jogador'}
-                                            {pair2.player1_id === profile?.id && ' (Você)'}
+                                            {/* Pair 2 */}
+                                            <div className="flex-1">
+                                              <div className="flex items-center gap-2">
+                                                <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-amber-500 text-white">
+                                                  {pair2.pair_number}
+                                                </span>
+                                                <div className="flex-1">
+                                                  <div className="text-sm font-medium text-gray-900">
+                                                    {pair2.player1?.full_name || 'Jogador'}
+                                                    {pair2.player1_id === profile?.id && ' (Você)'}
+                                                  </div>
+                                                  {pair2.player2 ? (
+                                                    <div className="text-sm font-medium text-gray-900">
+                                                      {pair2.player2?.full_name || 'Jogador'}
+                                                      {pair2.player2_id === profile?.id && ' (Você)'}
+                                                    </div>
+                                                  ) : (
+                                                    <div className="text-xs text-amber-600">(Coringa)</div>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            </div>
                                           </div>
-                                          {pair2.player2 ? (
-                                            <div className="text-sm font-medium text-gray-900">
-                                              {pair2.player2?.full_name || 'Jogador'}
-                                              {pair2.player2_id === profile?.id && ' (Você)'}
-                                            </div>
-                                          ) : (
-                                            <div className="text-xs text-amber-600">(Coringa)</div>
-                                          )}
                                         </div>
-                                      </div>
-                                    </div>
+                                      );
+                                    })}
                                   </div>
                                 </div>
                               );
-                            })}
-                          </div>
+                            })()}
 
-                          <p className="text-xs text-purple-600 mt-3">
-                            {currentMatches.length} confrontos gerados
-                          </p>
+                            {/* Serie B Matches */}
+                            {(() => {
+                              const serieBMatches = currentMatches.filter(match => {
+                                const pair1 = currentPairs.find(p => p.id === match.pair1_id);
+                                return !pair1?.is_top_12;
+                              });
+
+                              if (serieBMatches.length === 0) return null;
+
+                              return (
+                                <div>
+                                  <div className="flex items-center gap-2 mb-3">
+                                    <span className="w-5 h-5 rounded-full bg-gray-500 flex items-center justify-center">
+                                      <span className="text-white text-xs font-bold">B</span>
+                                    </span>
+                                    <h4 className="font-bold text-purple-900">Série B</h4>
+                                  </div>
+                                  <div className="space-y-3">
+                                    {serieBMatches.map((match) => {
+                                      const pair1 = currentPairs.find(p => p.id === match.pair1_id);
+                                      const pair2 = currentPairs.find(p => p.id === match.pair2_id);
+
+                                      if (!pair1 || !pair2) return null;
+
+                                      const isMyMatch =
+                                        pair1.player1_id === profile?.id ||
+                                        pair1.player2_id === profile?.id ||
+                                        pair2.player1_id === profile?.id ||
+                                        pair2.player2_id === profile?.id;
+
+                                      return (
+                                        <div
+                                          key={match.id}
+                                          className={`p-3 rounded-lg border ${
+                                            isMyMatch
+                                              ? 'bg-purple-100 border-purple-300'
+                                              : 'bg-white border-purple-200'
+                                          }`}
+                                        >
+                                          <div className="flex items-center gap-2 text-xs text-purple-600 mb-2">
+                                            <span className="font-bold">Jogo #{match.match_number}</span>
+                                          </div>
+
+                                          <div className="flex items-center gap-3">
+                                            {/* Pair 1 */}
+                                            <div className="flex-1">
+                                              <div className="flex items-center gap-2">
+                                                <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-gray-500 text-white">
+                                                  {pair1.pair_number}
+                                                </span>
+                                                <div className="flex-1">
+                                                  <div className="text-sm font-medium text-gray-900">
+                                                    {pair1.player1?.full_name || 'Jogador'}
+                                                    {pair1.player1_id === profile?.id && ' (Você)'}
+                                                  </div>
+                                                  {pair1.player2 ? (
+                                                    <div className="text-sm font-medium text-gray-900">
+                                                      {pair1.player2?.full_name || 'Jogador'}
+                                                      {pair1.player2_id === profile?.id && ' (Você)'}
+                                                    </div>
+                                                  ) : (
+                                                    <div className="text-xs text-amber-600">(Coringa)</div>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            </div>
+
+                                            {/* VS indicator */}
+                                            <div className="px-2">
+                                              <span className="text-purple-600 font-bold text-sm">VS</span>
+                                            </div>
+
+                                            {/* Pair 2 */}
+                                            <div className="flex-1">
+                                              <div className="flex items-center gap-2">
+                                                <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-gray-500 text-white">
+                                                  {pair2.pair_number}
+                                                </span>
+                                                <div className="flex-1">
+                                                  <div className="text-sm font-medium text-gray-900">
+                                                    {pair2.player1?.full_name || 'Jogador'}
+                                                    {pair2.player1_id === profile?.id && ' (Você)'}
+                                                  </div>
+                                                  {pair2.player2 ? (
+                                                    <div className="text-sm font-medium text-gray-900">
+                                                      {pair2.player2?.full_name || 'Jogador'}
+                                                      {pair2.player2_id === profile?.id && ' (Você)'}
+                                                    </div>
+                                                  ) : (
+                                                    <div className="text-xs text-amber-600">(Coringa)</div>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -3143,7 +3373,7 @@ const shouldShowEventLists = (league: League): boolean => {
                             <>
                               <div className="mt-3 p-3 bg-amber-100 rounded-lg">
                                 <p className="text-sm text-amber-800">
-                                  Voce selecionou <span className="font-semibold">apenas churrasco</span>. Ao confirmar, voce recebera automaticamente <span className="font-bold">2,5 pontos</span>.
+                                  Voce selecionou <span className="font-semibold">apenas churrasco</span>. Ao confirmar, voce recebera automaticamente <span className="font-bold">1 ponto</span>.
                                 </p>
                               </div>
 
@@ -3314,7 +3544,7 @@ const shouldShowEventLists = (league: League): boolean => {
                                       const hasPlayer2 = pair.player2 && blowoutVictims.includes(pair.player2.id);
                                       return hasPlayer1 || hasPlayer2;
                                     }).length;
-                                    return <p className="text-green-700">Pneus aplicados ({selectedPairsCount} {selectedPairsCount === 1 ? 'dupla' : 'duplas'}): +{selectedPairsCount * 3} pts</p>;
+                                    return <p className="text-green-700">Pneus aplicados ({selectedPairsCount} {selectedPairsCount === 1 ? 'dupla' : 'duplas'}): +{selectedPairsCount * 2} pts</p>;
                                   })()}
                                   <p className="font-bold mt-1 pt-1 border-t border-teal-200">
                                     Total: {(() => {
@@ -3323,7 +3553,7 @@ const shouldShowEventLists = (league: League): boolean => {
                                         const hasPlayer2 = pair.player2 && blowoutVictims.includes(pair.player2.id);
                                         return hasPlayer1 || hasPlayer2;
                                       }).length;
-                                      return (2.5 + ((myLastEventAttendance?.status === 'play_and_bbq' || myLastEventAttendance?.status === 'bbq_only') ? 2.5 : 0) + (scoringVictories * 2) + (appliedBlowouts ? selectedPairsCount * 3 : 0)).toFixed(1);
+                                      return (1 + ((myLastEventAttendance?.status === 'play_and_bbq' || myLastEventAttendance?.status === 'bbq_only') ? 1 : 0) + (scoringVictories * 2) + (appliedBlowouts ? selectedPairsCount * 2 : 0)).toFixed(1);
                                     })()} pts
                                   </p>
                                 </div>
@@ -4070,10 +4300,10 @@ const shouldShowEventLists = (league: League): boolean => {
                     }).length : 0;
 
                     return (
-                      (editAttendanceConfirmed ? 2.5 : 0) +
-                      (editBbqParticipated ? 2.5 : 0) +
+                      (editAttendanceConfirmed ? 1 : 0) +
+                      (editBbqParticipated ? 1 : 0) +
                       (editVictories * 2) +
-                      (selectedPairsCount * 3)
+                      (selectedPairsCount * 2)
                     ).toFixed(1);
                   })()} pts
                 </p>
