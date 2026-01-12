@@ -1062,11 +1062,38 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
         console.log(`✅ Created ${topPairs.length} top pairs and ${bottomPairs.length} bottom pairs (${pairs.length} total)`);
       }
 
-      await supabase
+      // Delete old draw, pairs, and matches explicitly
+      // First, get the current draw ID to delete related pairs and matches
+      const { data: existingDraw } = await supabase
         .from('weekly_event_draws')
-        .delete()
+        .select('id')
         .eq('league_id', selectedLeague.id)
-        .eq('event_date', eventDate);
+        .eq('event_date', eventDate)
+        .maybeSingle();
+
+      if (existingDraw) {
+        console.log(`🗑️ Deleting existing draw and related data...`);
+
+        // Delete matches first (they reference pairs)
+        await supabase
+          .from('weekly_event_matches')
+          .delete()
+          .eq('draw_id', existingDraw.id);
+
+        // Delete pairs (they reference draw)
+        await supabase
+          .from('weekly_event_pairs')
+          .delete()
+          .eq('draw_id', existingDraw.id);
+
+        // Finally delete the draw itself
+        await supabase
+          .from('weekly_event_draws')
+          .delete()
+          .eq('id', existingDraw.id);
+
+        console.log(`✅ Deleted old draw and related data`);
+      }
 
       const { data: newDraw, error: drawError } = await supabase
         .from('weekly_event_draws')
