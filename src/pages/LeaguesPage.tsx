@@ -957,12 +957,16 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
       const createPairsAvoidingRepeats = (players: string[]): { player1: string; player2: string | null }[] => {
         const pairs: { player1: string; player2: string | null }[] = [];
         const used = new Set<string>();
-        const available = [...players];
+        let available = [...players];
         let attempts = 0;
         const maxAttempts = 100;
 
         while (available.length >= 2 && attempts < maxAttempts) {
           attempts++;
+
+          // Shuffle available players to ensure randomness in pairing
+          available = shuffleArray(available);
+
           let foundValidPair = false;
 
           for (let i = 0; i < available.length - 1; i++) {
