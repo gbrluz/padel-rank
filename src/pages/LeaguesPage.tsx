@@ -917,19 +917,6 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
 
       const allSamePoints = playersWithPoints.every(p => p.points === playersWithPoints[0].points);
 
-      let sortedPlayerIds: string[];
-
-      if (allSamePoints) {
-        // CRITICAL: When all players have same points (e.g., all 0 at start),
-        // shuffle randomly to avoid bias based on confirmation order
-        sortedPlayerIds = shuffleArray(playersWithPoints.map(p => p.playerId));
-        console.log(`🎲 All players have same points - shuffled randomly`);
-      } else {
-        // Sort by ranking (best players first)
-        sortedPlayerIds = playersWithPoints.map(p => p.playerId);
-        console.log(`📊 Sorted by ranking (best players first)`);
-      }
-
       // Fetch previous event's pairs to avoid repeating them
       let previousPairs: Set<string> = new Set();
       try {
@@ -1016,40 +1003,64 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
         return pairs;
       };
 
-      // CRITICAL: Divide PLAYERS by 2 first
-      // If the result is odd, one more player goes to bottom half
-      const halfCount = Math.floor(sortedPlayerIds.length / 2);
+      let pairs: { player1: string; player2: string | null; isTop12: boolean }[];
 
-      let topPlayers: string[];
-      let bottomPlayers: string[];
+      if (allSamePoints) {
+        // CASE 1: All players have same points - NO GROUP DIVISION
+        // Shuffle randomly to avoid bias based on confirmation order
+        const shuffledPlayerIds = shuffleArray(playersWithPoints.map(p => p.playerId));
+        console.log(`🎲 All players have same points - shuffled randomly, NO group division`);
 
-      if (halfCount % 2 === 1) {
-        // halfCount is odd, move one player to bottom
-        topPlayers = sortedPlayerIds.slice(0, halfCount - 1);
-        bottomPlayers = sortedPlayerIds.slice(halfCount - 1);
-        console.log(`📊 Half is odd (${halfCount}), adjusting: ${topPlayers.length} top, ${bottomPlayers.length} bottom`);
+        // Create pairs from all players (no groups)
+        const allPairs = createPairsAvoidingRepeats(shuffledPlayerIds);
+        pairs = allPairs.map(pair => ({
+          player1: pair.player1,
+          player2: pair.player2,
+          isTop12: false, // No division, all in same group
+        }));
+        console.log(`✅ Created ${pairs.length} pairs total (all in same group, no division)`);
+
       } else {
-        // halfCount is even, divide normally
-        topPlayers = sortedPlayerIds.slice(0, halfCount);
-        bottomPlayers = sortedPlayerIds.slice(halfCount);
-        console.log(`📊 Half is even (${halfCount}): ${topPlayers.length} top, ${bottomPlayers.length} bottom`);
+        // CASE 2: Different points - DIVIDE INTO TWO GROUPS
+        // Sort by ranking (best players first)
+        const sortedPlayerIds = playersWithPoints.map(p => p.playerId);
+        console.log(`📊 Sorted by ranking (best players first)`);
+
+        // CRITICAL: Divide PLAYERS by 2 first
+        // If the result is odd, one more player goes to bottom half
+        const halfCount = Math.floor(sortedPlayerIds.length / 2);
+
+        let topPlayers: string[];
+        let bottomPlayers: string[];
+
+        if (halfCount % 2 === 1) {
+          // halfCount is odd, move one player to bottom
+          topPlayers = sortedPlayerIds.slice(0, halfCount - 1);
+          bottomPlayers = sortedPlayerIds.slice(halfCount - 1);
+          console.log(`📊 Half is odd (${halfCount}), adjusting: ${topPlayers.length} top, ${bottomPlayers.length} bottom`);
+        } else {
+          // halfCount is even, divide normally
+          topPlayers = sortedPlayerIds.slice(0, halfCount);
+          bottomPlayers = sortedPlayerIds.slice(halfCount);
+          console.log(`📊 Half is even (${halfCount}): ${topPlayers.length} top, ${bottomPlayers.length} bottom`);
+        }
+
+        // Create pairs within each group
+        const topPairs = createPairsAvoidingRepeats(topPlayers).map(pair => ({
+          player1: pair.player1,
+          player2: pair.player2,
+          isTop12: true,
+        }));
+
+        const bottomPairs = createPairsAvoidingRepeats(bottomPlayers).map(pair => ({
+          player1: pair.player1,
+          player2: pair.player2,
+          isTop12: false,
+        }));
+
+        pairs = [...topPairs, ...bottomPairs];
+        console.log(`✅ Created ${topPairs.length} top pairs and ${bottomPairs.length} bottom pairs (${pairs.length} total)`);
       }
-
-      // Create pairs within each group
-      const topPairs = createPairsAvoidingRepeats(topPlayers).map(pair => ({
-        player1: pair.player1,
-        player2: pair.player2,
-        isTop12: true,
-      }));
-
-      const bottomPairs = createPairsAvoidingRepeats(bottomPlayers).map(pair => ({
-        player1: pair.player1,
-        player2: pair.player2,
-        isTop12: false,
-      }));
-
-      const pairs = [...topPairs, ...bottomPairs];
-      console.log(`✅ Created ${topPairs.length} top pairs and ${bottomPairs.length} bottom pairs (${pairs.length} total)`);
 
       await supabase
         .from('weekly_event_draws')
@@ -1085,24 +1096,8 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
       if (pairsError) throw pairsError;
 
       // Generate match pairings (confrontos) - each pair plays 4 matches
-      // CRITICAL: Top half plays only among themselves, bottom half plays only among themselves
       if (insertedPairs && insertedPairs.length >= 2) {
         console.log(`🎲 Generating matches for ${insertedPairs.length} pairs...`);
-
-        // Separate pairs into top and bottom groups based on is_top_12 flag
-        const topPairIds: string[] = [];
-        const bottomPairIds: string[] = [];
-
-        // We need to match insertedPairs with the original pairs array to get is_top_12 flag
-        insertedPairs.forEach((insertedPair, index) => {
-          if (pairs[index].isTop12) {
-            topPairIds.push(insertedPair.id);
-          } else {
-            bottomPairIds.push(insertedPair.id);
-          }
-        });
-
-        console.log(`📊 Match groups: ${topPairIds.length} top pairs, ${bottomPairIds.length} bottom pairs`);
 
         const matchesPerPair = 4;
         const allMatches: { pair1_id: string; pair2_id: string }[] = [];
@@ -1135,7 +1130,7 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
               const pair1Count = pairMatchCounts.get(pair1Id) || 0;
               if (pair1Count >= matchesPerPair) continue;
 
-              // Find a suitable opponent WITHIN THE SAME GROUP
+              // Find a suitable opponent
               for (const pair2Id of shuffledPairIds) {
                 if (pair1Id === pair2Id) continue;
 
@@ -1176,13 +1171,37 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
           return matches;
         };
 
-        // Generate matches for top half
-        const topMatches = generateMatchesForGroup(topPairIds, 'Top half');
-        if (topMatches) allMatches.push(...topMatches);
+        if (allSamePoints) {
+          // CASE 1: All same points - ALL pairs play against each other
+          const allPairIds = insertedPairs.map(p => p.id);
+          console.log(`🎲 All same points: generating matches for ALL ${allPairIds.length} pairs together`);
+          const allPairMatches = generateMatchesForGroup(allPairIds, 'All pairs');
+          if (allPairMatches) allMatches.push(...allPairMatches);
 
-        // Generate matches for bottom half
-        const bottomMatches = generateMatchesForGroup(bottomPairIds, 'Bottom half');
-        if (bottomMatches) allMatches.push(...bottomMatches);
+        } else {
+          // CASE 2: Different points - Top half and bottom half play separately
+          const topPairIds: string[] = [];
+          const bottomPairIds: string[] = [];
+
+          // Separate pairs into top and bottom groups based on is_top_12 flag
+          insertedPairs.forEach((insertedPair, index) => {
+            if (pairs[index].isTop12) {
+              topPairIds.push(insertedPair.id);
+            } else {
+              bottomPairIds.push(insertedPair.id);
+            }
+          });
+
+          console.log(`📊 Match groups: ${topPairIds.length} top pairs, ${bottomPairIds.length} bottom pairs`);
+
+          // Generate matches for top half (Serie A)
+          const topMatches = generateMatchesForGroup(topPairIds, 'Serie A');
+          if (topMatches) allMatches.push(...topMatches);
+
+          // Generate matches for bottom half (Serie B)
+          const bottomMatches = generateMatchesForGroup(bottomPairIds, 'Serie B');
+          if (bottomMatches) allMatches.push(...bottomMatches);
+        }
 
         console.log(`✅ Total matches generated: ${allMatches.length}`);
 
@@ -2937,109 +2956,164 @@ const shouldShowEventLists = (league: League): boolean => {
                           </p>
 
                           <div className="mt-4 space-y-4">
-                            {/* Serie A - Top Half */}
-                            {currentPairs.some(p => p.is_top_12) && (
-                              <div>
-                                <div className="flex items-center gap-2 mb-3">
-                                  <span className="w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center">
-                                    <span className="text-white text-xs font-bold">A</span>
-                                  </span>
-                                  <h4 className="font-bold text-cyan-900">Série A</h4>
-                                </div>
-                                <div className="space-y-2">
-                                  {currentPairs.filter(p => p.is_top_12).map((pair, index) => {
-                                    const isMyPair = pair.player1_id === profile?.id || pair.player2_id === profile?.id;
-                                    return (
-                                      <div
-                                        key={pair.id}
-                                        className={`p-3 rounded-lg border ${
-                                          isMyPair
-                                            ? 'bg-cyan-100 border-cyan-300'
-                                            : 'bg-white border-cyan-200'
-                                        }`}
-                                      >
-                                        <div className="flex items-center gap-3">
-                                          <span className="w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold bg-amber-500 text-white">
-                                            {index + 1}
-                                          </span>
-                                          <div className="flex-1">
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                              <span className={`font-medium ${pair.player1_id === profile?.id ? 'text-cyan-700' : 'text-gray-900'}`}>
-                                                {pair.player1?.full_name || 'Jogador'}
-                                                {pair.player1_id === profile?.id && ' (Voce)'}
-                                              </span>
-                                              {pair.player2 ? (
-                                                <>
-                                                  <span className="text-gray-400">&</span>
-                                                  <span className={`font-medium ${pair.player2_id === profile?.id ? 'text-cyan-700' : 'text-gray-900'}`}>
-                                                    {pair.player2?.full_name || 'Jogador'}
-                                                    {pair.player2_id === profile?.id && ' (Voce)'}
-                                                  </span>
-                                                </>
-                                              ) : (
-                                                <span className="text-amber-600 font-medium">(Coringa)</span>
-                                              )}
-                                            </div>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
+                            {(() => {
+                              const hasSeriesDivision = currentPairs.some(p => p.is_top_12);
 
-                            {/* Serie B - Bottom Half */}
-                            {currentPairs.some(p => !p.is_top_12) && (
-                              <div>
-                                <div className="flex items-center gap-2 mb-3">
-                                  <span className="w-5 h-5 rounded-full bg-gray-500 flex items-center justify-center">
-                                    <span className="text-white text-xs font-bold">B</span>
-                                  </span>
-                                  <h4 className="font-bold text-cyan-900">Série B</h4>
-                                </div>
-                                <div className="space-y-2">
-                                  {currentPairs.filter(p => !p.is_top_12).map((pair, index) => {
-                                    const isMyPair = pair.player1_id === profile?.id || pair.player2_id === profile?.id;
-                                    return (
-                                      <div
-                                        key={pair.id}
-                                        className={`p-3 rounded-lg border ${
-                                          isMyPair
-                                            ? 'bg-cyan-100 border-cyan-300'
-                                            : 'bg-white border-cyan-200'
-                                        }`}
-                                      >
-                                        <div className="flex items-center gap-3">
-                                          <span className="w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold bg-gray-500 text-white">
-                                            {index + 1}
-                                          </span>
-                                          <div className="flex-1">
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                              <span className={`font-medium ${pair.player1_id === profile?.id ? 'text-cyan-700' : 'text-gray-900'}`}>
-                                                {pair.player1?.full_name || 'Jogador'}
-                                                {pair.player1_id === profile?.id && ' (Voce)'}
-                                              </span>
-                                              {pair.player2 ? (
-                                                <>
-                                                  <span className="text-gray-400">&</span>
-                                                  <span className={`font-medium ${pair.player2_id === profile?.id ? 'text-cyan-700' : 'text-gray-900'}`}>
-                                                    {pair.player2?.full_name || 'Jogador'}
-                                                    {pair.player2_id === profile?.id && ' (Voce)'}
-                                                  </span>
-                                                </>
-                                              ) : (
-                                                <span className="text-amber-600 font-medium">(Coringa)</span>
-                                              )}
+                              if (!hasSeriesDivision) {
+                                // No division - all players have same points
+                                return (
+                                  <div className="space-y-2">
+                                    {currentPairs.map((pair, index) => {
+                                      const isMyPair = pair.player1_id === profile?.id || pair.player2_id === profile?.id;
+                                      return (
+                                        <div
+                                          key={pair.id}
+                                          className={`p-3 rounded-lg border ${
+                                            isMyPair
+                                              ? 'bg-cyan-100 border-cyan-300'
+                                              : 'bg-white border-cyan-200'
+                                          }`}
+                                        >
+                                          <div className="flex items-center gap-3">
+                                            <span className="w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold bg-cyan-600 text-white">
+                                              {index + 1}
+                                            </span>
+                                            <div className="flex-1">
+                                              <div className="flex items-center gap-2 flex-wrap">
+                                                <span className={`font-medium ${pair.player1_id === profile?.id ? 'text-cyan-700' : 'text-gray-900'}`}>
+                                                  {pair.player1?.full_name || 'Jogador'}
+                                                  {pair.player1_id === profile?.id && ' (Voce)'}
+                                                </span>
+                                                {pair.player2 ? (
+                                                  <>
+                                                    <span className="text-gray-400">&</span>
+                                                    <span className={`font-medium ${pair.player2_id === profile?.id ? 'text-cyan-700' : 'text-gray-900'}`}>
+                                                      {pair.player2?.full_name || 'Jogador'}
+                                                      {pair.player2_id === profile?.id && ' (Voce)'}
+                                                    </span>
+                                                  </>
+                                                ) : (
+                                                  <span className="text-amber-600 font-medium">(Coringa)</span>
+                                                )}
+                                              </div>
                                             </div>
                                           </div>
                                         </div>
+                                      );
+                                    })}
+                                  </div>
+                                );
+                              }
+
+                              // Has series division
+                              return (
+                                <>
+                                  {/* Serie A - Top Half */}
+                                  {currentPairs.some(p => p.is_top_12) && (
+                                    <div>
+                                      <div className="flex items-center gap-2 mb-3">
+                                        <span className="w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center">
+                                          <span className="text-white text-xs font-bold">A</span>
+                                        </span>
+                                        <h4 className="font-bold text-cyan-900">Série A</h4>
                                       </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
+                                      <div className="space-y-2">
+                                        {currentPairs.filter(p => p.is_top_12).map((pair, index) => {
+                                          const isMyPair = pair.player1_id === profile?.id || pair.player2_id === profile?.id;
+                                          return (
+                                            <div
+                                              key={pair.id}
+                                              className={`p-3 rounded-lg border ${
+                                                isMyPair
+                                                  ? 'bg-cyan-100 border-cyan-300'
+                                                  : 'bg-white border-cyan-200'
+                                              }`}
+                                            >
+                                              <div className="flex items-center gap-3">
+                                                <span className="w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold bg-amber-500 text-white">
+                                                  {index + 1}
+                                                </span>
+                                                <div className="flex-1">
+                                                  <div className="flex items-center gap-2 flex-wrap">
+                                                    <span className={`font-medium ${pair.player1_id === profile?.id ? 'text-cyan-700' : 'text-gray-900'}`}>
+                                                      {pair.player1?.full_name || 'Jogador'}
+                                                      {pair.player1_id === profile?.id && ' (Voce)'}
+                                                    </span>
+                                                    {pair.player2 ? (
+                                                      <>
+                                                        <span className="text-gray-400">&</span>
+                                                        <span className={`font-medium ${pair.player2_id === profile?.id ? 'text-cyan-700' : 'text-gray-900'}`}>
+                                                          {pair.player2?.full_name || 'Jogador'}
+                                                          {pair.player2_id === profile?.id && ' (Voce)'}
+                                                        </span>
+                                                      </>
+                                                    ) : (
+                                                      <span className="text-amber-600 font-medium">(Coringa)</span>
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Serie B - Bottom Half */}
+                                  {currentPairs.some(p => !p.is_top_12) && (
+                                    <div>
+                                      <div className="flex items-center gap-2 mb-3">
+                                        <span className="w-5 h-5 rounded-full bg-gray-500 flex items-center justify-center">
+                                          <span className="text-white text-xs font-bold">B</span>
+                                        </span>
+                                        <h4 className="font-bold text-cyan-900">Série B</h4>
+                                      </div>
+                                      <div className="space-y-2">
+                                        {currentPairs.filter(p => !p.is_top_12).map((pair, index) => {
+                                          const isMyPair = pair.player1_id === profile?.id || pair.player2_id === profile?.id;
+                                          return (
+                                            <div
+                                              key={pair.id}
+                                              className={`p-3 rounded-lg border ${
+                                                isMyPair
+                                                  ? 'bg-cyan-100 border-cyan-300'
+                                                  : 'bg-white border-cyan-200'
+                                              }`}
+                                            >
+                                              <div className="flex items-center gap-3">
+                                                <span className="w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold bg-gray-500 text-white">
+                                                  {index + 1}
+                                                </span>
+                                                <div className="flex-1">
+                                                  <div className="flex items-center gap-2 flex-wrap">
+                                                    <span className={`font-medium ${pair.player1_id === profile?.id ? 'text-cyan-700' : 'text-gray-900'}`}>
+                                                      {pair.player1?.full_name || 'Jogador'}
+                                                      {pair.player1_id === profile?.id && ' (Voce)'}
+                                                    </span>
+                                                    {pair.player2 ? (
+                                                      <>
+                                                        <span className="text-gray-400">&</span>
+                                                        <span className={`font-medium ${pair.player2_id === profile?.id ? 'text-cyan-700' : 'text-gray-900'}`}>
+                                                          {pair.player2?.full_name || 'Jogador'}
+                                                          {pair.player2_id === profile?.id && ' (Voce)'}
+                                                        </span>
+                                                      </>
+                                                    ) : (
+                                                      <span className="text-amber-600 font-medium">(Coringa)</span>
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
+                                </>
+                              );
+                            })()}
                           </div>
                         </div>
                       </div>
@@ -3061,209 +3135,149 @@ const shouldShowEventLists = (league: League): boolean => {
                           </p>
 
                           <div className="mt-4 space-y-4">
-                            {/* Serie A Matches */}
                             {(() => {
+                              const hasSeriesDivision = currentPairs.some(p => p.is_top_12);
+
+                              // Match Card Component
+                              const MatchCard = ({ match, badgeColor }: { match: any, badgeColor: string }) => {
+                                const pair1 = currentPairs.find(p => p.id === match.pair1_id);
+                                const pair2 = currentPairs.find(p => p.id === match.pair2_id);
+
+                                if (!pair1 || !pair2) return null;
+
+                                const isMyMatch =
+                                  pair1.player1_id === profile?.id ||
+                                  pair1.player2_id === profile?.id ||
+                                  pair2.player1_id === profile?.id ||
+                                  pair2.player2_id === profile?.id;
+
+                                return (
+                                  <div
+                                    key={match.id}
+                                    className={`p-3 rounded-lg border ${
+                                      isMyMatch
+                                        ? 'bg-purple-100 border-purple-300'
+                                        : 'bg-white border-purple-200'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2 text-xs text-purple-600 mb-2">
+                                      <span className="font-bold">Jogo #{match.match_number}</span>
+                                    </div>
+
+                                    <div className="flex items-center gap-3">
+                                      {/* Pair 1 */}
+                                      <div className="flex-1">
+                                        <div className="flex items-center gap-2">
+                                          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${badgeColor}`}>
+                                            {pair1.pair_number}
+                                          </span>
+                                          <div className="flex-1">
+                                            <div className="text-sm font-medium text-gray-900">
+                                              {pair1.player1?.full_name || 'Jogador'}
+                                              {pair1.player1_id === profile?.id && ' (Você)'}
+                                            </div>
+                                            {pair1.player2 ? (
+                                              <div className="text-sm font-medium text-gray-900">
+                                                {pair1.player2?.full_name || 'Jogador'}
+                                                {pair1.player2_id === profile?.id && ' (Você)'}
+                                              </div>
+                                            ) : (
+                                              <div className="text-xs text-amber-600">(Coringa)</div>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      {/* VS indicator */}
+                                      <div className="px-2">
+                                        <span className="text-purple-600 font-bold text-sm">VS</span>
+                                      </div>
+
+                                      {/* Pair 2 */}
+                                      <div className="flex-1">
+                                        <div className="flex items-center gap-2">
+                                          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${badgeColor}`}>
+                                            {pair2.pair_number}
+                                          </span>
+                                          <div className="flex-1">
+                                            <div className="text-sm font-medium text-gray-900">
+                                              {pair2.player1?.full_name || 'Jogador'}
+                                              {pair2.player1_id === profile?.id && ' (Você)'}
+                                            </div>
+                                            {pair2.player2 ? (
+                                              <div className="text-sm font-medium text-gray-900">
+                                                {pair2.player2?.full_name || 'Jogador'}
+                                                {pair2.player2_id === profile?.id && ' (Você)'}
+                                              </div>
+                                            ) : (
+                                              <div className="text-xs text-amber-600">(Coringa)</div>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              };
+
+                              if (!hasSeriesDivision) {
+                                // No division - show all matches without series separation
+                                return (
+                                  <div className="space-y-3">
+                                    {currentMatches.map((match) => (
+                                      <MatchCard key={match.id} match={match} badgeColor="bg-purple-600 text-white" />
+                                    ))}
+                                  </div>
+                                );
+                              }
+
+                              // Has series division
                               const serieAMatches = currentMatches.filter(match => {
                                 const pair1 = currentPairs.find(p => p.id === match.pair1_id);
                                 return pair1?.is_top_12;
                               });
 
-                              if (serieAMatches.length === 0) return null;
-
-                              return (
-                                <div>
-                                  <div className="flex items-center gap-2 mb-3">
-                                    <span className="w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center">
-                                      <span className="text-white text-xs font-bold">A</span>
-                                    </span>
-                                    <h4 className="font-bold text-purple-900">Série A</h4>
-                                  </div>
-                                  <div className="space-y-3">
-                                    {serieAMatches.map((match) => {
-                                      const pair1 = currentPairs.find(p => p.id === match.pair1_id);
-                                      const pair2 = currentPairs.find(p => p.id === match.pair2_id);
-
-                                      if (!pair1 || !pair2) return null;
-
-                                      const isMyMatch =
-                                        pair1.player1_id === profile?.id ||
-                                        pair1.player2_id === profile?.id ||
-                                        pair2.player1_id === profile?.id ||
-                                        pair2.player2_id === profile?.id;
-
-                                      return (
-                                        <div
-                                          key={match.id}
-                                          className={`p-3 rounded-lg border ${
-                                            isMyMatch
-                                              ? 'bg-purple-100 border-purple-300'
-                                              : 'bg-white border-purple-200'
-                                          }`}
-                                        >
-                                          <div className="flex items-center gap-2 text-xs text-purple-600 mb-2">
-                                            <span className="font-bold">Jogo #{match.match_number}</span>
-                                          </div>
-
-                                          <div className="flex items-center gap-3">
-                                            {/* Pair 1 */}
-                                            <div className="flex-1">
-                                              <div className="flex items-center gap-2">
-                                                <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-amber-500 text-white">
-                                                  {pair1.pair_number}
-                                                </span>
-                                                <div className="flex-1">
-                                                  <div className="text-sm font-medium text-gray-900">
-                                                    {pair1.player1?.full_name || 'Jogador'}
-                                                    {pair1.player1_id === profile?.id && ' (Você)'}
-                                                  </div>
-                                                  {pair1.player2 ? (
-                                                    <div className="text-sm font-medium text-gray-900">
-                                                      {pair1.player2?.full_name || 'Jogador'}
-                                                      {pair1.player2_id === profile?.id && ' (Você)'}
-                                                    </div>
-                                                  ) : (
-                                                    <div className="text-xs text-amber-600">(Coringa)</div>
-                                                  )}
-                                                </div>
-                                              </div>
-                                            </div>
-
-                                            {/* VS indicator */}
-                                            <div className="px-2">
-                                              <span className="text-purple-600 font-bold text-sm">VS</span>
-                                            </div>
-
-                                            {/* Pair 2 */}
-                                            <div className="flex-1">
-                                              <div className="flex items-center gap-2">
-                                                <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-amber-500 text-white">
-                                                  {pair2.pair_number}
-                                                </span>
-                                                <div className="flex-1">
-                                                  <div className="text-sm font-medium text-gray-900">
-                                                    {pair2.player1?.full_name || 'Jogador'}
-                                                    {pair2.player1_id === profile?.id && ' (Você)'}
-                                                  </div>
-                                                  {pair2.player2 ? (
-                                                    <div className="text-sm font-medium text-gray-900">
-                                                      {pair2.player2?.full_name || 'Jogador'}
-                                                      {pair2.player2_id === profile?.id && ' (Você)'}
-                                                    </div>
-                                                  ) : (
-                                                    <div className="text-xs text-amber-600">(Coringa)</div>
-                                                  )}
-                                                </div>
-                                              </div>
-                                            </div>
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              );
-                            })()}
-
-                            {/* Serie B Matches */}
-                            {(() => {
                               const serieBMatches = currentMatches.filter(match => {
                                 const pair1 = currentPairs.find(p => p.id === match.pair1_id);
                                 return !pair1?.is_top_12;
                               });
 
-                              if (serieBMatches.length === 0) return null;
-
                               return (
-                                <div>
-                                  <div className="flex items-center gap-2 mb-3">
-                                    <span className="w-5 h-5 rounded-full bg-gray-500 flex items-center justify-center">
-                                      <span className="text-white text-xs font-bold">B</span>
-                                    </span>
-                                    <h4 className="font-bold text-purple-900">Série B</h4>
-                                  </div>
-                                  <div className="space-y-3">
-                                    {serieBMatches.map((match) => {
-                                      const pair1 = currentPairs.find(p => p.id === match.pair1_id);
-                                      const pair2 = currentPairs.find(p => p.id === match.pair2_id);
+                                <>
+                                  {/* Serie A Matches */}
+                                  {serieAMatches.length > 0 && (
+                                    <div>
+                                      <div className="flex items-center gap-2 mb-3">
+                                        <span className="w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center">
+                                          <span className="text-white text-xs font-bold">A</span>
+                                        </span>
+                                        <h4 className="font-bold text-purple-900">Série A</h4>
+                                      </div>
+                                      <div className="space-y-3">
+                                        {serieAMatches.map((match) => (
+                                          <MatchCard key={match.id} match={match} badgeColor="bg-amber-500 text-white" />
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
 
-                                      if (!pair1 || !pair2) return null;
-
-                                      const isMyMatch =
-                                        pair1.player1_id === profile?.id ||
-                                        pair1.player2_id === profile?.id ||
-                                        pair2.player1_id === profile?.id ||
-                                        pair2.player2_id === profile?.id;
-
-                                      return (
-                                        <div
-                                          key={match.id}
-                                          className={`p-3 rounded-lg border ${
-                                            isMyMatch
-                                              ? 'bg-purple-100 border-purple-300'
-                                              : 'bg-white border-purple-200'
-                                          }`}
-                                        >
-                                          <div className="flex items-center gap-2 text-xs text-purple-600 mb-2">
-                                            <span className="font-bold">Jogo #{match.match_number}</span>
-                                          </div>
-
-                                          <div className="flex items-center gap-3">
-                                            {/* Pair 1 */}
-                                            <div className="flex-1">
-                                              <div className="flex items-center gap-2">
-                                                <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-gray-500 text-white">
-                                                  {pair1.pair_number}
-                                                </span>
-                                                <div className="flex-1">
-                                                  <div className="text-sm font-medium text-gray-900">
-                                                    {pair1.player1?.full_name || 'Jogador'}
-                                                    {pair1.player1_id === profile?.id && ' (Você)'}
-                                                  </div>
-                                                  {pair1.player2 ? (
-                                                    <div className="text-sm font-medium text-gray-900">
-                                                      {pair1.player2?.full_name || 'Jogador'}
-                                                      {pair1.player2_id === profile?.id && ' (Você)'}
-                                                    </div>
-                                                  ) : (
-                                                    <div className="text-xs text-amber-600">(Coringa)</div>
-                                                  )}
-                                                </div>
-                                              </div>
-                                            </div>
-
-                                            {/* VS indicator */}
-                                            <div className="px-2">
-                                              <span className="text-purple-600 font-bold text-sm">VS</span>
-                                            </div>
-
-                                            {/* Pair 2 */}
-                                            <div className="flex-1">
-                                              <div className="flex items-center gap-2">
-                                                <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-gray-500 text-white">
-                                                  {pair2.pair_number}
-                                                </span>
-                                                <div className="flex-1">
-                                                  <div className="text-sm font-medium text-gray-900">
-                                                    {pair2.player1?.full_name || 'Jogador'}
-                                                    {pair2.player1_id === profile?.id && ' (Você)'}
-                                                  </div>
-                                                  {pair2.player2 ? (
-                                                    <div className="text-sm font-medium text-gray-900">
-                                                      {pair2.player2?.full_name || 'Jogador'}
-                                                      {pair2.player2_id === profile?.id && ' (Você)'}
-                                                    </div>
-                                                  ) : (
-                                                    <div className="text-xs text-amber-600">(Coringa)</div>
-                                                  )}
-                                                </div>
-                                              </div>
-                                            </div>
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
+                                  {/* Serie B Matches */}
+                                  {serieBMatches.length > 0 && (
+                                    <div>
+                                      <div className="flex items-center gap-2 mb-3">
+                                        <span className="w-5 h-5 rounded-full bg-gray-500 flex items-center justify-center">
+                                          <span className="text-white text-xs font-bold">B</span>
+                                        </span>
+                                        <h4 className="font-bold text-purple-900">Série B</h4>
+                                      </div>
+                                      <div className="space-y-3">
+                                        {serieBMatches.map((match) => (
+                                          <MatchCard key={match.id} match={match} badgeColor="bg-gray-500 text-white" />
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </>
                               );
                             })()}
                           </div>
