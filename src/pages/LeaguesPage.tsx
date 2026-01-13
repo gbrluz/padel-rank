@@ -3677,8 +3677,8 @@ const shouldShowEventLists = (league: League): boolean => {
                                 )}
                                 <div className="bg-teal-100 rounded-lg p-3 text-sm text-teal-800">
                                   <p className="font-medium mb-1">Previa da pontuacao:</p>
-                                  <p>Presenca: +2,5 pts</p>
-                                  {(myLastEventAttendance?.status === 'play_and_bbq' || myLastEventAttendance?.status === 'bbq_only') && <p>Churras: +2,5 pts</p>}
+                                  <p>Presenca: +1 pt</p>
+                                  {(myLastEventAttendance?.status === 'play_and_bbq' || myLastEventAttendance?.status === 'bbq_only') && <p>Churras: +1 pt</p>}
                                   {scoringVictories > 0 && <p>Vitorias: +{scoringVictories * 2} pts</p>}
                                   {appliedBlowouts && blowoutVictims.length > 0 && (() => {
                                     // Count how many pairs were selected (not individual players)
@@ -4421,8 +4421,8 @@ const shouldShowEventLists = (league: League): boolean => {
 
               <div className="bg-teal-50 rounded-lg p-3 text-sm text-teal-800">
                 <p className="font-medium mb-1">Previa da pontuacao:</p>
-                {editAttendanceConfirmed && <p>Presenca: +2,5 pts</p>}
-                {editBbqParticipated && <p>Churras: +2,5 pts</p>}
+                {editAttendanceConfirmed && <p>Presenca: +1 pt</p>}
+                {editBbqParticipated && <p>Churras: +1 pt</p>}
                 {editVictories > 0 && <p>Vitorias: +{editVictories * 2} pts</p>}
                 {editAppliedBlowouts && editBlowoutVictims.length > 0 && (() => {
                   // Count how many PAIRS were selected (not individual players)
@@ -4431,7 +4431,7 @@ const shouldShowEventLists = (league: League): boolean => {
                     const hasPlayer2 = pair.player2_id && editBlowoutVictims.includes(pair.player2_id);
                     return hasPlayer1 || hasPlayer2;
                   }).length;
-                  return <p className="text-green-700">Pneus aplicados: +{selectedPairsCount * 3} pts</p>;
+                  return <p className="text-green-700">Pneus aplicados: +{selectedPairsCount * 2} pts</p>;
                 })()}
                 <p className="font-bold mt-1 pt-1 border-t border-teal-200">
                   Total: {(() => {
