@@ -4071,6 +4071,9 @@ const shouldShowEventLists = (league: League): boolean => {
                                         {ranking.blowouts > 0 && (
                                           <span className="text-red-600"> • {ranking.blowouts} pneu{ranking.blowouts > 1 ? 's' : ''}</span>
                                         )}
+                                        {ranking.blowouts_applied > 0 && (
+                                          <span className="text-green-600"> • {ranking.blowouts_applied} aplicado{ranking.blowouts_applied > 1 ? 's' : ''}</span>
+                                        )}
                                       </p>
                                     </div>
                                     <div className="flex items-center gap-2 flex-shrink-0">
