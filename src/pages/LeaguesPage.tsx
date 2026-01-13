@@ -4069,10 +4069,10 @@ const shouldShowEventLists = (league: League): boolean => {
                                         {ranking.matches_played} partidas • {ranking.wins}V / {ranking.losses}D
                                         {ranking.win_rate > 0 && ` • ${ranking.win_rate.toFixed(0)}%`}
                                         {ranking.blowouts > 0 && (
-                                          <span className="text-red-600"> • {ranking.blowouts} pneu{ranking.blowouts > 1 ? 's' : ''}</span>
+                                          <span className="text-red-600"> • {ranking.blowouts} pneu{ranking.blowouts > 1 ? 's' : ''} recebido{ranking.blowouts > 1 ? 's' : ''}</span>
                                         )}
                                         {ranking.blowouts_applied > 0 && (
-                                          <span className="text-green-600"> • {ranking.blowouts_applied} aplicado{ranking.blowouts_applied > 1 ? 's' : ''}</span>
+                                          <span className="text-green-600"> • {ranking.blowouts_applied} pneu{ranking.blowouts_applied > 1 ? 's' : ''} aplicado{ranking.blowouts_applied > 1 ? 's' : ''}</span>
                                         )}
                                       </p>
                                     </div>
