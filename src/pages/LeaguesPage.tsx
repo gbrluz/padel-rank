@@ -26,10 +26,25 @@ interface League {
 
 interface WeeklyAttendance {
   id: string;
-  league_id: string;
+  event_id: string;
   player_id: string;
-  week_date: string;
   status: 'confirmed' | 'declined' | 'no_response' | 'bbq_only' | 'play_and_bbq';
+  confirmed: boolean;
+  confirmed_at: string | null;
+  victories: number;
+  defeats: number;
+  bbq_participated: boolean;
+  blowouts_received: number;
+  blowouts_applied: number;
+  total_points: number;
+  points_submitted: boolean;
+  points_submitted_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface WeeklyAttendanceWithPlayer extends WeeklyAttendance {
+  player: Profile;
 }
 
 interface LeagueRanking {
@@ -132,6 +147,8 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
   const [performingDraw, setPerformingDraw] = useState(false);
   const [scoreSubmissions, setScoreSubmissions] = useState<Record<string, boolean>>({});
   const [editingPlayerScore, setEditingPlayerScore] = useState<{ playerId: string; playerName: string } | null>(null);
+  const [nextEventAttendances, setNextEventAttendances] = useState<WeeklyAttendanceWithPlayer[]>([]);
+  const [confirmingAttendance, setConfirmingAttendance] = useState<string | null>(null);
   const [editVictories, setEditVictories] = useState(0);
   const [editDefeats, setEditDefeats] = useState(0);
   const [editAppliedBlowouts, setEditAppliedBlowouts] = useState(false);
@@ -210,6 +227,9 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
 
       if (isOrganizer) {
         promises.push(loadJoinRequests(selectedLeague.id));
+        if (selectedLeague.format === 'weekly') {
+          promises.push(loadNextEventAttendances(selectedLeague.id));
+        }
       }
 
       if (selectedLeague.format === 'weekly') {
@@ -490,6 +510,86 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
     } catch (error) {
       console.error('Error removing member:', error);
       alert('Erro ao remover membro');
+    }
+  };
+
+  const handleToggleAttendanceConfirmation = async (attendanceId: string, currentStatus: boolean) => {
+    if (!selectedLeague) return;
+
+    setConfirmingAttendance(attendanceId);
+    try {
+      // First, get the full attendance record to know the status
+      const { data: attendance, error: fetchError } = await supabase
+        .from('weekly_event_attendance')
+        .select('*')
+        .eq('id', attendanceId)
+        .single();
+
+      if (fetchError) throw fetchError;
+      if (!attendance) throw new Error('Attendance record not found');
+
+      const newConfirmedStatus = !currentStatus;
+
+      // If confirming (toggling to true), calculate and submit points automatically
+      if (newConfirmedStatus) {
+        const willPlay = attendance.status === 'confirmed' || attendance.status === 'play_and_bbq';
+        const willBbq = attendance.status === 'bbq_only' || attendance.status === 'play_and_bbq';
+
+        // Calculate points based on attendance type
+        let totalPoints = 0;
+
+        // Only add game points if player will actually play
+        if (willPlay) {
+          totalPoints += 1; // Participation point
+        }
+
+        if (willBbq) {
+          totalPoints += 1; // BBQ point
+        }
+
+        // For bbq_only, they get only the BBQ point (no game participation)
+        if (attendance.status === 'bbq_only') {
+          totalPoints = 1; // Only BBQ point
+        }
+
+        const { error } = await supabase
+          .from('weekly_event_attendance')
+          .update({
+            confirmed: true,
+            confirmed_at: new Date().toISOString(),
+            bbq_participated: willBbq,
+            total_points: totalPoints,
+            points_submitted: true,
+            points_submitted_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', attendanceId);
+
+        if (error) throw error;
+      } else {
+        // If unconfirming, just update the confirmed status
+        const { error } = await supabase
+          .from('weekly_event_attendance')
+          .update({
+            confirmed: false,
+            confirmed_at: null,
+          })
+          .eq('id', attendanceId);
+
+        if (error) throw error;
+      }
+
+      // Reload attendances and rankings
+      await loadNextEventAttendances(selectedLeague.id);
+      if (newConfirmedStatus) {
+        await loadLeagueRankings(selectedLeague.id);
+        await loadScoreSubmissions(selectedLeague.id);
+      }
+    } catch (error) {
+      console.error('Error confirming attendance:', error);
+      alert('Erro ao confirmar presença');
+    } finally {
+      setConfirmingAttendance(null);
     }
   };
 
@@ -808,6 +908,58 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
       }
     } catch (error) {
       console.error('Error loading event draw:', error);
+    }
+  };
+
+  const loadNextEventAttendances = async (leagueId: string) => {
+    if (!selectedLeague) return;
+
+    const nextEvent = getNextWeeklyEventDate(selectedLeague);
+    if (!nextEvent) {
+      setNextEventAttendances([]);
+      return;
+    }
+
+    const eventDate = nextEvent.toISOString().split('T')[0];
+
+    try {
+      // First get or create the weekly_event
+      const { data: weeklyEvent, error: eventError } = await supabase
+        .from('weekly_events')
+        .select('id')
+        .eq('league_id', leagueId)
+        .eq('event_date', eventDate)
+        .maybeSingle();
+
+      if (eventError) {
+        console.error('Error loading weekly event:', eventError);
+        return;
+      }
+
+      if (!weeklyEvent) {
+        // No event created yet, so no attendances
+        setNextEventAttendances([]);
+        return;
+      }
+
+      // Load attendances with player data
+      const { data: attendances, error: attendanceError } = await supabase
+        .from('weekly_event_attendance')
+        .select(`
+          *,
+          player:player_id(id, full_name, ranking_points, category)
+        `)
+        .eq('event_id', weeklyEvent.id)
+        .order('confirmed_at', { ascending: false, nullsFirst: false });
+
+      if (attendanceError) {
+        console.error('Error loading attendances:', attendanceError);
+        return;
+      }
+
+      setNextEventAttendances(attendances || []);
+    } catch (error) {
+      console.error('Error loading next event attendances:', error);
     }
   };
 
@@ -1357,6 +1509,9 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
       }
 
       await loadEventDraw(selectedLeague.id);
+      if (organizerLeagues.includes(selectedLeague.id)) {
+        await loadNextEventAttendances(selectedLeague.id);
+      }
       alert('Sorteio realizado com sucesso!');
     } catch (error) {
       console.error('Error performing draw:', error);
@@ -1378,6 +1533,9 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
 
       setCurrentDraw(null);
       setCurrentPairs([]);
+      if (organizerLeagues.includes(selectedLeague.id)) {
+        await loadNextEventAttendances(selectedLeague.id);
+      }
     } catch (error) {
       console.error('Error deleting draw:', error);
       alert('Erro ao apagar sorteio');
@@ -2819,6 +2977,74 @@ const shouldShowEventLists = (league: League): boolean => {
                           ))}
                         </div>
                       </div>
+
+                      {selectedLeague.format === 'weekly' && nextEventAttendances.length > 0 && (
+                        <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
+                          <h3 className="font-bold text-blue-900 mb-3 flex items-center gap-2">
+                            <CalendarCheck className="w-5 h-5" />
+                            Confirmação de Presença ({nextEventAttendances.length})
+                          </h3>
+                          <p className="text-sm text-blue-700 mb-3">
+                            Confirme a presença dos jogadores no próximo evento
+                          </p>
+                          <div className="space-y-2 max-h-96 overflow-y-auto">
+                            {nextEventAttendances.map((attendance) => {
+                              const willPlay = attendance.status === 'confirmed' || attendance.status === 'play_and_bbq';
+                              const willBbq = attendance.status === 'bbq_only' || attendance.status === 'play_and_bbq';
+
+                              return (
+                                <div
+                                  key={attendance.id}
+                                  className="flex items-center justify-between p-3 bg-white rounded-lg border border-blue-200"
+                                >
+                                  <div className="flex-1">
+                                    <p className="font-semibold text-gray-900">{attendance.player.full_name}</p>
+                                    <div className="flex items-center gap-2 mt-1">
+                                      <p className="text-sm text-gray-600">
+                                        {attendance.player.ranking_points} pts • {attendance.player.category}
+                                      </p>
+                                      {willPlay && (
+                                        <span className="text-xs px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded">
+                                          Jogar
+                                        </span>
+                                      )}
+                                      {willBbq && (
+                                        <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-700 rounded">
+                                          Churras
+                                        </span>
+                                      )}
+                                      {attendance.confirmed && (
+                                        <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded flex items-center gap-1">
+                                          <CheckCircle className="w-3 h-3" />
+                                          Confirmado
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <button
+                                    onClick={() => handleToggleAttendanceConfirmation(attendance.id, attendance.confirmed)}
+                                    disabled={confirmingAttendance === attendance.id}
+                                    className={`p-2 rounded-lg ${
+                                      attendance.confirmed
+                                        ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                        : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                                    } disabled:opacity-50 flex items-center gap-1`}
+                                    title={attendance.confirmed ? 'Desconfirmar presença' : 'Confirmar presença'}
+                                  >
+                                    {confirmingAttendance === attendance.id ? (
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : attendance.confirmed ? (
+                                      <X className="w-4 h-4" />
+                                    ) : (
+                                      <Check className="w-4 h-4" />
+                                    )}
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
 
                       {selectedLeague.format === 'weekly' && (
                         <div className="bg-cyan-50 border-2 border-cyan-200 rounded-xl p-4">
