@@ -518,18 +518,73 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
 
     setConfirmingAttendance(attendanceId);
     try {
-      const { error } = await supabase
+      // First, get the full attendance record to know the status
+      const { data: attendance, error: fetchError } = await supabase
         .from('weekly_event_attendance')
-        .update({
-          confirmed: !currentStatus,
-          confirmed_at: !currentStatus ? new Date().toISOString() : null,
-        })
-        .eq('id', attendanceId);
+        .select('*')
+        .eq('id', attendanceId)
+        .single();
 
-      if (error) throw error;
+      if (fetchError) throw fetchError;
+      if (!attendance) throw new Error('Attendance record not found');
 
-      // Reload attendances
+      const newConfirmedStatus = !currentStatus;
+
+      // If confirming (toggling to true), calculate and submit points automatically
+      if (newConfirmedStatus) {
+        const willPlay = attendance.status === 'confirmed' || attendance.status === 'play_and_bbq';
+        const willBbq = attendance.status === 'bbq_only' || attendance.status === 'play_and_bbq';
+
+        // Calculate points based on attendance type
+        let totalPoints = 0;
+
+        // Only add game points if player will actually play
+        if (willPlay) {
+          totalPoints += 1; // Participation point
+        }
+
+        if (willBbq) {
+          totalPoints += 1; // BBQ point
+        }
+
+        // For bbq_only, they get only the BBQ point (no game participation)
+        if (attendance.status === 'bbq_only') {
+          totalPoints = 1; // Only BBQ point
+        }
+
+        const { error } = await supabase
+          .from('weekly_event_attendance')
+          .update({
+            confirmed: true,
+            confirmed_at: new Date().toISOString(),
+            bbq_participated: willBbq,
+            total_points: totalPoints,
+            points_submitted: true,
+            points_submitted_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', attendanceId);
+
+        if (error) throw error;
+      } else {
+        // If unconfirming, just update the confirmed status
+        const { error } = await supabase
+          .from('weekly_event_attendance')
+          .update({
+            confirmed: false,
+            confirmed_at: null,
+          })
+          .eq('id', attendanceId);
+
+        if (error) throw error;
+      }
+
+      // Reload attendances and rankings
       await loadNextEventAttendances(selectedLeague.id);
+      if (newConfirmedStatus) {
+        await loadLeagueRankings(selectedLeague.id);
+        await loadScoreSubmissions(selectedLeague.id);
+      }
     } catch (error) {
       console.error('Error confirming attendance:', error);
       alert('Erro ao confirmar presença');
