@@ -1184,16 +1184,16 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
 
       const allSamePoints = playersWithPoints.every(p => p.points === playersWithPoints[0].points);
 
-      // Fetch previous events' pairs to avoid repeating them (last 4 events)
+      // Fetch previous events' pairs to avoid repeating them (last 12 events)
       let previousPairs: Set<string> = new Set();
       try {
-        // Get the last 4 draws from this league
+        // Get the last 12 draws from this league
         const { data: recentDraws } = await supabase
           .from('weekly_event_draws')
           .select('id, event_date')
           .eq('league_id', selectedLeague.id)
           .order('event_date', { ascending: false })
-          .limit(4);
+          .limit(12);
 
         if (recentDraws && recentDraws.length > 0) {
           console.log(`📋 Checking last ${recentDraws.length} events for pairs to avoid...`);
