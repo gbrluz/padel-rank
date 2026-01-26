@@ -1059,20 +1059,37 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
       // Separate guests from regular players
       const guestPlayers: string[] = [];
       const regularPlayers: string[] = [];
+      const playersNotFound: string[] = [];
 
       confirmedPlayers.forEach(playerId => {
         const player = allPlayers.find(p => p.id === playerId);
-        if (player && player.full_name.toLowerCase().includes('convidado')) {
+        if (!player) {
+          console.warn(`⚠️ Player ${playerId} not found in allPlayers list`);
+          playersNotFound.push(playerId);
+          return; // Skip this player
+        }
+
+        if (player.full_name.toLowerCase().includes('convidado')) {
           guestPlayers.push(playerId);
         } else {
           regularPlayers.push(playerId);
         }
       });
 
+      if (playersNotFound.length > 0) {
+        alert(`Erro: ${playersNotFound.length} jogador(es) não encontrado(s) no sistema. Por favor, atualize a página e tente novamente.`);
+        return;
+      }
+
       console.log(`👥 Total players: ${confirmedPlayers.length} (${regularPlayers.length} regulares + ${guestPlayers.length} convidados)`);
 
       if (guestPlayers.length % 2 !== 0) {
         alert('Número de convidados deve ser par para formar duplas completas');
+        return;
+      }
+
+      if (confirmedPlayers.length < 2) {
+        alert('São necessários pelo menos 2 jogadores confirmados para realizar o sorteio');
         return;
       }
 
@@ -1181,19 +1198,28 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
       };
 
       // Create guest pairs first (always in Serie B)
-      const guestPairs = createPairsAvoidingRepeats(guestPlayers).map(pair => ({
-        player1: pair.player1,
-        player2: pair.player2,
-        isTop12: false, // Guests always in Serie B
-      }));
-      console.log(`👥 Created ${guestPairs.length} guest pairs (Serie B)`);
+      const guestPairs = guestPlayers.length > 0
+        ? createPairsAvoidingRepeats(guestPlayers).map(pair => ({
+            player1: pair.player1,
+            player2: pair.player2,
+            isTop12: false, // Guests always in Serie B
+          }))
+        : [];
+
+      if (guestPairs.length > 0) {
+        console.log(`👥 Created ${guestPairs.length} guest pairs (Serie B)`);
+      }
 
       let pairs: { player1: string; player2: string | null; isTop12: boolean }[];
 
       if (regularPlayers.length === 0) {
         // Only guests playing
+        if (guestPairs.length < 2) {
+          alert('É necessário pelo menos 4 convidados (2 duplas) para realizar o sorteio apenas com convidados');
+          return;
+        }
         pairs = guestPairs;
-        console.log(`✅ Only guests - no regular players`);
+        console.log(`✅ Only guests - ${guestPairs.length} pairs`);
 
       } else if (allSamePoints) {
         // CASE 1: All REGULAR players have same points
