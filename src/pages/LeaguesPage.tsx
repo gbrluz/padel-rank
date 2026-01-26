@@ -1297,9 +1297,27 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
         return bestResult;
       };
 
+      // Simple pair creation for guests (no repetition check needed)
+      const createSimplePairs = (players: string[]): { player1: string; player2: string | null }[] => {
+        const pairs: { player1: string; player2: string | null }[] = [];
+        const shuffled = shuffleArray([...players]);
+
+        for (let i = 0; i < shuffled.length - 1; i += 2) {
+          pairs.push({ player1: shuffled[i], player2: shuffled[i + 1] });
+        }
+
+        // Handle odd number (wildcard)
+        if (shuffled.length % 2 === 1) {
+          pairs.push({ player1: shuffled[shuffled.length - 1], player2: null });
+        }
+
+        return pairs;
+      };
+
       // Create guest pairs first (always in Serie B)
+      // Guests don't need repetition avoidance logic
       const guestPairs = guestPlayers.length > 0
-        ? createPairsAvoidingRepeats(guestPlayers).map(pair => ({
+        ? createSimplePairs(guestPlayers).map(pair => ({
             player1: pair.player1,
             player2: pair.player2,
             isTop12: false, // Guests always in Serie B
