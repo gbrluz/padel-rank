@@ -149,6 +149,7 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
   const [editingPlayerScore, setEditingPlayerScore] = useState<{ playerId: string; playerName: string } | null>(null);
   const [nextEventAttendances, setNextEventAttendances] = useState<WeeklyAttendanceWithPlayer[]>([]);
   const [confirmingAttendance, setConfirmingAttendance] = useState<string | null>(null);
+  const [managingAttendance, setManagingAttendance] = useState<string | null>(null);
   const [editVictories, setEditVictories] = useState(0);
   const [editDefeats, setEditDefeats] = useState(0);
   const [editAppliedBlowouts, setEditAppliedBlowouts] = useState(false);
@@ -590,6 +591,85 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
       alert('Erro ao confirmar presença');
     } finally {
       setConfirmingAttendance(null);
+    }
+  };
+
+  const handleManagePlayerAttendance = async (playerId: string, willPlay: boolean, willBbq: boolean) => {
+    if (!selectedLeague || !profile) return;
+
+    const nextEvent = getNextWeeklyEventDate(selectedLeague);
+    if (!nextEvent) return;
+
+    const eventDate = nextEvent.toISOString().split('T')[0];
+
+    setManagingAttendance(playerId);
+    try {
+      // Create weekly_event if it doesn't exist
+      let { data: weeklyEvent, error: eventError } = await supabase
+        .from('weekly_events')
+        .select('id')
+        .eq('league_id', selectedLeague.id)
+        .eq('event_date', eventDate)
+        .maybeSingle();
+
+      if (!weeklyEvent) {
+        const { data: newEvent, error: createError } = await supabase
+          .from('weekly_events')
+          .insert({
+            league_id: selectedLeague.id,
+            event_date: eventDate,
+          })
+          .select()
+          .single();
+
+        if (createError) throw createError;
+        weeklyEvent = newEvent;
+      }
+
+      // Determine status based on willPlay and willBbq
+      let status: 'confirmed' | 'declined' | 'bbq_only' | 'play_and_bbq';
+      if (willPlay && willBbq) {
+        status = 'play_and_bbq';
+      } else if (willPlay && !willBbq) {
+        status = 'confirmed';
+      } else if (!willPlay && willBbq) {
+        status = 'bbq_only';
+      } else {
+        status = 'declined';
+      }
+
+      // Upsert attendance record
+      const { error: attendanceError } = await supabase
+        .from('weekly_event_attendance')
+        .upsert({
+          event_id: weeklyEvent.id,
+          player_id: playerId,
+          status: status,
+          confirmed: false, // Organizer inserted, not player confirmed
+          victories: 0,
+          defeats: 0,
+          bbq_participated: willBbq,
+          blowouts_received: 0,
+          blowouts_applied: 0,
+          total_points: 0,
+          points_submitted: false,
+          updated_at: new Date().toISOString(),
+        }, {
+          onConflict: 'event_id,player_id'
+        });
+
+      if (attendanceError) throw attendanceError;
+
+      // Reload data
+      await loadAllAttendances(selectedLeague.id);
+      if (organizerLeagues.includes(selectedLeague.id)) {
+        await loadNextEventAttendances(selectedLeague.id);
+      }
+    } catch (error) {
+      console.error('Error managing attendance:', error);
+      alert('Erro ao gerenciar presença');
+    } finally {
+      setManagingAttendance(null);
     }
   };
 
@@ -3085,6 +3165,76 @@ const shouldShowEventLists = (league: League): boolean => {
                           ))}
                         </div>
                       </div>
+
+                      {selectedLeague.format === 'weekly' && leagueMembers.length > 0 && (
+                        <div className="bg-purple-50 border-2 border-purple-200 rounded-xl p-4">
+                          <h3 className="font-bold text-purple-900 mb-3 flex items-center gap-2">
+                            <CalendarCheck className="w-5 h-5" />
+                            Gerenciar Presenças - Próximo Evento
+                          </h3>
+                          <p className="text-sm text-purple-700 mb-3">
+                            Marque ou desmarque a presença dos jogadores no jogo e/ou churrasco
+                          </p>
+                          <div className="space-y-2 max-h-96 overflow-y-auto">
+                            {leagueMembers.map((member) => {
+                              const currentAttendance = allAttendances[member.player_id];
+                              const currentlyPlaying = currentAttendance?.status === 'confirmed' || currentAttendance?.status === 'play_and_bbq';
+                              const currentlyBbq = currentAttendance?.status === 'bbq_only' || currentAttendance?.status === 'play_and_bbq';
+
+                              return (
+                                <div
+                                  key={member.id}
+                                  className="flex items-center justify-between p-3 bg-white rounded-lg border border-purple-200"
+                                >
+                                  <div className="flex-1">
+                                    <p className="font-semibold text-gray-900">{member.player.full_name}</p>
+                                    <p className="text-xs text-gray-600">
+                                      {member.player.ranking_points} pts • {member.player.category}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    <label className="flex items-center gap-1.5 cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={currentlyPlaying}
+                                        disabled={managingAttendance === member.player_id}
+                                        onChange={(e) => {
+                                          handleManagePlayerAttendance(
+                                            member.player_id,
+                                            e.target.checked,
+                                            currentlyBbq
+                                          );
+                                        }}
+                                        className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
+                                      />
+                                      <span className="text-sm text-gray-700">Jogar</span>
+                                    </label>
+                                    <label className="flex items-center gap-1.5 cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={currentlyBbq}
+                                        disabled={managingAttendance === member.player_id}
+                                        onChange={(e) => {
+                                          handleManagePlayerAttendance(
+                                            member.player_id,
+                                            currentlyPlaying,
+                                            e.target.checked
+                                          );
+                                        }}
+                                        className="w-4 h-4 text-amber-600 border-gray-300 rounded focus:ring-amber-500"
+                                      />
+                                      <span className="text-sm text-gray-700">Churras</span>
+                                    </label>
+                                    {managingAttendance === member.player_id && (
+                                      <Loader2 className="w-4 h-4 animate-spin text-purple-600" />
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
 
                       {selectedLeague.format === 'weekly' && nextEventAttendances.length > 0 && (
                         <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
