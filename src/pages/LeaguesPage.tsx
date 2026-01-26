@@ -1223,56 +1223,78 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
 
       // Function to create pairs while avoiding previous events' pairs
       const createPairsAvoidingRepeats = (players: string[]): { player1: string; player2: string | null }[] => {
-        const pairs: { player1: string; player2: string | null }[] = [];
-        const used = new Set<string>();
-        let available = [...players];
-        let attempts = 0;
-        const maxAttempts = 100;
+        const maxFullAttempts = 100; // Try complete draw up to 100 times
+        let bestResult: { player1: string; player2: string | null }[] = [];
+        let bestRepeatedCount = Infinity;
 
-        while (available.length >= 2 && attempts < maxAttempts) {
-          attempts++;
+        for (let fullAttempt = 0; fullAttempt < maxFullAttempts; fullAttempt++) {
+          const pairs: { player1: string; player2: string | null }[] = [];
+          const used = new Set<string>();
+          let available = shuffleArray([...players]); // Shuffle at the start of each full attempt
+          let hasRepeatedPair = false;
+          let repeatedCount = 0;
 
-          // Shuffle available players to ensure randomness in pairing
-          available = shuffleArray(available);
+          // Try to form all pairs in this attempt
+          while (available.length >= 2) {
+            let foundValidPair = false;
 
-          let foundValidPair = false;
+            // Try to find a non-repeated pair
+            for (let i = 0; i < available.length - 1; i++) {
+              for (let j = i + 1; j < available.length; j++) {
+                const player1 = available[i];
+                const player2 = available[j];
+                const pairKey = [player1, player2].sort().join('-');
 
-          for (let i = 0; i < available.length - 1; i++) {
-            for (let j = i + 1; j < available.length; j++) {
-              const player1 = available[i];
-              const player2 = available[j];
-              const pairKey = [player1, player2].sort().join('-');
-
-              if (!previousPairs.has(pairKey) && !used.has(player1) && !used.has(player2)) {
-                pairs.push({ player1, player2 });
-                used.add(player1);
-                used.add(player2);
-                available.splice(j, 1); // Remove j first (higher index)
-                available.splice(i, 1);
-                foundValidPair = true;
-                break;
+                if (!previousPairs.has(pairKey) && !used.has(player1) && !used.has(player2)) {
+                  pairs.push({ player1, player2 });
+                  used.add(player1);
+                  used.add(player2);
+                  available.splice(j, 1); // Remove j first (higher index)
+                  available.splice(i, 1);
+                  foundValidPair = true;
+                  break;
+                }
               }
+              if (foundValidPair) break;
             }
-            if (foundValidPair) break;
+
+            // If no valid pair found, take first two (this is a repeated pair)
+            if (!foundValidPair && available.length >= 2) {
+              const player1 = available.shift()!;
+              const player2 = available.shift()!;
+              pairs.push({ player1, player2 });
+              used.add(player1);
+              used.add(player2);
+              hasRepeatedPair = true;
+              repeatedCount++;
+            }
           }
 
-          // If no valid pair found, just take first two available
-          if (!foundValidPair && available.length >= 2) {
-            const player1 = available.shift()!;
-            const player2 = available.shift()!;
-            pairs.push({ player1, player2 });
-            used.add(player1);
-            used.add(player2);
-            console.warn('⚠️ Had to create a repeated pair due to constraints');
+          // Handle remaining single player (wildcard)
+          if (available.length === 1) {
+            pairs.push({ player1: available[0], player2: null });
+          }
+
+          // If we found a solution with no repeated pairs, return it immediately
+          if (!hasRepeatedPair) {
+            if (fullAttempt > 0) {
+              console.log(`✅ Found valid pairing without repetitions on attempt ${fullAttempt + 1}`);
+            }
+            return pairs;
+          }
+
+          // Track the best result (fewest repeated pairs)
+          if (repeatedCount < bestRepeatedCount) {
+            bestRepeatedCount = repeatedCount;
+            bestResult = pairs;
           }
         }
 
-        // Handle remaining single player (wildcard)
-        if (available.length === 1) {
-          pairs.push({ player1: available[0], player2: null });
+        // After all attempts, return the best result found
+        if (bestRepeatedCount > 0) {
+          console.warn(`⚠️ Could not avoid all repeated pairs after ${maxFullAttempts} attempts. Using best result with ${bestRepeatedCount} repeated pair(s).`);
         }
-
-        return pairs;
+        return bestResult;
       };
 
       // Create guest pairs first (always in Serie B)
