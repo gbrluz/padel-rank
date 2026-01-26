@@ -1056,7 +1056,27 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
         return shuffled;
       };
 
-      const playersWithPoints = confirmedPlayers.map(playerId => {
+      // Separate guests from regular players
+      const guestPlayers: string[] = [];
+      const regularPlayers: string[] = [];
+
+      confirmedPlayers.forEach(playerId => {
+        const player = allPlayers.find(p => p.id === playerId);
+        if (player && player.full_name.toLowerCase().includes('convidado')) {
+          guestPlayers.push(playerId);
+        } else {
+          regularPlayers.push(playerId);
+        }
+      });
+
+      console.log(`👥 Total players: ${confirmedPlayers.length} (${regularPlayers.length} regulares + ${guestPlayers.length} convidados)`);
+
+      if (guestPlayers.length % 2 !== 0) {
+        alert('Número de convidados deve ser par para formar duplas completas');
+        return;
+      }
+
+      const playersWithPoints = regularPlayers.map(playerId => {
         const ranking = leagueRankings.find(r => r.player_id === playerId);
         return {
           playerId,
@@ -1160,47 +1180,100 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
         return pairs;
       };
 
+      // Create guest pairs first (always in Serie B)
+      const guestPairs = createPairsAvoidingRepeats(guestPlayers).map(pair => ({
+        player1: pair.player1,
+        player2: pair.player2,
+        isTop12: false, // Guests always in Serie B
+      }));
+      console.log(`👥 Created ${guestPairs.length} guest pairs (Serie B)`);
+
       let pairs: { player1: string; player2: string | null; isTop12: boolean }[];
 
-      if (allSamePoints) {
-        // CASE 1: All players have same points - NO GROUP DIVISION
-        // Shuffle randomly to avoid bias based on confirmation order
-        const shuffledPlayerIds = shuffleArray(playersWithPoints.map(p => p.playerId));
-        console.log(`🎲 All players have same points - shuffled randomly, NO group division`);
+      if (regularPlayers.length === 0) {
+        // Only guests playing
+        pairs = guestPairs;
+        console.log(`✅ Only guests - no regular players`);
 
-        // Create pairs from all players (no groups)
-        const allPairs = createPairsAvoidingRepeats(shuffledPlayerIds);
-        pairs = allPairs.map(pair => ({
+      } else if (allSamePoints) {
+        // CASE 1: All REGULAR players have same points
+        // Need to balance: Serie A ≈ (Serie B + Guests)
+        const shuffledPlayerIds = shuffleArray(playersWithPoints.map(p => p.playerId));
+        console.log(`🎲 All regular players have same points - shuffled randomly`);
+
+        const totalRegularPairs = Math.floor(regularPlayers.length / 2);
+        const totalPairsIncludingGuests = totalRegularPairs + guestPairs.length;
+
+        // Calculate how many regular pairs should go to Serie A to balance
+        const targetSerieAPairs = Math.round(totalPairsIncludingGuests / 2);
+        const serieAPairs = Math.min(targetSerieAPairs, totalRegularPairs);
+        const serieBPairs = totalRegularPairs - serieAPairs;
+
+        console.log(`📊 Balancing: ${totalPairsIncludingGuests} total pairs → ${serieAPairs} Serie A, ${serieBPairs} Serie B regular + ${guestPairs.length} guests = ${serieBPairs + guestPairs.length} Serie B total`);
+
+        // Calculate players needed for each series
+        let serieAPlayerCount = serieAPairs * 2;
+        let serieBPlayerCount = regularPlayers.length - serieAPlayerCount;
+
+        // Adjust if odd numbers
+        if (serieAPlayerCount % 2 === 1) {
+          serieAPlayerCount--;
+          serieBPlayerCount++;
+        }
+
+        const serieAPlayers = shuffledPlayerIds.slice(0, serieAPlayerCount);
+        const serieBPlayers = shuffledPlayerIds.slice(serieAPlayerCount);
+
+        const serieAPairsCreated = createPairsAvoidingRepeats(serieAPlayers).map(pair => ({
           player1: pair.player1,
           player2: pair.player2,
-          isTop12: false, // No division, all in same group
+          isTop12: true,
         }));
-        console.log(`✅ Created ${pairs.length} pairs total (all in same group, no division)`);
+
+        const serieBPairsCreated = createPairsAvoidingRepeats(serieBPlayers).map(pair => ({
+          player1: pair.player1,
+          player2: pair.player2,
+          isTop12: false,
+        }));
+
+        pairs = [...serieAPairsCreated, ...serieBPairsCreated, ...guestPairs];
+        console.log(`✅ Created ${serieAPairsCreated.length} Serie A pairs, ${serieBPairsCreated.length} Serie B regular pairs, ${guestPairs.length} guest pairs`);
 
       } else {
-        // CASE 2: Different points - DIVIDE INTO TWO GROUPS
-        // Sort by ranking (best players first)
+        // CASE 2: Different points - DIVIDE WITH BALANCE
         const sortedPlayerIds = playersWithPoints.map(p => p.playerId);
-        console.log(`📊 Sorted by ranking (best players first)`);
+        console.log(`📊 Regular players sorted by ranking (best players first)`);
 
-        // CRITICAL: Divide PLAYERS by 2 first
-        // If the result is odd, one more player goes to bottom half
-        const halfCount = Math.floor(sortedPlayerIds.length / 2);
+        // Calculate balanced division
+        const totalRegularPairs = Math.floor(regularPlayers.length / 2);
+        const totalPairsIncludingGuests = totalRegularPairs + guestPairs.length;
 
-        let topPlayers: string[];
-        let bottomPlayers: string[];
+        // Calculate how many regular pairs should go to Serie A to balance
+        const targetSerieAPairs = Math.round(totalPairsIncludingGuests / 2);
+        const serieAPairs = Math.min(targetSerieAPairs, totalRegularPairs);
 
-        if (halfCount % 2 === 1) {
-          // halfCount is odd, move one player to bottom
-          topPlayers = sortedPlayerIds.slice(0, halfCount - 1);
-          bottomPlayers = sortedPlayerIds.slice(halfCount - 1);
-          console.log(`📊 Half is odd (${halfCount}), adjusting: ${topPlayers.length} top, ${bottomPlayers.length} bottom`);
-        } else {
-          // halfCount is even, divide normally
-          topPlayers = sortedPlayerIds.slice(0, halfCount);
-          bottomPlayers = sortedPlayerIds.slice(halfCount);
-          console.log(`📊 Half is even (${halfCount}): ${topPlayers.length} top, ${bottomPlayers.length} bottom`);
+        console.log(`📊 Balancing: ${totalPairsIncludingGuests} total pairs → target ${serieAPairs} Serie A pairs from regulars`);
+
+        // Calculate players for Serie A (best players)
+        let serieAPlayerCount = serieAPairs * 2;
+
+        // Adjust if we need odd number (to ensure pairs work)
+        if (serieAPlayerCount % 2 === 1) {
+          serieAPlayerCount--;
         }
+
+        // Ensure we don't exceed available players
+        serieAPlayerCount = Math.min(serieAPlayerCount, sortedPlayerIds.length);
+
+        // Adjust again if still odd after capping
+        if (serieAPlayerCount % 2 === 1) {
+          serieAPlayerCount--;
+        }
+
+        const topPlayers = sortedPlayerIds.slice(0, serieAPlayerCount);
+        const bottomPlayers = sortedPlayerIds.slice(serieAPlayerCount);
+
+        console.log(`📊 Division: ${topPlayers.length} top players → Serie A, ${bottomPlayers.length} bottom players → Serie B (+ ${guestPairs.length} guest pairs)`);
 
         // Create pairs within each group
         const topPairs = createPairsAvoidingRepeats(topPlayers).map(pair => ({
@@ -1215,8 +1288,8 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
           isTop12: false,
         }));
 
-        pairs = [...topPairs, ...bottomPairs];
-        console.log(`✅ Created ${topPairs.length} top pairs and ${bottomPairs.length} bottom pairs (${pairs.length} total)`);
+        pairs = [...topPairs, ...bottomPairs, ...guestPairs];
+        console.log(`✅ Created ${topPairs.length} Serie A pairs, ${bottomPairs.length} Serie B regular pairs, ${guestPairs.length} guest pairs (${pairs.length} total)`);
       }
 
       // Delete old draw, pairs, and matches explicitly
@@ -1452,15 +1525,18 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
           return matches;
         };
 
-        if (allSamePoints) {
-          // CASE 1: All same points - ALL pairs play against each other
+        // Check if we have division (Serie A exists)
+        const hasSerieADivision = pairs.some(p => p.isTop12);
+
+        if (!hasSerieADivision) {
+          // No division - ALL pairs play against each other (no guests, all regulars with same points, no balancing needed)
           const allPairIds = insertedPairs.map(p => p.id);
-          console.log(`🎲 All same points: generating matches for ALL ${allPairIds.length} pairs together`);
+          console.log(`🎲 No division: generating matches for ALL ${allPairIds.length} pairs together`);
           const allPairMatches = generateMatchesForGroup(allPairIds, 'All pairs');
           if (allPairMatches) allMatches.push(...allPairMatches);
 
         } else {
-          // CASE 2: Different points - Top half and bottom half play separately
+          // Has division - Top half (Serie A) and bottom half (Serie B + Guests) play separately
           const topPairIds: string[] = [];
           const bottomPairIds: string[] = [];
 
@@ -1473,15 +1549,19 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
             }
           });
 
-          console.log(`📊 Match groups: ${topPairIds.length} top pairs, ${bottomPairIds.length} bottom pairs`);
+          console.log(`📊 Match groups: ${topPairIds.length} top pairs (Serie A), ${bottomPairIds.length} bottom pairs (Serie B + Guests)`);
 
           // Generate matches for top half (Serie A)
-          const topMatches = generateMatchesForGroup(topPairIds, 'Serie A');
-          if (topMatches) allMatches.push(...topMatches);
+          if (topPairIds.length >= 2) {
+            const topMatches = generateMatchesForGroup(topPairIds, 'Serie A');
+            if (topMatches) allMatches.push(...topMatches);
+          }
 
-          // Generate matches for bottom half (Serie B)
-          const bottomMatches = generateMatchesForGroup(bottomPairIds, 'Serie B');
-          if (bottomMatches) allMatches.push(...bottomMatches);
+          // Generate matches for bottom half (Serie B + Guests)
+          if (bottomPairIds.length >= 2) {
+            const bottomMatches = generateMatchesForGroup(bottomPairIds, 'Serie B + Guests');
+            if (bottomMatches) allMatches.push(...bottomMatches);
+          }
         }
 
         console.log(`✅ Total matches generated: ${allMatches.length}`);
