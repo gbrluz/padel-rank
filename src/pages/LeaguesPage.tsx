@@ -626,39 +626,37 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
         weeklyEvent = newEvent;
       }
 
-      // Determine status based on willPlay and willBbq
-      let status: 'confirmed' | 'declined' | 'bbq_only' | 'play_and_bbq';
-      if (willPlay && willBbq) {
-        status = 'play_and_bbq';
-      } else if (willPlay && !willBbq) {
-        status = 'confirmed';
-      } else if (!willPlay && willBbq) {
-        status = 'bbq_only';
+      // If neither play nor bbq, delete the attendance record
+      if (!willPlay && !willBbq) {
+        const { error: deleteError } = await supabase
+          .from('weekly_event_attendance')
+          .delete()
+          .eq('event_id', weeklyEvent.id)
+          .eq('player_id', playerId);
+
+        if (deleteError) throw deleteError;
       } else {
-        status = 'declined';
+        // Upsert attendance record
+        const { error: attendanceError } = await supabase
+          .from('weekly_event_attendance')
+          .upsert({
+            event_id: weeklyEvent.id,
+            player_id: playerId,
+            confirmed: willPlay,
+            victories: 0,
+            defeats: 0,
+            bbq_participated: willBbq,
+            blowouts_received: 0,
+            blowouts_applied: 0,
+            total_points: 0,
+            points_submitted: false,
+            updated_at: new Date().toISOString(),
+          }, {
+            onConflict: 'event_id,player_id'
+          });
+
+        if (attendanceError) throw attendanceError;
       }
-
-      // Upsert attendance record
-      const { error: attendanceError } = await supabase
-        .from('weekly_event_attendance')
-        .upsert({
-          event_id: weeklyEvent.id,
-          player_id: playerId,
-          status: status,
-          confirmed: false, // Organizer inserted, not player confirmed
-          victories: 0,
-          defeats: 0,
-          bbq_participated: willBbq,
-          blowouts_received: 0,
-          blowouts_applied: 0,
-          total_points: 0,
-          points_submitted: false,
-          updated_at: new Date().toISOString(),
-        }, {
-          onConflict: 'event_id,player_id'
-        });
-
-      if (attendanceError) throw attendanceError;
 
       // Reload data
       await loadAllAttendances(selectedLeague.id);
