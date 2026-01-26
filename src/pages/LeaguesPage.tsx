@@ -1231,7 +1231,8 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
         const totalPairsIncludingGuests = totalRegularPairs + guestPairs.length;
 
         // Calculate how many regular pairs should go to Serie A to balance
-        const targetSerieAPairs = Math.round(totalPairsIncludingGuests / 2);
+        // If total is odd, extra pair goes to Serie B (where guests play)
+        const targetSerieAPairs = Math.floor(totalPairsIncludingGuests / 2);
         const serieAPairs = Math.min(targetSerieAPairs, totalRegularPairs);
         const serieBPairs = totalRegularPairs - serieAPairs;
 
@@ -1275,7 +1276,8 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
         const totalPairsIncludingGuests = totalRegularPairs + guestPairs.length;
 
         // Calculate how many regular pairs should go to Serie A to balance
-        const targetSerieAPairs = Math.round(totalPairsIncludingGuests / 2);
+        // If total is odd, extra pair goes to Serie B (where guests play)
+        const targetSerieAPairs = Math.floor(totalPairsIncludingGuests / 2);
         const serieAPairs = Math.min(targetSerieAPairs, totalRegularPairs);
 
         console.log(`📊 Balancing: ${totalPairsIncludingGuests} total pairs → target ${serieAPairs} Serie A pairs from regulars`);
