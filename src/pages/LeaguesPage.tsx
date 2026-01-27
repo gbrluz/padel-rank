@@ -533,8 +533,8 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
 
       // If confirming (toggling to true), calculate and submit points automatically
       if (newConfirmedStatus) {
-        const willPlay = attendance.status === 'confirmed' || attendance.status === 'play_and_bbq';
-        const willBbq = attendance.status === 'bbq_only' || attendance.status === 'play_and_bbq';
+        const willPlay = attendance.confirmed || false;
+        const willBbq = attendance.bbq_participated || false;
 
         // Calculate points based on attendance type
         let totalPoints = 0;
@@ -548,15 +548,10 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
           totalPoints += 1; // BBQ point
         }
 
-        // For bbq_only, they get only the BBQ point (no game participation)
-        if (attendance.status === 'bbq_only') {
-          totalPoints = 1; // Only BBQ point
-        }
-
         const { error } = await supabase
           .from('weekly_event_attendance')
           .update({
-            confirmed: true,
+            confirmed: willPlay,
             confirmed_at: new Date().toISOString(),
             bbq_participated: willBbq,
             total_points: totalPoints,
