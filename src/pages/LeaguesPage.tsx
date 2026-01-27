@@ -2302,7 +2302,6 @@ const shouldShowEventLists = (league: League): boolean => {
           player_id: editingPlayerScore.playerId,
           week_date: eventDate,
           status: attendanceStatus,
-          updated_at: new Date().toISOString(),
         }, {
           onConflict: 'league_id,player_id,week_date'
         });
