@@ -551,9 +551,7 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
         const { error } = await supabase
           .from('weekly_event_attendance')
           .update({
-            confirmed: willPlay,
-            confirmed_at: new Date().toISOString(),
-            bbq_participated: willBbq,
+            // Don't change confirmed/bbq_participated - they're already correct from handleManagePlayerAttendance
             total_points: totalPoints,
             points_submitted: true,
             points_submitted_at: new Date().toISOString(),
@@ -563,12 +561,13 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
 
         if (error) throw error;
       } else {
-        // If unconfirming, just update the confirmed status
+        // If unconfirming, reset points submission
         const { error } = await supabase
           .from('weekly_event_attendance')
           .update({
-            confirmed: false,
-            confirmed_at: null,
+            total_points: 0,
+            points_submitted: false,
+            points_submitted_at: null,
           })
           .eq('id', attendanceId);
 
@@ -3280,8 +3279,8 @@ const shouldShowEventLists = (league: League): boolean => {
                           </p>
                           <div className="space-y-2 max-h-96 overflow-y-auto">
                             {nextEventAttendances.map((attendance) => {
-                              const willPlay = attendance.status === 'confirmed' || attendance.status === 'play_and_bbq';
-                              const willBbq = attendance.status === 'bbq_only' || attendance.status === 'play_and_bbq';
+                              const willPlay = attendance.confirmed || false;
+                              const willBbq = attendance.bbq_participated || false;
 
                               return (
                                 <div
@@ -3304,7 +3303,7 @@ const shouldShowEventLists = (league: League): boolean => {
                                           Churras
                                         </span>
                                       )}
-                                      {attendance.confirmed && (
+                                      {attendance.points_submitted && (
                                         <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded flex items-center gap-1">
                                           <CheckCircle className="w-3 h-3" />
                                           Confirmado
@@ -3313,18 +3312,18 @@ const shouldShowEventLists = (league: League): boolean => {
                                     </div>
                                   </div>
                                   <button
-                                    onClick={() => handleToggleAttendanceConfirmation(attendance.id, attendance.confirmed)}
+                                    onClick={() => handleToggleAttendanceConfirmation(attendance.id, attendance.points_submitted)}
                                     disabled={confirmingAttendance === attendance.id}
                                     className={`p-2 rounded-lg ${
-                                      attendance.confirmed
+                                      attendance.points_submitted
                                         ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                         : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
                                     } disabled:opacity-50 flex items-center gap-1`}
-                                    title={attendance.confirmed ? 'Desconfirmar presença' : 'Confirmar presença'}
+                                    title={attendance.points_submitted ? 'Desconfirmar presença' : 'Confirmar presença'}
                                   >
                                     {confirmingAttendance === attendance.id ? (
                                       <Loader2 className="w-4 h-4 animate-spin" />
-                                    ) : attendance.confirmed ? (
+                                    ) : attendance.points_submitted ? (
                                       <X className="w-4 h-4" />
                                     ) : (
                                       <Check className="w-4 h-4" />
