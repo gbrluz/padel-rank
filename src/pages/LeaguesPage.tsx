@@ -2841,6 +2841,7 @@ const shouldShowEventLists = (league: League): boolean => {
       await loadWeeklyScore();
       if (selectedLeague) {
         await loadScoreSubmissions(selectedLeague.id);
+        await loadLeagueRankings(selectedLeague.id);
       }
     } catch (error) {
       console.error('Error submitting BBQ score:', error);
