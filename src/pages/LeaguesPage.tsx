@@ -22,6 +22,7 @@ interface League {
   weekly_day?: number | null;
   weekly_time?: string | null;
   attendance_deadline_hours?: number | null;
+  has_series_division?: boolean | null;
 }
 
 interface WeeklyAttendance {
@@ -1332,6 +1333,20 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
         }
         pairs = guestPairs;
         console.log(`✅ Only guests - ${guestPairs.length} pairs`);
+
+      } else if (selectedLeague.has_series_division === false) {
+        // CASE: No series division - all players in one group
+        const shuffledPlayerIds = shuffleArray(playersWithPoints.map(p => p.playerId));
+        console.log(`🎲 No series division - all ${shuffledPlayerIds.length} players play together`);
+
+        const allPairs = createPairsAvoidingRepeats(shuffledPlayerIds).map(pair => ({
+          player1: pair.player1,
+          player2: pair.player2,
+          isTop12: false, // All in same group
+        }));
+
+        pairs = [...allPairs, ...guestPairs];
+        console.log(`✅ Created ${allPairs.length} regular pairs (no division), ${guestPairs.length} guest pairs`);
 
       } else if (allSamePoints) {
         // CASE 1: All REGULAR players have same points

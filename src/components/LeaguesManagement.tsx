@@ -31,6 +31,7 @@ interface League {
   attendance_deadline_hours: number | null;
   monthly_min_matches: number | null;
   requires_approval: boolean;
+  has_series_division: boolean | null;
 }
 
 interface LeagueOrganizer {
@@ -514,6 +515,15 @@ export default function LeaguesManagement() {
                     className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={leagueFormData.has_series_division !== false}
+                    onChange={(e) => setLeagueFormData({ ...leagueFormData, has_series_division: e.target.checked })}
+                    className="w-4 h-4"
+                  />
+                  <label className="text-sm text-gray-700">Dividir jogadores em Série A e Série B (por pontuação)</label>
+                </div>
               </div>
             )}
 
@@ -985,6 +995,15 @@ export default function LeaguesManagement() {
                       onChange={(e) => setLeagueFormData({ ...leagueFormData, attendance_deadline_hours: parseFloat(e.target.value) || 3 })}
                       className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
                     />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={leagueFormData.has_series_division !== false}
+                      onChange={(e) => setLeagueFormData({ ...leagueFormData, has_series_division: e.target.checked })}
+                      className="w-4 h-4"
+                    />
+                    <label className="text-sm text-gray-700">Dividir jogadores em Série A e Série B (por pontuação)</label>
                   </div>
                 </div>
               )}
