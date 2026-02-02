@@ -3225,8 +3225,8 @@ const shouldShowEventLists = (league: League): boolean => {
                           <div className="space-y-2 max-h-96 overflow-y-auto">
                             {leagueMembers.map((member) => {
                               const currentAttendance = allAttendances[member.player_id];
-                              const currentlyPlaying = currentAttendance?.status === 'confirmed' || currentAttendance?.status === 'play_and_bbq';
-                              const currentlyBbq = currentAttendance?.status === 'bbq_only' || currentAttendance?.status === 'play_and_bbq';
+                              const currentlyPlaying = currentAttendance?.confirmed || false;
+                              const currentlyBbq = currentAttendance?.bbq_participated || false;
 
                               return (
                                 <div
@@ -3239,7 +3239,7 @@ const shouldShowEventLists = (league: League): boolean => {
                                       {member.player.ranking_points} pts • {member.player.category}
                                     </p>
                                   </div>
-                                  <div className="flex items-center gap-3">
+                                  <div className="flex items-center gap-2">
                                     <label className="flex items-center gap-1.5 cursor-pointer">
                                       <input
                                         type="checkbox"
@@ -3272,6 +3272,16 @@ const shouldShowEventLists = (league: League): boolean => {
                                       />
                                       <span className="text-sm text-gray-700">Churras</span>
                                     </label>
+                                    {currentAttendance && (
+                                      <button
+                                        onClick={() => handleManagePlayerAttendance(member.player_id, false, false)}
+                                        disabled={managingAttendance === member.player_id}
+                                        className="p-1.5 rounded-lg bg-red-100 text-red-700 hover:bg-red-200 disabled:opacity-50"
+                                        title="Marcar como não vai"
+                                      >
+                                        <X className="w-4 h-4" />
+                                      </button>
+                                    )}
                                     {managingAttendance === member.player_id && (
                                       <Loader2 className="w-4 h-4 animate-spin text-purple-600" />
                                     )}
