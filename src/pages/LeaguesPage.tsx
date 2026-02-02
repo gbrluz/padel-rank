@@ -3272,16 +3272,14 @@ const shouldShowEventLists = (league: League): boolean => {
                                       />
                                       <span className="text-sm text-gray-700">Churras</span>
                                     </label>
-                                    {currentAttendance && (
-                                      <button
-                                        onClick={() => handleManagePlayerAttendance(member.player_id, false, false)}
-                                        disabled={managingAttendance === member.player_id}
-                                        className="p-1.5 rounded-lg bg-red-100 text-red-700 hover:bg-red-200 disabled:opacity-50"
-                                        title="Marcar como não vai"
-                                      >
-                                        <X className="w-4 h-4" />
-                                      </button>
-                                    )}
+                                    <button
+                                      onClick={() => handleManagePlayerAttendance(member.player_id, false, false)}
+                                      disabled={managingAttendance === member.player_id}
+                                      className="p-1.5 rounded-lg bg-red-100 text-red-700 hover:bg-red-200 disabled:opacity-50"
+                                      title="Marcar como não vai"
+                                    >
+                                      <X className="w-4 h-4" />
+                                    </button>
                                     {managingAttendance === member.player_id && (
                                       <Loader2 className="w-4 h-4 animate-spin text-purple-600" />
                                     )}
