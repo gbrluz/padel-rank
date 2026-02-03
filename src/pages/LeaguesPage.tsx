@@ -2948,8 +2948,22 @@ const shouldShowEventLists = (league: League): boolean => {
       });
 
       combinedRankings.sort((a, b) => {
+        // 1. Mais pontos ganha
         if (b.points !== a.points) return b.points - a.points;
-        if (b.wins !== a.wins) return b.wins - a.wins;
+
+        // 2. Menos pneus recebidos ganha (desempate)
+        if (a.blowouts !== b.blowouts) return a.blowouts - b.blowouts;
+
+        // 3. Mais pneus aplicados ganha (desempate)
+        if (b.blowouts_applied !== a.blowouts_applied) return b.blowouts_applied - a.blowouts_applied;
+
+        // 4. Maior número de jogos ganha (desempate)
+        if (b.matches_played !== a.matches_played) return b.matches_played - a.matches_played;
+
+        // 5. Maior porcentagem de vitória ganha (desempate)
+        if (b.win_rate !== a.win_rate) return b.win_rate - a.win_rate;
+
+        // 6. Ordem alfabética (último critério)
         return a.player?.full_name?.localeCompare(b.player?.full_name || '') || 0;
       });
 
@@ -3225,8 +3239,8 @@ const shouldShowEventLists = (league: League): boolean => {
                           <div className="space-y-2 max-h-96 overflow-y-auto">
                             {leagueMembers.map((member) => {
                               const currentAttendance = allAttendances[member.player_id];
-                              const currentlyPlaying = currentAttendance?.status === 'confirmed' || currentAttendance?.status === 'play_and_bbq';
-                              const currentlyBbq = currentAttendance?.status === 'bbq_only' || currentAttendance?.status === 'play_and_bbq';
+                              const currentlyPlaying = currentAttendance?.confirmed || false;
+                              const currentlyBbq = currentAttendance?.bbq_participated || false;
 
                               return (
                                 <div
@@ -3239,7 +3253,7 @@ const shouldShowEventLists = (league: League): boolean => {
                                       {member.player.ranking_points} pts • {member.player.category}
                                     </p>
                                   </div>
-                                  <div className="flex items-center gap-3">
+                                  <div className="flex items-center gap-2">
                                     <label className="flex items-center gap-1.5 cursor-pointer">
                                       <input
                                         type="checkbox"
@@ -3272,6 +3286,14 @@ const shouldShowEventLists = (league: League): boolean => {
                                       />
                                       <span className="text-sm text-gray-700">Churras</span>
                                     </label>
+                                    <button
+                                      onClick={() => handleManagePlayerAttendance(member.player_id, false, false)}
+                                      disabled={managingAttendance === member.player_id}
+                                      className="p-1.5 rounded-lg bg-red-100 text-red-700 hover:bg-red-200 disabled:opacity-50"
+                                      title="Marcar como não vai"
+                                    >
+                                      <X className="w-4 h-4" />
+                                    </button>
                                     {managingAttendance === member.player_id && (
                                       <Loader2 className="w-4 h-4 animate-spin text-purple-600" />
                                     )}
