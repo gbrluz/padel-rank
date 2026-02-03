@@ -2948,8 +2948,19 @@ const shouldShowEventLists = (league: League): boolean => {
       });
 
       combinedRankings.sort((a, b) => {
+        // 1. Mais pontos ganha
         if (b.points !== a.points) return b.points - a.points;
-        if (b.wins !== a.wins) return b.wins - a.wins;
+
+        // 2. Menos pneus recebidos ganha (desempate)
+        if (a.blowouts !== b.blowouts) return a.blowouts - b.blowouts;
+
+        // 3. Mais pneus aplicados ganha (desempate)
+        if (b.blowouts_applied !== a.blowouts_applied) return b.blowouts_applied - a.blowouts_applied;
+
+        // 4. Maior número de jogos ganha (desempate)
+        if (b.matches_played !== a.matches_played) return b.matches_played - a.matches_played;
+
+        // 5. Ordem alfabética (último critério)
         return a.player?.full_name?.localeCompare(b.player?.full_name || '') || 0;
       });
 
