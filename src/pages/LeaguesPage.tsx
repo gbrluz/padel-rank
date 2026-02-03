@@ -2960,7 +2960,10 @@ const shouldShowEventLists = (league: League): boolean => {
         // 4. Maior número de jogos ganha (desempate)
         if (b.matches_played !== a.matches_played) return b.matches_played - a.matches_played;
 
-        // 5. Ordem alfabética (último critério)
+        // 5. Maior porcentagem de vitória ganha (desempate)
+        if (b.win_rate !== a.win_rate) return b.win_rate - a.win_rate;
+
+        // 6. Ordem alfabética (último critério)
         return a.player?.full_name?.localeCompare(b.player?.full_name || '') || 0;
       });
 
