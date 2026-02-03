@@ -631,12 +631,23 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
 
         if (deleteError) throw deleteError;
       } else {
+        // Determine status based on willPlay and willBbq
+        let status: 'confirmed' | 'bbq_only' | 'play_and_bbq';
+        if (willPlay && willBbq) {
+          status = 'play_and_bbq';
+        } else if (willPlay && !willBbq) {
+          status = 'confirmed';
+        } else {
+          status = 'bbq_only';
+        }
+
         // Upsert attendance record
         const { error: attendanceError } = await supabase
           .from('weekly_event_attendance')
           .upsert({
             event_id: weeklyEvent.id,
             player_id: playerId,
+            status: status,
             confirmed: willPlay,
             victories: 0,
             defeats: 0,
