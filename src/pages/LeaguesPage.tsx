@@ -631,12 +631,23 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
 
         if (deleteError) throw deleteError;
       } else {
+        // Determine status based on willPlay and willBbq
+        let status: 'confirmed' | 'bbq_only' | 'play_and_bbq';
+        if (willPlay && willBbq) {
+          status = 'play_and_bbq';
+        } else if (willPlay && !willBbq) {
+          status = 'confirmed';
+        } else {
+          status = 'bbq_only';
+        }
+
         // Upsert attendance record
         const { error: attendanceError } = await supabase
           .from('weekly_event_attendance')
           .upsert({
             event_id: weeklyEvent.id,
             player_id: playerId,
+            status: status,
             confirmed: willPlay,
             victories: 0,
             defeats: 0,
@@ -1052,25 +1063,8 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
     if (league.format !== 'weekly') return false;
     if (!currentDraw) return false;
 
-    const now = Date.now();
-    const lastEvent = getLastEventDate(league);
-    const nextEvent = getNextWeeklyEventDate(league);
-
-    if (lastEvent) {
-      const showEnd = lastEvent.getTime() + (48 * 60 * 60 * 1000);
-      if (now >= lastEvent.getTime() && now < showEnd) {
-        return true;
-      }
-    }
-
-    if (nextEvent) {
-      const deadline = getAttendanceDeadline(league);
-      if (deadline && now >= deadline.getTime() && now < nextEvent.getTime()) {
-        return true;
-      }
-    }
-
-    return false;
+    // Show draw results to all league members once created
+    return true;
   };
 
   const handlePerformDraw = async () => {
