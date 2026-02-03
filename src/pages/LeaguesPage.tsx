@@ -1063,25 +1063,8 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
     if (league.format !== 'weekly') return false;
     if (!currentDraw) return false;
 
-    const now = Date.now();
-    const lastEvent = getLastEventDate(league);
-    const nextEvent = getNextWeeklyEventDate(league);
-
-    if (lastEvent) {
-      const showEnd = lastEvent.getTime() + (48 * 60 * 60 * 1000);
-      if (now >= lastEvent.getTime() && now < showEnd) {
-        return true;
-      }
-    }
-
-    if (nextEvent) {
-      const deadline = getAttendanceDeadline(league);
-      if (deadline && now >= deadline.getTime() && now < nextEvent.getTime()) {
-        return true;
-      }
-    }
-
-    return false;
+    // Show draw results to all league members once created
+    return true;
   };
 
   const handlePerformDraw = async () => {
