@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { Medal, Users, Trophy, TrendingUp, UserPlus, Clock, Check, Loader2, Shield, CheckCircle, XCircle, Trash2, Calendar, CalendarCheck, RotateCcw, AlertTriangle, Shuffle, Beef, Pencil, X, HelpCircle } from 'lucide-react';
+import { Medal, Users, Trophy, TrendingUp, UserPlus, Clock, Check, Loader2, Shield, CheckCircle, XCircle, Trash2, Calendar, CalendarCheck, RotateCcw, AlertTriangle, Shuffle, Beef, Pencil, X, HelpCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Player as Profile } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -163,6 +163,7 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
   const [manualBlowoutAppliers, setManualBlowoutAppliers] = useState<string[]>([]);
   const [manualBlowoutVictims, setManualBlowoutVictims] = useState<string[]>([]);
   const [submittingManualBlowout, setSubmittingManualBlowout] = useState(false);
+  const [showDrawDetails, setShowDrawDetails] = useState(false);
 
   useEffect(() => {
     loadLeagues();
@@ -3649,14 +3650,30 @@ const shouldShowEventLists = (league: League): boolean => {
                       <div className="flex items-start gap-3">
                         <Shuffle className="w-6 h-6 text-cyan-600 flex-shrink-0 mt-0.5" />
                         <div className="flex-1">
-                          <p className="font-semibold text-cyan-900">
-                            Duplas Sorteadas
-                          </p>
-                          <p className="text-sm text-cyan-700 mt-1">
-                            {currentDraw?.event_date && new Date(currentDraw.event_date + 'T00:00:00').toLocaleDateString('pt-BR')}
-                          </p>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-semibold text-cyan-900">
+                                Duplas Sorteadas
+                              </p>
+                              <p className="text-sm text-cyan-700 mt-1">
+                                {currentDraw?.event_date && new Date(currentDraw.event_date + 'T00:00:00').toLocaleDateString('pt-BR')}
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => setShowDrawDetails(!showDrawDetails)}
+                              className="p-2 hover:bg-cyan-100 rounded-lg transition-colors"
+                              title={showDrawDetails ? "Ocultar" : "Mostrar"}
+                            >
+                              {showDrawDetails ? (
+                                <ChevronUp className="w-5 h-5 text-cyan-600" />
+                              ) : (
+                                <ChevronDown className="w-5 h-5 text-cyan-600" />
+                              )}
+                            </button>
+                          </div>
 
-                          <div className="mt-4 space-y-4">
+                          {showDrawDetails && (
+                            <div className="mt-4 space-y-4">
                             {(() => {
                               const hasSeriesDivision = currentPairs.some(p => p.is_top_12);
 
@@ -3816,6 +3833,7 @@ const shouldShowEventLists = (league: League): boolean => {
                               );
                             })()}
                           </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -3828,14 +3846,30 @@ const shouldShowEventLists = (league: League): boolean => {
                           <span className="text-white text-sm font-bold">vs</span>
                         </div>
                         <div className="flex-1">
-                          <p className="font-semibold text-purple-900">
-                            Confrontos (Jogos)
-                          </p>
-                          <p className="text-sm text-purple-700 mt-1">
-                            {currentDraw?.event_date && new Date(currentDraw.event_date + 'T00:00:00').toLocaleDateString('pt-BR')}
-                          </p>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-semibold text-purple-900">
+                                Confrontos (Jogos)
+                              </p>
+                              <p className="text-sm text-purple-700 mt-1">
+                                {currentDraw?.event_date && new Date(currentDraw.event_date + 'T00:00:00').toLocaleDateString('pt-BR')}
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => setShowDrawDetails(!showDrawDetails)}
+                              className="p-2 hover:bg-purple-100 rounded-lg transition-colors"
+                              title={showDrawDetails ? "Ocultar" : "Mostrar"}
+                            >
+                              {showDrawDetails ? (
+                                <ChevronUp className="w-5 h-5 text-purple-600" />
+                              ) : (
+                                <ChevronDown className="w-5 h-5 text-purple-600" />
+                              )}
+                            </button>
+                          </div>
 
-                          <div className="mt-4 space-y-4">
+                          {showDrawDetails && (
+                            <div className="mt-4 space-y-4">
                             {(() => {
                               const hasSeriesDivision = currentPairs.some(p => p.is_top_12);
 
@@ -3982,6 +4016,7 @@ const shouldShowEventLists = (league: League): boolean => {
                               );
                             })()}
                           </div>
+                          )}
                         </div>
                       </div>
                     </div>
