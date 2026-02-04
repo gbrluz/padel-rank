@@ -941,15 +941,27 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
     const nextEvent = getNextWeeklyEventDate(selectedLeague);
     const lastEvent = getLastEventDate(selectedLeague);
 
-    // Build array of possible event dates to check (prioritize most recent)
+    // Determine which event's draw to show based on attendance card visibility
+    // If attendance card is showing (next event is open for confirmations),
+    // prioritize next event draw. Otherwise, show last event draw.
+    const showingAttendanceCard = shouldShowAttendanceCard(selectedLeague);
+
     const eventDates: string[] = [];
-    if (lastEvent) eventDates.push(lastEvent.toISOString().split('T')[0]);
-    if (nextEvent) eventDates.push(nextEvent.toISOString().split('T')[0]);
+
+    if (showingAttendanceCard) {
+      // Attendance is open for next event - prioritize next event draw
+      if (nextEvent) eventDates.push(nextEvent.toISOString().split('T')[0]);
+      if (lastEvent) eventDates.push(lastEvent.toISOString().split('T')[0]);
+    } else {
+      // Attendance not yet open - show last event draw
+      if (lastEvent) eventDates.push(lastEvent.toISOString().split('T')[0]);
+      if (nextEvent) eventDates.push(nextEvent.toISOString().split('T')[0]);
+    }
 
     if (eventDates.length === 0) return;
 
     try {
-      // Try to find the most recent draw (check last event first, then next)
+      // Try to find draw in order of priority
       let drawData = null;
       for (const eventDate of eventDates) {
         const { data, error } = await supabase
