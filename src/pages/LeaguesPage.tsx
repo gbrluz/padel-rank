@@ -941,18 +941,31 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
     const nextEvent = getNextWeeklyEventDate(selectedLeague);
     const lastEvent = getLastEventDate(selectedLeague);
 
-    const eventDate = nextEvent?.toISOString().split('T')[0] || lastEvent?.toISOString().split('T')[0];
-    if (!eventDate) return;
+    // Build array of possible event dates to check (prioritize most recent)
+    const eventDates: string[] = [];
+    if (lastEvent) eventDates.push(lastEvent.toISOString().split('T')[0]);
+    if (nextEvent) eventDates.push(nextEvent.toISOString().split('T')[0]);
+
+    if (eventDates.length === 0) return;
 
     try {
-      const { data: drawData, error: drawError } = await supabase
-        .from('weekly_event_draws')
-        .select('*')
-        .eq('league_id', leagueId)
-        .eq('event_date', eventDate)
-        .maybeSingle();
+      // Try to find the most recent draw (check last event first, then next)
+      let drawData = null;
+      for (const eventDate of eventDates) {
+        const { data, error } = await supabase
+          .from('weekly_event_draws')
+          .select('*')
+          .eq('league_id', leagueId)
+          .eq('event_date', eventDate)
+          .maybeSingle();
 
-      if (drawError) throw drawError;
+        if (error) throw error;
+
+        if (data) {
+          drawData = data;
+          break; // Found a draw, stop searching
+        }
+      }
 
       if (drawData) {
         setCurrentDraw(drawData);
