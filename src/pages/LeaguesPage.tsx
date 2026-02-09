@@ -30,7 +30,7 @@ interface WeeklyAttendance {
   league_id: string;
   player_id: string;
   week_date: string;
-  status: 'confirmed' | 'declined' | 'no_response' | 'bbq_only';
+  status: 'confirmed' | 'declined' | 'no_response' | 'bbq_only' | 'play_and_bbq';
   confirmed_at: string | null;
   created_at: string;
 }
@@ -592,9 +592,11 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
     setManagingAttendance(playerId);
     try {
       // Determine status based on willPlay and willBbq
-      let status: 'confirmed' | 'bbq_only' | 'declined';
+      let status: 'confirmed' | 'bbq_only' | 'play_and_bbq' | 'declined';
       if (!willPlay && !willBbq) {
         status = 'declined';
+      } else if (willPlay && willBbq) {
+        status = 'play_and_bbq';
       } else if (willPlay) {
         status = 'confirmed';
       } else {
@@ -3210,8 +3212,8 @@ const shouldShowEventLists = (league: League): boolean => {
                           <div className="space-y-2 max-h-96 overflow-y-auto">
                             {leagueMembers.map((member) => {
                               const currentAttendance = allAttendances[member.player_id];
-                              const currentlyPlaying = currentAttendance?.status === 'confirmed';
-                              const currentlyBbq = currentAttendance?.status === 'bbq_only';
+                              const currentlyPlaying = currentAttendance?.status === 'confirmed' || currentAttendance?.status === 'play_and_bbq';
+                              const currentlyBbq = currentAttendance?.status === 'bbq_only' || currentAttendance?.status === 'play_and_bbq';
 
                               return (
                                 <div
