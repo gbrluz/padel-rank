@@ -27,21 +27,12 @@ interface League {
 
 interface WeeklyAttendance {
   id: string;
-  event_id: string;
+  league_id: string;
   player_id: string;
-  status: 'confirmed' | 'declined' | 'no_response' | 'bbq_only' | 'play_and_bbq';
-  confirmed: boolean;
+  week_date: string;
+  status: 'confirmed' | 'declined' | 'no_response' | 'bbq_only';
   confirmed_at: string | null;
-  victories: number;
-  defeats: number;
-  bbq_participated: boolean;
-  blowouts_received: number;
-  blowouts_applied: number;
-  total_points: number;
-  points_submitted: boolean;
-  points_submitted_at: string | null;
   created_at: string;
-  updated_at: string;
 }
 
 interface WeeklyAttendanceWithPlayer extends WeeklyAttendance {
@@ -596,74 +587,34 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
     const nextEvent = getNextWeeklyEventDate(selectedLeague);
     if (!nextEvent) return;
 
-    const eventDate = nextEvent.toISOString().split('T')[0];
+    const weekDate = nextEvent.toISOString().split('T')[0];
 
     setManagingAttendance(playerId);
     try {
-      // Create weekly_event if it doesn't exist
-      let { data: weeklyEvent, error: eventError } = await supabase
-        .from('weekly_events')
-        .select('id')
-        .eq('league_id', selectedLeague.id)
-        .eq('event_date', eventDate)
-        .maybeSingle();
-
-      if (!weeklyEvent) {
-        const { data: newEvent, error: createError } = await supabase
-          .from('weekly_events')
-          .insert({
-            league_id: selectedLeague.id,
-            event_date: eventDate,
-          })
-          .select()
-          .single();
-
-        if (createError) throw createError;
-        weeklyEvent = newEvent;
-      }
-
-      // If neither play nor bbq, delete the attendance record
+      // Determine status based on willPlay and willBbq
+      let status: 'confirmed' | 'bbq_only' | 'declined';
       if (!willPlay && !willBbq) {
-        const { error: deleteError } = await supabase
-          .from('weekly_event_attendance')
-          .delete()
-          .eq('event_id', weeklyEvent.id)
-          .eq('player_id', playerId);
-
-        if (deleteError) throw deleteError;
+        status = 'declined';
+      } else if (willPlay) {
+        status = 'confirmed';
       } else {
-        // Determine status based on willPlay and willBbq
-        let status: 'confirmed' | 'bbq_only' | 'play_and_bbq';
-        if (willPlay && willBbq) {
-          status = 'play_and_bbq';
-        } else if (willPlay && !willBbq) {
-          status = 'confirmed';
-        } else {
-          status = 'bbq_only';
-        }
-
-        // Upsert attendance record
-        const { error: attendanceError } = await supabase
-          .from('weekly_event_attendance')
-          .upsert({
-            event_id: weeklyEvent.id,
-            player_id: playerId,
-            status: status,
-            confirmed: willPlay,
-            victories: 0,
-            defeats: 0,
-            bbq_participated: willBbq,
-            blowouts_received: 0,
-            blowouts_applied: 0,
-            total_points: 0,
-            points_submitted: false,
-            updated_at: new Date().toISOString(),
-          }, {
-            onConflict: 'event_id,player_id'
-          });
-
-        if (attendanceError) throw attendanceError;
+        status = 'bbq_only';
       }
+
+      // Upsert attendance record in league_attendance table
+      const { error: attendanceError } = await supabase
+        .from('league_attendance')
+        .upsert({
+          league_id: selectedLeague.id,
+          player_id: playerId,
+          week_date: weekDate,
+          status: status,
+          confirmed_at: new Date().toISOString(),
+        }, {
+          onConflict: 'league_id,player_id,week_date'
+        });
+
+      if (attendanceError) throw attendanceError;
 
       // Reload data
       await loadAllAttendances(selectedLeague.id);
@@ -3259,8 +3210,8 @@ const shouldShowEventLists = (league: League): boolean => {
                           <div className="space-y-2 max-h-96 overflow-y-auto">
                             {leagueMembers.map((member) => {
                               const currentAttendance = allAttendances[member.player_id];
-                              const currentlyPlaying = currentAttendance?.confirmed || false;
-                              const currentlyBbq = currentAttendance?.bbq_participated || false;
+                              const currentlyPlaying = currentAttendance?.status === 'confirmed';
+                              const currentlyBbq = currentAttendance?.status === 'bbq_only';
 
                               return (
                                 <div
