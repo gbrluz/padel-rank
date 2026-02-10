@@ -713,7 +713,12 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
         const eventTime = new Date(now);
         eventTime.setHours(hours, minutes, 0, 0);
 
-        if (now >= eventTime) {
+        // Add a 4-hour window after event starts to keep showing current event attendance
+        // Only jump to next week after event has been running for 4 hours
+        const eventEndWindow = new Date(eventTime);
+        eventEndWindow.setHours(eventEndWindow.getHours() + 4);
+
+        if (now >= eventEndWindow) {
           daysUntilEvent = 7;
         }
       }
@@ -1837,7 +1842,13 @@ export default function LeaguesPage({ onNavigate }: LeaguesPageProps) {
         const [hours, minutes] = league.weekly_time.split(':').map(Number);
         const eventTime = new Date(now);
         eventTime.setHours(hours, minutes, 0, 0);
-        if (now < eventTime) {
+
+        // Keep showing last week's event until 4 hours after current event starts
+        // This matches the logic in getNextWeeklyEventDate
+        const eventEndWindow = new Date(eventTime);
+        eventEndWindow.setHours(eventEndWindow.getHours() + 4);
+
+        if (now < eventEndWindow) {
           daysBack = 7;
         }
       }
